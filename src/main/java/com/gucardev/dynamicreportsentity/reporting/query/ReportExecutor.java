@@ -1,6 +1,7 @@
 package com.gucardev.dynamicreportsentity.reporting.query;
 
 import com.gucardev.dynamicreportsentity.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.reporting.catalog.IndexAdvisor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.ArgumentPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,12 +44,14 @@ public class ReportExecutor {
     private final JdbcTemplate jdbcTemplate;
     private final ReportingProperties properties;
     private final TransactionTemplate readOnlyTransaction;
+    private final IndexAdvisor indexAdvisor;
 
-    public ReportExecutor(ReportQueryBuilder queryBuilder, JdbcTemplate jdbcTemplate,
-                          ReportingProperties properties, PlatformTransactionManager transactionManager) {
+    public ReportExecutor(ReportQueryBuilder queryBuilder, JdbcTemplate jdbcTemplate, ReportingProperties properties,
+                          PlatformTransactionManager transactionManager, IndexAdvisor indexAdvisor) {
         this.queryBuilder = queryBuilder;
         this.jdbcTemplate = jdbcTemplate;
         this.properties = properties;
+        this.indexAdvisor = indexAdvisor;
         this.readOnlyTransaction = new TransactionTemplate(transactionManager);
         this.readOnlyTransaction.setReadOnly(true);
     }
@@ -59,7 +62,8 @@ public class ReportExecutor {
     }
 
     @Transactional(readOnly = true)
-    public ReportResult run(ReportDefinition definition, ReportViewer viewer, int page, Integer requestedSize) {
+    public ReportResult run(ReportDefinition definition, ReportViewer viewer, int page, Integer requestedSize,
+                            boolean includeTotal) {
         int size = Math.clamp(requestedSize == null ? properties.defaultPageSize() : requestedSize,
                 1, properties.maxPageSize());
         int pageNumber = Math.max(page, 0);
@@ -72,11 +76,25 @@ public class ReportExecutor {
         log.debug("Running report page {} (size {})\n{}\nparameters: {}", pageNumber, size, sql, parameters);
 
         int columnCount = query.columns().size();
+        long start = System.nanoTime();
         List<List<Object>> rows = jdbcTemplate.query(statement(sql, parameters, 0, 0),
                 (resultSet, rowNumber) -> readRow(resultSet, columnCount));
+        recordTiming(query, start);
 
         boolean hasNext = rows.size() > size;
-        return new ReportResult(query.columns(), hasNext ? rows.subList(0, size) : rows, pageNumber, size, hasNext);
+
+        Long total = null;
+        if (includeTotal) {
+            if (pageNumber == 0 && !hasNext) {
+                total = (long) rows.size(); // everything fits on the first page: no second query needed
+            } else {
+                log.debug("Counting report rows\n{}", query.countSql());
+                total = jdbcTemplate.query(statement(query.countSql(), query.parameters(), 0, 0),
+                        (resultSet, rowNumber) -> resultSet.getLong(1)).getFirst();
+            }
+        }
+        return new ReportResult(query.columns(), hasNext ? rows.subList(0, size) : rows, pageNumber, size, hasNext, total,
+                indexAdvisor.hints(query.columnUsages()));
     }
 
     /**
@@ -117,6 +135,21 @@ public class ReportExecutor {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    /**
+     * Feeds the index advisor (in-memory counters only) and warns about slow queries that use
+     * unindexed columns. Costs a few hash lookups per query; no extra database call.
+     */
+    private void recordTiming(ReportQuery query, long startNanos) {
+        long millis = (System.nanoTime() - startNanos) / 1_000_000;
+        boolean slow = millis >= properties.slowQueryThreshold().toMillis();
+        indexAdvisor.record(query.columnUsages(), millis, slow);
+        if (slow) {
+            List<String> hints = indexAdvisor.hints(query.columnUsages());
+            log.warn("Slow report query ({} ms){}\n{}", millis,
+                    hints.isEmpty() ? "" : "\nIndex hints:\n  " + String.join("\n  ", hints), query.sql());
+        }
     }
 
     private PreparedStatementCreator statement(String sql, List<Object> parameters, int fetchSize, int maxRows) {

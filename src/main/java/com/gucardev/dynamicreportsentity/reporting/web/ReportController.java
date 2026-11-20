@@ -2,6 +2,7 @@ package com.gucardev.dynamicreportsentity.reporting.web;
 
 import com.gucardev.dynamicreportsentity.reporting.ReportViewer;
 import com.gucardev.dynamicreportsentity.reporting.catalog.FieldType;
+import com.gucardev.dynamicreportsentity.reporting.catalog.IndexAdvisor;
 import com.gucardev.dynamicreportsentity.reporting.catalog.ReportCatalog;
 import com.gucardev.dynamicreportsentity.reporting.query.Aggregate;
 import com.gucardev.dynamicreportsentity.reporting.query.DateGroup;
@@ -27,6 +28,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -47,6 +49,7 @@ class ReportController {
 
     private final ReportCatalog catalog;
     private final ReportExecutor executor;
+    private final IndexAdvisor indexAdvisor;
 
     /**
      * When the screen opens: every entity with the fields this user may use and the relations to
@@ -70,13 +73,17 @@ class ReportController {
                 List.of(DateGroup.values()));
     }
 
-    /** "Run" on screen: always paged. */
+    /**
+     * "Run" on screen: always paged. {@code includeTotal=true} also returns the total row count;
+     * a UI typically asks for it once (first page) and only uses {@code hasNext} afterwards.
+     */
     @PostMapping("/run")
     public ReportResult run(@Valid @RequestBody ReportDefinition definition,
                             @RequestParam(defaultValue = "0") int page,
                             @RequestParam(required = false) Integer size,
+                            @RequestParam(defaultValue = "false") boolean includeTotal,
                             Authentication authentication) {
-        return executor.run(definition, viewer(authentication), page, size);
+        return executor.run(definition, viewer(authentication), page, size, includeTotal);
     }
 
     /**
@@ -94,12 +101,26 @@ class ReportController {
                 .body(outputStream -> executor.writeCsv(query, outputStream));
     }
 
-    /** Shows the generated SQL without executing it. Reveals schema details, so admins only. */
+    /**
+     * Shows the generated SQL without executing it, plus index hints for the columns it uses.
+     * Reveals schema details, so admins only.
+     */
     @PostMapping("/preview")
     @PreAuthorize("hasAuthority('REPORT_ADMIN')")
     public SqlPreview preview(@Valid @RequestBody ReportDefinition definition, Authentication authentication) {
         ReportQuery query = executor.prepare(definition, viewer(authentication));
-        return new SqlPreview(query.sql(), query.parameters());
+        return new SqlPreview(query.sql(), query.parameters(), indexAdvisor.hints(query.columnUsages()));
+    }
+
+    /**
+     * Index advice collected from the reports people actually ran: unindexed columns, how often and how
+     * slowly they were used, and ready-to-review DDL. Re-reads the database's indexes on each call, so
+     * columns indexed meanwhile disappear. Nothing is created automatically.
+     * Deliberately open to every report user for now (no admin split), so the advice gets seen.
+     */
+    @GetMapping("/index-advice")
+    public List<IndexAdvisor.Advice> indexAdvice() throws SQLException {
+        return indexAdvisor.advice();
     }
 
     private static ReportViewer viewer(Authentication authentication) {
@@ -123,6 +144,6 @@ class ReportController {
         }
     }
 
-    record SqlPreview(String sql, List<Object> parameters) {
+    record SqlPreview(String sql, List<Object> parameters, List<String> indexHints) {
     }
 }

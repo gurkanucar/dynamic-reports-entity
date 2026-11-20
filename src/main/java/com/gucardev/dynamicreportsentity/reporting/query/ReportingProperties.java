@@ -13,12 +13,14 @@ import java.time.Duration;
  * @param queryTimeout    statement timeout so a runaway report cannot hog the database
  * @param exportMaxRows   cap for synchronous CSV exports; bigger exports belong in a background job
  * @param exportFetchSize JDBC fetch size while streaming exports (keeps memory flat)
+ * @param slowQueryThreshold queries taking longer are logged with index hints and counted as slow
  */
 @ConfigurationProperties("reporting")
 public record ReportingProperties(
-        @DefaultValue("50") int defaultPageSize,
-        @DefaultValue("500") int maxPageSize,
+        @DefaultValue("200") int defaultPageSize,
+        @DefaultValue("5000") int maxPageSize,
         @DefaultValue("30s") Duration queryTimeout,
-        @DefaultValue("100000") int exportMaxRows,
-        @DefaultValue("1000") int exportFetchSize) {
+        @DefaultValue("1000000") int exportMaxRows,
+        @DefaultValue("1000") int exportFetchSize,
+        @DefaultValue("500ms") Duration slowQueryThreshold) {
 }

@@ -197,7 +197,24 @@ class ReportApiIntegrationTest {
         @Test
         void pageSizeIsCapped() {
             assertThat(post("/api/reports/run?size=1000000", HEADCOUNT_PER_DEPARTMENT))
-                    .hasStatusOk().bodyJson().extractingPath("$.size").isEqualTo(500);
+                    .hasStatusOk().bodyJson().extractingPath("$.size").isEqualTo(5000);
+        }
+
+        @Test
+        void totalOnlyWhenRequested() {
+            MvcTestResult withoutTotal = post("/api/reports/run?size=5", HEADCOUNT_PER_DEPARTMENT);
+            assertThat(withoutTotal).bodyJson().extractingPath("$.total").isNull();
+
+            MvcTestResult grouped = post("/api/reports/run?size=5&page=1&includeTotal=true", HEADCOUNT_PER_DEPARTMENT);
+            assertThat(grouped).bodyJson().extractingPath("$.total").isEqualTo(7);
+
+            MvcTestResult joined = post("/api/reports/run?size=3&includeTotal=true", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "fullName"}, {"field": "manager.fullName"}, {"field": "department.name"}],
+                     "where": {"field": "active", "operator": "EQ", "value": true}}
+                    """);
+            assertThat(joined).bodyJson().extractingPath("$.total").isEqualTo(18);
+            assertThat(joined).bodyJson().extractingPath("$.rows").asArray().hasSize(3);
         }
     }
 
@@ -312,6 +329,48 @@ class ReportApiIntegrationTest {
                     .hasStatus(HttpStatus.FORBIDDEN)
                     .bodyJson().extractingPath("$.detail")
                     .isEqualTo("You are not allowed to use field: Department / Members / Salary");
+        }
+    }
+
+    @Nested
+    @WithMockUser(username = "alice", authorities = "REPORT_RUN")
+    class IndexAdvice {
+
+        private static final String UNINDEXED_FILTERS = """
+                {"root": "TrainingRecord",
+                 "columns": [{"field": "personnel.fullName"}],
+                 "where": {"conditions": [
+                     {"field": "personnel.email", "operator": "CONTAINS", "value": "example"},
+                     {"field": "score", "operator": "GT", "value": 50},
+                     {"field": "completedOn", "dateGroup": "YEAR", "operator": "GTE", "value": 2020}]}}
+                """;
+
+        @Test
+        void runResponseCarriesHintsForUnindexedColumns() {
+            assertThat(post("/api/reports/run", UNINDEXED_FILTERS))
+                    .hasStatusOk().bodyJson().extractingPath("$.indexHints").asArray()
+                    .anySatisfy(hint -> assertThat((String) hint).startsWith("personnel.email [FILTER_CONTAINS]").contains("gin_trgm_ops"))
+                    .anySatisfy(hint -> assertThat((String) hint).contains("CREATE INDEX ix_training_record_score ON training_record (score);"))
+                    .anySatisfy(hint -> assertThat((String) hint).startsWith("training_record.completed_on [FILTER_EXPRESSION]"));
+        }
+
+        @Test
+        void indexedReportHasNoHints() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "TrainingRecord", "columns": [{"field": "personnel.department.name"}],
+                     "where": {"field": "nextRenewalDate", "operator": "NEXT_N_DAYS", "value": 30}}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.indexHints").asArray().isEmpty();
+        }
+
+        @Test
+        void adviceCollectsWhatWasRunAndIsOpenToReportUsers() {
+            post("/api/reports/run", UNINDEXED_FILTERS);
+
+            assertThat(mvc.get().uri("/api/reports/index-advice"))
+                    .hasStatusOk().bodyJson().extractingPath("$[*].column").asArray()
+                    .contains("email", "score", "completed_on")
+                    .doesNotContain("next_renewal_date", "personnel_id", "department_id");
         }
     }
 

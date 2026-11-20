@@ -5,6 +5,7 @@ import com.gucardev.dynamicreportsentity.reporting.ReportRowPolicy;
 import com.gucardev.dynamicreportsentity.reporting.ReportViewer;
 import com.gucardev.dynamicreportsentity.reporting.RowRestriction;
 import com.gucardev.dynamicreportsentity.reporting.catalog.CatalogField;
+import com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage;
 import com.gucardev.dynamicreportsentity.reporting.catalog.FieldType;
 import com.gucardev.dynamicreportsentity.reporting.catalog.Navigation;
 import com.gucardev.dynamicreportsentity.reporting.catalog.ReportCatalog;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,6 +70,7 @@ public class ReportQueryBuilder {
         private final JoinNode root;
         private final Map<String, JoinNode> nodes = new LinkedHashMap<>();
         private final List<Measure> measures = new ArrayList<>();
+        private final Set<ColumnUsage> usages = new LinkedHashSet<>();
         private int conditionCount;
 
         Assembly(ReportableEntity rootEntity, ReportViewer viewer) {
@@ -114,6 +117,9 @@ public class ReportQueryBuilder {
                 if (ordered.add(measure.sql())) {
                     orderBy.add(measure.sql() + " " + sort.direction());
                 }
+                if (!grouped && sort.dateGroup() == null && measure.ref() != null) {
+                    use(measure.ref(), ColumnUsage.Kind.SORT);
+                }
             }
 
             checkFanOut();
@@ -125,10 +131,9 @@ public class ReportQueryBuilder {
                     .toList();
             tieBreakers.stream().filter(ordered::add).forEach(orderBy::add);
 
+            // Everything after SELECT and before ORDER BY; shared by the data and the count query.
             List<Object> parameters = new ArrayList<>();
-            StringBuilder sql = new StringBuilder("SELECT ")
-                    .append(columns.stream().map(Measure::sql).collect(joining(", ")))
-                    .append("\nFROM ").append(root.entity.table()).append(' ').append(root.alias);
+            StringBuilder sql = new StringBuilder("\nFROM ").append(root.entity.table()).append(' ').append(root.alias);
             for (JoinNode node : nodes.values()) {
                 if (node == root) {
                     continue;
@@ -138,6 +143,7 @@ public class ReportQueryBuilder {
                         .append(" = ").append(node.parent.alias).append('.').append(node.navigation.parentColumn());
                 node.onConditions.forEach(condition -> sql.append(" AND ").append(condition));
                 parameters.addAll(node.onParameters);
+                usages.add(new ColumnUsage(node.entity.table(), node.navigation.joinColumn(), ColumnUsage.Kind.JOIN));
             }
             if (!where.isEmpty()) {
                 sql.append("\nWHERE ").append(String.join("\n  AND ", where));
@@ -150,9 +156,15 @@ public class ReportQueryBuilder {
                 sql.append("\nHAVING ").append(having);
                 parameters.addAll(havingParameters);
             }
-            if (!orderBy.isEmpty()) {
-                sql.append("\nORDER BY ").append(String.join(", ", orderBy));
+            String body = sql.toString();
+            String dataSql = "SELECT " + columns.stream().map(Measure::sql).collect(joining(", ")) + body
+                    + (orderBy.isEmpty() ? "" : "\nORDER BY " + String.join(", ", orderBy));
+            // Unique aliases: derived tables must not have duplicate column names (t0.name, t1.name).
+            List<String> aliased = new ArrayList<>();
+            for (int i = 0; i < columns.size(); i++) {
+                aliased.add(columns.get(i).sql() + " AS c" + i);
             }
+            String countSql = "SELECT COUNT(*) FROM (SELECT " + String.join(", ", aliased) + body + "\n) report";
 
             List<ResultColumn> resultColumns = new ArrayList<>();
             for (int i = 0; i < columns.size(); i++) {
@@ -162,7 +174,12 @@ public class ReportQueryBuilder {
                 resultColumns.add(new ResultColumn(requested.field(), requested.aggregate(), requested.dateGroup(),
                         label, measure.type()));
             }
-            return new ReportQuery(sql.toString(), Collections.unmodifiableList(parameters), List.copyOf(resultColumns));
+            return new ReportQuery(dataSql, Collections.unmodifiableList(parameters), List.copyOf(resultColumns), countSql,
+                    List.copyOf(usages));
+        }
+
+        private void use(FieldRef ref, ColumnUsage.Kind kind) {
+            usages.add(new ColumnUsage(ref.node().entity.table(), ref.field().column(), kind));
         }
 
         // ---- paths ---------------------------------------------------------------------------
@@ -273,8 +290,13 @@ public class ReportQueryBuilder {
             if (!having && condition.aggregate() != null) {
                 throw new InvalidReportException("Aggregates can only be filtered in 'having'");
             }
-            return predicate(measure(condition.field(), condition.dateGroup(), condition.aggregate()),
-                    condition.operator(), condition.value(), parameters);
+            Measure measure = measure(condition.field(), condition.dateGroup(), condition.aggregate());
+            if (!having && measure.ref() != null) {
+                use(measure.ref(), condition.dateGroup() != null ? ColumnUsage.Kind.FILTER_EXPRESSION
+                        : condition.operator() == FilterOperator.CONTAINS ? ColumnUsage.Kind.FILTER_CONTAINS
+                        : ColumnUsage.Kind.FILTER);
+            }
+            return predicate(measure, condition.operator(), condition.value(), parameters);
         }
 
         private String predicate(Measure measure, FilterOperator operator, Object value, List<Object> parameters) {
@@ -370,7 +392,11 @@ public class ReportQueryBuilder {
                         String condition;
                         if (node.entity.name().equals(restricted.name())) {
                             condition = matches(node.alias + "." + column, restriction.value(), conditionParameters);
+                            usages.add(new ColumnUsage(restricted.table(), column, ColumnUsage.Kind.FILTER));
                         } else if (node.entity.ownerColumns().containsKey(restricted.name())) {
+                            usages.add(new ColumnUsage(restricted.table(), column, ColumnUsage.Kind.FILTER));
+                            usages.add(new ColumnUsage(node.entity.table(),
+                                    node.entity.ownerColumns().get(restricted.name()), ColumnUsage.Kind.FILTER));
                             condition = node.alias + "." + node.entity.ownerColumns().get(restricted.name())
                                     + " IN (SELECT o." + restricted.idColumns().getFirst() + " FROM " + restricted.table()
                                     + " o WHERE " + matches("o." + column, restriction.value(), conditionParameters) + ")";

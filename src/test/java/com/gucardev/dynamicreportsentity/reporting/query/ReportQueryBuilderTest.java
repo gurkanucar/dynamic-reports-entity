@@ -245,6 +245,19 @@ class ReportQueryBuilderTest {
         }
 
         @Test
+        void countQueryWrapsTheSameRowsWithoutOrderBy() {
+            ReportQuery query = build(new ReportDefinition("Customer", columns("name", "referredBy.name"),
+                    where("region", EQ, "EU"), null, null));
+
+            assertThat(query.countSql()).isEqualTo("""
+                    SELECT COUNT(*) FROM (SELECT t0.name AS c0, t1.name AS c1
+                    FROM customer t0
+                    LEFT JOIN customer t1 ON t1.id = t0.referred_by_id
+                    WHERE t0.region = ?
+                    ) report""");
+        }
+
+        @Test
         void onlyAggregatesGiveASingleTotalsRow() {
             ReportQuery query = build("PurchaseOrder", List.of(ReportColumn.of(SUM, "total"), ReportColumn.of(AVG, "total")));
 
@@ -369,6 +382,25 @@ class ReportQueryBuilderTest {
             assertInvalid(new ReportDefinition("PurchaseOrder",
                             List.of(new ReportColumn(null, COUNT, null, DateGroup.YEAR)), null, null, null),
                     "A field is required");
+        }
+    }
+
+    @Nested
+    class ColumnUsages {
+
+        @Test
+        void recordsHowEachColumnIsUsed() {
+            ReportQuery query = build(new ReportDefinition("PurchaseOrder", columns("total", "customer.name"),
+                    and(where("customer.name", CONTAINS, "a"), where("orderDate", DateGroup.YEAR, EQ, 2026),
+                            where("total", GT, 5)),
+                    null, List.of(ReportSort.desc("customer.region"))));
+
+            assertThat(query.columnUsages()).containsExactlyInAnyOrder(
+                    new com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage("customer", "name", com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage.Kind.FILTER_CONTAINS),
+                    new com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage("purchase_order", "order_date", com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage.Kind.FILTER_EXPRESSION),
+                    new com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage("purchase_order", "total", com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage.Kind.FILTER),
+                    new com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage("customer", "region", com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage.Kind.SORT),
+                    new com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage("customer", "id", com.gucardev.dynamicreportsentity.reporting.catalog.ColumnUsage.Kind.JOIN));
         }
     }
 

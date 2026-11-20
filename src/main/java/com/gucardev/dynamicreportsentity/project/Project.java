@@ -8,6 +8,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,7 +18,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(name = "project")
+@Table(name = "project", indexes = @Index(name = "ix_project_department_id", columnList = "department_id"))
 @Reportable(label = "Project")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
