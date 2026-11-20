@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
+
 import com.gucardev.dynamicreportsentity.platform.flow.mail.MailTemplate;
 import com.gucardev.dynamicreportsentity.platform.flow.mail.MailTemplateService;
 import com.gucardev.dynamicreportsentity.platform.flow.web.FlowRequests.PreviewRequest;

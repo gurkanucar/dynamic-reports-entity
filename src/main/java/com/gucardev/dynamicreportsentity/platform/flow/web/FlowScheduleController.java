@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
+
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowSchedule;
 import com.gucardev.dynamicreportsentity.platform.flow.core.ScheduleService;
 import com.gucardev.dynamicreportsentity.platform.flow.web.FlowRequests.ScheduleRequest;

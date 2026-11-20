@@ -1,4 +1,4 @@
-package com.gucardev.dynamicreportsentity.platform.flow.web;
+package com.gucardev.dynamicreportsentity.platform.api;
 
 import org.springframework.data.domain.Page;
 

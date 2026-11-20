@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import com.gucardev.dynamicreportsentity.platform.api.Problems;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
@@ -17,11 +18,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import tools.jackson.databind.exc.InvalidTypeIdException;
 
-import java.net.URI;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Errors of the flow API as RFC 9457 problems with a stable {@code code} and a {@code traceId}
@@ -115,36 +113,6 @@ class FlowApiExceptionHandler {
 
     private static ProblemDetail problem(HttpStatus status, String code, String detail, List<FieldProblem> errors,
                                          HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatus(status);
-        problem.setType(URI.create("/problems/" + code.toLowerCase(Locale.ROOT).replace('_', '-')));
-        problem.setTitle(title(status));
-        problem.setDetail(detail);
-        problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("code", code);
-        problem.setProperty("traceId", traceId(request));
-        if (!errors.isEmpty()) {
-            problem.setProperty("errors", errors);
-        }
-        return problem;
-    }
-
-    private static String title(HttpStatus status) {
-        return switch (status) {
-            case UNPROCESSABLE_CONTENT -> "Validation failed";
-            case NOT_FOUND -> "Not found";
-            case CONFLICT -> "Conflict with the current state";
-            case FORBIDDEN -> "Forbidden";
-            case PRECONDITION_FAILED -> "The record has changed";
-            case PRECONDITION_REQUIRED -> "Version required";
-            case GONE -> "No longer available";
-            case INTERNAL_SERVER_ERROR -> "Unexpected error";
-            default -> "Bad request";
-        };
-    }
-
-    private static String traceId(HttpServletRequest request) {
-        String requestId = request.getHeader("X-Request-Id");
-        return requestId != null && requestId.matches("[\\w-]{1,64}") ? requestId
-                : UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+        return Problems.of(status, code, detail, errors, request);
     }
 }

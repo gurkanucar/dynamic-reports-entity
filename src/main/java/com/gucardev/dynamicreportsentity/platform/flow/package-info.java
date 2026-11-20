@@ -6,7 +6,7 @@
  * steps and claims them under a lease, exactly like dataset refreshes in the reporting module. See
  * {@link com.gucardev.dynamicreportsentity.platform.flow.core.FlowEngine}.
  */
-@ApplicationModule(id = "flow", displayName = "Flows", allowedDependencies = {"reporting", "reporting :: query", "storage"})
+@ApplicationModule(id = "flow", displayName = "Flows", allowedDependencies = {"api", "reporting", "reporting :: query", "storage"})
 package com.gucardev.dynamicreportsentity.platform.flow;
 
 import org.springframework.modulith.ApplicationModule;
