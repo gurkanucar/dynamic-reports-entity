@@ -7,9 +7,9 @@ import java.util.List;
  *
  * @param count          rows on this page
  * @param hasNext        whether another page follows (free: one extra row is fetched)
- * @param total          rows in the whole report. Returned by default; a separate {@code COUNT(*)} query runs only
- *                       when there is a next page (otherwise it is derived from the page). {@code null} when the
- *                       caller opted out with {@code includeTotal=false}.
+ * @param total          rows in the whole report, only with {@code includeTotal=true} (off by default, else
+ *                       {@code null}); a separate {@code COUNT(*)} query runs only when there is a next page
+ *                       (otherwise it is derived from the page).
  * @param truncatedLists labels of LIST columns where at least one cell hit its limit and was cut
  * @param indexHints     columns this report used that no index serves, with suggested DDL (empty if all good)
  */

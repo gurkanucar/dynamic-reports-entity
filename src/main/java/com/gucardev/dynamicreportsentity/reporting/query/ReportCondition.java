@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.reporting.query;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 
 import java.util.List;
@@ -40,6 +41,7 @@ public record ReportCondition(Logic logic,
 
     public enum Logic { AND, OR }
 
+    @JsonIgnore
     public boolean isGroup() {
         return conditions != null;
     }

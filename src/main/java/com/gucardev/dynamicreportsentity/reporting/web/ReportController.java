@@ -74,15 +74,15 @@ class ReportController {
     }
 
     /**
-     * "Run" on screen: always paged; returns the page's row count and the report's total by default.
-     * {@code includeTotal=false} skips the total for very heavy reports (it is the only part that may
-     * need a second query, and only when there is a next page).
+     * "Run" on screen: always paged; returns the page's row count and {@code hasNext}.
+     * The report's total is off by default: on big data its {@code COUNT(*)} over every matching row
+     * costs more than the page itself (perf/README.md). {@code includeTotal=true} turns it on.
      */
     @PostMapping("/run")
     public ReportResult run(@Valid @RequestBody ReportDefinition definition,
                             @RequestParam(defaultValue = "0") int page,
                             @RequestParam(required = false) Integer size,
-                            @RequestParam(defaultValue = "true") boolean includeTotal,
+                            @RequestParam(defaultValue = "false") boolean includeTotal,
                             Authentication authentication) {
         return executor.run(definition, viewer(authentication), page, size, includeTotal);
     }
@@ -124,7 +124,7 @@ class ReportController {
         return indexAdvisor.advice();
     }
 
-    private static ReportViewer viewer(Authentication authentication) {
+    static ReportViewer viewer(Authentication authentication) {
         return new ReportViewer(authentication.getName(), authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(Objects::nonNull)

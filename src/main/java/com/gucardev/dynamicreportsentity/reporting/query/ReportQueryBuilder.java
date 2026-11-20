@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -71,6 +72,7 @@ public class ReportQueryBuilder {
     private final ReportCatalog catalog;
     private final Clock clock;
     private final List<ReportRowPolicy> rowPolicies;
+    private final SqlDialect dialect;
 
     public ReportQuery build(ReportDefinition definition, ReportViewer viewer) {
         ReportableEntity root = catalog.entity(definition.root())
@@ -91,6 +93,7 @@ public class ReportQueryBuilder {
         /** Parameters of correlated subqueries in the SELECT list, i.e. before FROM. */
         private final List<Object> selectParameters = new ArrayList<>();
         private final List<DerivedJoin> derivedJoins = new ArrayList<>();
+        private final Map<String, Measure> groupAggregates = new HashMap<>();
         private List<RowRestriction> restrictions;
         private int conditionCount;
 
@@ -155,7 +158,7 @@ public class ReportQueryBuilder {
                 }
                 List<Object> sortParameters = new ArrayList<>();
                 Measure measure = perRoot && sort.aggregate() != null
-                        ? childAggregate(sort.field(), sort.dateGroup(), sort.aggregate(), null, null, null, null, sortParameters)
+                        ? perRootFilterValue(sort.field(), sort.dateGroup(), sort.aggregate(), sortParameters)
                         : measure(sort.field(), sort.dateGroup(), sort.aggregate());
                 if (grouped && !measure.aggregated() && !groupBy.contains(measure.sql())) {
                     throw new InvalidReportException("Cannot sort by '" + sort.field()
@@ -420,7 +423,7 @@ public class ReportQueryBuilder {
                 throw new InvalidReportException("A LIST cannot be compared; use COUNT, SUM, AVG, MIN or MAX");
             }
             if (path != null && pathHasToMany(path)) {
-                return groupAggregateJoin(path, aggregate, otherWhere);
+                return groupAggregateJoin(path, null, aggregate, otherWhere);
             }
             if (path == null || path.contains(".")) {
                 throw new InvalidReportException("'otherField' with 'otherAggregate' must cross a one-to-many relation "
@@ -450,7 +453,19 @@ public class ReportQueryBuilder {
          * GROUP BY s1_0.department_id) g2 ON g2.k = t1.id}, compared as {@code g2.v}. A correlated subquery
          * here would re-scan the whole group for every row (100k people x 2k colleagues).
          */
-        private Measure groupAggregateJoin(String path, Aggregate aggregate, ReportCondition otherWhere) {
+        private Measure groupAggregateJoin(String path, DateGroup dateGroup, Aggregate aggregate, ReportCondition otherWhere) {
+            if (path == null || path.isBlank()) {
+                throw new InvalidReportException("A field is required for " + aggregate + " in per-root mode");
+            }
+            if (aggregate == Aggregate.LIST) {
+                throw new InvalidReportException("A LIST cannot be compared or sorted; use COUNT, SUM, AVG, MIN or MAX");
+            }
+            // the same aggregate in "having" and "sort" (or twice) shares one derived table
+            String key = path + "|" + dateGroup + "|" + aggregate + "|" + otherWhere;
+            Measure cached = groupAggregates.get(key);
+            if (cached != null) {
+                return cached;
+            }
             ChildScope scope = childScope(path, false);
             Assembly sub = scope.sub();
             List<String> where = new ArrayList<>();
@@ -458,7 +473,7 @@ public class ReportQueryBuilder {
             if (otherWhere != null) {
                 where.add(sub.render(otherWhere, false, false, whereParameters, 1));
             }
-            Measure measure = sub.measure(scope.remaining(), null, aggregate);
+            Measure measure = sub.measure(scope.remaining(), dateGroup, aggregate);
             sub.checkFanOut(true);
             sub.applyRowRestrictions(where, whereParameters);
             List<Object> parameters = new ArrayList<>();
@@ -466,18 +481,32 @@ public class ReportQueryBuilder {
             parameters.addAll(whereParameters);
             usages.addAll(sub.usages);
             String alias = "g" + (++scopeCounter[0]);
-            // "ORDER BY k LIMIT ..." is there for H2: without it H2 treats the derived table like a view and
-            // re-runs it for every outer row (43 s on 100k people); with it the groups are computed once
-            // (~1 s). PostgreSQL hash-aggregates once either way; the sort only touches the group rows.
             String derived = "(SELECT " + scope.innerKey() + " AS k, " + measure.sql() + " AS v " + from
                     + (where.isEmpty() ? "" : " WHERE " + String.join(" AND ", where))
-                    + " GROUP BY " + scope.innerKey() + " ORDER BY k LIMIT " + Integer.MAX_VALUE + ")";
+                    + " GROUP BY " + scope.innerKey() + dialect.materializeDerivedTable() + ")";
             derivedJoins.add(new DerivedJoin("LEFT JOIN " + derived + " " + alias + " ON " + alias + ".k = " + scope.outerKey(),
                     parameters));
             // an empty group has no row in the derived table: a count of 0, not NULL
             String value = aggregate == Aggregate.COUNT || aggregate == Aggregate.COUNT_DISTINCT
                     ? "COALESCE(" + alias + ".v, 0)" : alias + ".v";
-            return Measure.of(null, aggregate, value, measure.type(), measure.label());
+            Measure result = Measure.of(null, aggregate, value, measure.type(), measure.label());
+            groupAggregates.put(key, result);
+            return result;
+        }
+
+        /**
+         * A child aggregate used by a per-root "having" or sort. Unlike the columns (evaluated only for the
+         * rows of the page) these are needed for every root row, so where the database supports it they are
+         * computed in one pass per group and joined ({@link #groupAggregateJoin}, shared by having and sort);
+         * otherwise a correlated subquery. See {@link SqlDialect#preAggregatesPerRootFilters()}.
+         */
+        private Measure perRootFilterValue(String path, DateGroup dateGroup, Aggregate aggregate, List<Object> parameters) {
+            if (aggregate == null) {
+                throw new InvalidReportException("A 'having' condition needs an aggregate (field '" + path + "')");
+            }
+            return dialect.preAggregatesPerRootFilters()
+                    ? groupAggregateJoin(path, dateGroup, aggregate, null)
+                    : childAggregate(path, dateGroup, aggregate, null, null, null, null, parameters);
         }
 
         private int listLimit(Integer limit) {
@@ -717,7 +746,7 @@ public class ReportQueryBuilder {
             }
 
             Measure measure = having && perRoot
-                    ? childAggregate(condition.field(), condition.dateGroup(), condition.aggregate(), null, null, null, null, parameters)
+                    ? perRootFilterValue(condition.field(), condition.dateGroup(), condition.aggregate(), parameters)
                     : measure(condition.field(), condition.dateGroup(), condition.aggregate());
             if (!having && measure.ref() != null) {
                 use(measure.ref(), condition.dateGroup() != null ? ColumnUsage.Kind.FILTER_EXPRESSION
@@ -836,7 +865,9 @@ public class ReportQueryBuilder {
         /** The viewer's restrictions, asked from the policies once per build and shared with child scopes. */
         private List<RowRestriction> restrictions() {
             if (restrictions == null) {
-                restrictions = rowPolicies.stream().flatMap(policy -> policy.restrictionsFor(viewer).stream()).toList();
+                // the system viewer (snapshot refresh) sees every row; snapshots are guarded when read
+                restrictions = viewer.system() ? List.of()
+                        : rowPolicies.stream().flatMap(policy -> policy.restrictionsFor(viewer).stream()).toList();
             }
             return restrictions;
         }

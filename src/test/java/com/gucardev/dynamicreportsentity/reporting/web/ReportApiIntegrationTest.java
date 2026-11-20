@@ -236,23 +236,23 @@ class ReportApiIntegrationTest {
         }
 
         @Test
-        void countAndTotalByDefault() {
+        void countAndTotalOnRequest() {
             // first page with a next page: total comes from the COUNT query
-            MvcTestResult first = post("/api/reports/run?size=5", HEADCOUNT_PER_DEPARTMENT);
+            MvcTestResult first = post("/api/reports/run?size=5&includeTotal=true", HEADCOUNT_PER_DEPARTMENT);
             assertThat(first).bodyJson().extractingPath("$.count").isEqualTo(5);
             assertThat(first).bodyJson().extractingPath("$.total").isEqualTo(7);
 
             // last page: total derived from the page, no second query
-            MvcTestResult last = post("/api/reports/run?size=5&page=1", HEADCOUNT_PER_DEPARTMENT);
+            MvcTestResult last = post("/api/reports/run?size=5&page=1&includeTotal=true", HEADCOUNT_PER_DEPARTMENT);
             assertThat(last).bodyJson().extractingPath("$.count").isEqualTo(2);
             assertThat(last).bodyJson().extractingPath("$.total").isEqualTo(7);
 
             // past the end: empty page, total still correct
-            MvcTestResult beyond = post("/api/reports/run?size=5&page=9", HEADCOUNT_PER_DEPARTMENT);
+            MvcTestResult beyond = post("/api/reports/run?size=5&page=9&includeTotal=true", HEADCOUNT_PER_DEPARTMENT);
             assertThat(beyond).bodyJson().extractingPath("$.count").isEqualTo(0);
             assertThat(beyond).bodyJson().extractingPath("$.total").isEqualTo(7);
 
-            MvcTestResult joined = post("/api/reports/run?size=3", """
+            MvcTestResult joined = post("/api/reports/run?size=3&includeTotal=true", """
                     {"root": "Personnel",
                      "columns": [{"field": "fullName"}, {"field": "manager.fullName"}, {"field": "department.name"}],
                      "where": {"field": "active", "operator": "EQ", "value": true}}
@@ -262,9 +262,11 @@ class ReportApiIntegrationTest {
         }
 
         @Test
-        void totalCanBeSkipped() {
-            assertThat(post("/api/reports/run?size=5&includeTotal=false", HEADCOUNT_PER_DEPARTMENT))
-                    .bodyJson().extractingPath("$.total").isNull();
+        void noTotalByDefault() {
+            MvcTestResult result = post("/api/reports/run?size=5", HEADCOUNT_PER_DEPARTMENT);
+            assertThat(result).bodyJson().extractingPath("$.total").isNull();
+            assertThat(result).bodyJson().extractingPath("$.count").isEqualTo(5);
+            assertThat(result).bodyJson().extractingPath("$.hasNext").isEqualTo(true);
         }
     }
 

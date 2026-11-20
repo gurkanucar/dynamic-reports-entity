@@ -23,6 +23,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -142,6 +143,36 @@ public class ReportExecutor {
         });
     }
 
+    /** Receives the rows of {@link #forEachRow}, one at a time. */
+    @FunctionalInterface
+    public interface RowConsumer {
+        void accept(List<Object> row);
+    }
+
+    /**
+     * Streams every row of the query (LIST cells as lists, like {@link #run}) to {@code consumer}; used to
+     * fill dataset snapshots. Fails with {@link InvalidReportException} when there are more than
+     * {@code maxRows} rows, so a snapshot is never silently cut.
+     *
+     * @return the number of rows
+     */
+    public long forEachRow(ReportQuery query, int maxRows, Duration timeout, RowConsumer consumer) {
+        log.debug("Streaming report\n{}\nparameters: {}", query.sql(), query.parameters());
+        long start = System.nanoTime();
+        long[] rowCount = {0};
+        readOnlyTransaction.executeWithoutResult(status -> jdbcTemplate.query(
+                statement(query.sql(), query.parameters(), properties.exportFetchSize(), maxRows + 1, timeout),
+                (RowCallbackHandler) resultSet -> {
+                    if (++rowCount[0] > maxRows) {
+                        throw new InvalidReportException("The report has more than " + maxRows
+                                + " rows; narrow the filters or raise reporting.dataset-max-rows");
+                    }
+                    consumer.accept(readRow(resultSet, query.columns(), new TreeSet<>()));
+                }));
+        recordTiming(query, start);
+        return rowCount[0];
+    }
+
     /**
      * Feeds the index advisor (in-memory counters only) and warns about slow queries that use
      * unindexed columns. Costs a few hash lookups per query; no extra database call.
@@ -158,9 +189,14 @@ public class ReportExecutor {
     }
 
     private PreparedStatementCreator statement(String sql, List<Object> parameters, int fetchSize, int maxRows) {
+        return statement(sql, parameters, fetchSize, maxRows, properties.queryTimeout());
+    }
+
+    private PreparedStatementCreator statement(String sql, List<Object> parameters, int fetchSize, int maxRows,
+                                               Duration timeout) {
         return connection -> {
             PreparedStatement statement = connection.prepareStatement(sql);
-            statement.setQueryTimeout(Math.toIntExact(properties.queryTimeout().toSeconds()));
+            statement.setQueryTimeout(Math.toIntExact(timeout.toSeconds()));
             if (fetchSize > 0) {
                 statement.setFetchSize(fetchSize);
             }

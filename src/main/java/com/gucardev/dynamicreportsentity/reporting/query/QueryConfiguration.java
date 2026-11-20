@@ -4,6 +4,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Clock;
 
 @Configuration(proxyBeanMethods = false)
@@ -14,5 +17,12 @@ class QueryConfiguration {
     @Bean
     Clock reportClock() {
         return Clock.systemDefaultZone();
+    }
+
+    @Bean
+    SqlDialect sqlDialect(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection()) {
+            return SqlDialect.fromProductName(connection.getMetaData().getDatabaseProductName());
+        }
     }
 }

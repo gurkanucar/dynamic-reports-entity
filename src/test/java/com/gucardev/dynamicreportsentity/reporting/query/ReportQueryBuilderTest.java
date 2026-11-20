@@ -120,8 +120,12 @@ class ReportQueryBuilderTest {
             PurchaseOrder.class, OrderLine.class, Product.class, Tag.class, ProductTag.class, Warehouse.class));
 
     private ReportQueryBuilder builder(ReportRowPolicy... policies) {
+        return builder(SqlDialect.H2, policies);
+    }
+
+    private ReportQueryBuilder builder(SqlDialect dialect, ReportRowPolicy... policies) {
         return new ReportQueryBuilder(catalog,
-                Clock.fixed(TODAY.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC), List.of(policies));
+                Clock.fixed(TODAY.atStartOfDay().toInstant(ZoneOffset.UTC), ZoneOffset.UTC), List.of(policies), dialect);
     }
 
     private ReportQuery build(String root, List<ReportColumn> columns) {
@@ -666,6 +670,7 @@ class ReportQueryBuilderTest {
             ReportQuery query = build(new ReportDefinition("Customer", perCustomer, null,
                     where(SUM, "orders.total", GT, 1000), List.of(new ReportSort("orders.total", SUM, Direction.DESC)), true));
 
+            // H2: correlated subqueries everywhere (it cannot index a joined derived table)
             assertThat(query.sql())
                     .contains("(SELECT COUNT(s1_0.total) FROM purchase_order s1_0 WHERE s1_0.customer_id = t0.id)",
                             "(SELECT SUM(s2_0.total) FROM purchase_order s2_0 WHERE s2_0.customer_id = t0.id)",
@@ -673,6 +678,33 @@ class ReportQueryBuilderTest {
                             "ORDER BY (SELECT SUM(s5_0.total) FROM purchase_order s5_0 WHERE s5_0.customer_id = t0.id) DESC, t0.id")
                     .doesNotContain("GROUP BY", "HAVING");
             assertThat(query.parameters()).containsExactly(1000);
+        }
+
+        @Test
+        void postgresPreAggregatesHavingAndSortOnceAndSharesThem() {
+            ReportQuery query = builder(SqlDialect.POSTGRESQL).build(new ReportDefinition("Customer", perCustomer, null,
+                    where(SUM, "orders.total", GT, 1000), List.of(new ReportSort("orders.total", SUM, Direction.DESC)), true),
+                    USER);
+
+            // columns stay correlated (evaluated only for the page); filter and sort need every customer's
+            // value: one GROUP BY pass, joined once, used by both
+            assertThat(query.sql())
+                    .contains("(SELECT SUM(s2_0.total) FROM purchase_order s2_0 WHERE s2_0.customer_id = t0.id)",
+                            "\nLEFT JOIN (SELECT s4_0.customer_id AS k, SUM(s4_0.total) AS v FROM purchase_order s4_0"
+                                    + " GROUP BY s4_0.customer_id) g5 ON g5.k = t0.id",
+                            "\nWHERE g5.v > ?",
+                            "\nORDER BY g5.v DESC, t0.id")
+                    .doesNotContain("\nGROUP BY", "HAVING", "LIMIT");
+            assertThat(query.sql().split("LEFT JOIN \\(SELECT", -1)).hasSize(2);
+            assertThat(query.parameters()).containsExactly(1000);
+        }
+
+        @Test
+        void postgresPerRootCountFilterTreatsNoChildrenAsZero() {
+            ReportQuery query = builder(SqlDialect.POSTGRESQL).build(new ReportDefinition("Customer", perCustomer, null,
+                    where(COUNT, "orders.total", FilterOperator.LT, 1), List.of(), true), USER);
+
+            assertThat(query.sql()).contains("WHERE COALESCE(g5.v, 0) < ?");
         }
 
         @Test

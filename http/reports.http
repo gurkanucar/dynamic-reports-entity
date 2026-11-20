@@ -370,7 +370,7 @@ Content-Type: application/json
 # ===================================================================================================
 # Tables: project_assignment, project, department x3 (owning team, its division, person's team),
 #         personnel x2 (person, line manager), personnel_profile
-POST http://localhost:8080/api/reports/run?size=100&includeTotal=true
+POST http://localhost:8080/api/reports/run?size=100
 Authorization: Basic admin password
 Content-Type: application/json
 
@@ -814,3 +814,84 @@ Content-Type: application/json
   ]},
   "sort": [{"field": "training.name"}, {"field": "score"}]
 }
+
+### 48. Dataset (Expect 201): save Department 360 (#33, ~7 s live on 1M people) as a SNAPSHOT refreshed every 6 hours
+# A dataset is a saved report that flows read by name. SNAPSHOT: computed in the background into a snapshot
+# table (first build starts right away), re-built every refreshEveryHours hours; reads are a plain paged SELECT.
+# LIVE: the saved report runs on every read, as the reader. Defining needs REPORT_ADMIN.
+POST http://localhost:8080/api/datasets
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "name": "department_360",
+  "label": "Department 360",
+  "description": "Teams with sub-teams, skills, training categories, cities and projects",
+  "mode": "SNAPSHOT",
+  "refreshEveryHours": 6,
+  "definition": {
+    "root": "Department",
+    "columns": [
+      {"field": "name"},
+      {"field": "parent.name",              "label": "Division"},
+      {"field": "manager.fullName",         "label": "Manager"},
+      {"field": "subDepartments.name",                          "aggregate": "LIST", "label": "Sub-teams"},
+      {"field": "members.skills.skill.name",                    "aggregate": "LIST", "label": "Skills in Team"},
+      {"field": "members.trainingRecords.training.category",    "aggregate": "LIST", "label": "Training Categories"},
+      {"field": "members.profile.city",                         "aggregate": "LIST", "label": "Cities"},
+      {"field": "projects.code",                                "aggregate": "LIST", "label": "Projects Owned"},
+      {"field": "projects.assignments.role",                    "aggregate": "LIST", "label": "Roles on Own Projects"}
+    ],
+    "where": {"field": "parent.name", "operator": "IS_NOT_NULL"},
+    "sort": [{"field": "parent.name"}, {"field": "name"}]
+  }
+}
+
+### 49. Dataset: refresh now and wait (also waits for a refresh already running); answers with rowCount, refreshMillis
+POST http://localhost:8080/api/datasets/department_360/refresh
+Authorization: Basic admin password
+
+### 50. Dataset: read a page of the snapshot (same shape as /run, plus refreshedAt; total is free)
+GET http://localhost:8080/api/datasets/department_360/rows?size=50
+Authorization: Basic admin password
+
+### 51. Dataset: definition and refresh state (status, rowCount, refreshedAt, nextRefreshAt, lastError)
+GET http://localhost:8080/api/datasets/department_360
+Authorization: Basic admin password
+
+### 52. Dataset (Expect 403): carol's rows are limited by row-level security, a snapshot of every row is not for her
+GET http://localhost:8080/api/datasets/department_360/rows
+Authorization: Basic carol password
+
+### 53. Dataset (Expect 201): the same idea as LIVE: runs on every read, with the reader's permissions
+POST http://localhost:8080/api/datasets
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "name": "headcount_live",
+  "label": "Headcount per department (live)",
+  "mode": "LIVE",
+  "definition": {
+    "root": "Personnel",
+    "columns": [{"field": "department.name"}, {"aggregate": "COUNT", "label": "Headcount"}],
+    "where": {"field": "active", "operator": "EQ", "value": true},
+    "sort": [{"field": "department.name"}]
+  }
+}
+
+### 54. Dataset: carol reads the LIVE dataset and gets only her department
+GET http://localhost:8080/api/datasets/headcount_live/rows
+Authorization: Basic carol password
+
+### 55. Dataset: all datasets (any report user)
+GET http://localhost:8080/api/datasets
+Authorization: Basic alice password
+
+### 56. Dataset (Expect 204): delete (drops the snapshot table too)
+DELETE http://localhost:8080/api/datasets/department_360
+Authorization: Basic admin password
+
+### 57. Dataset (Expect 204): delete
+DELETE http://localhost:8080/api/datasets/headcount_live
+Authorization: Basic admin password
