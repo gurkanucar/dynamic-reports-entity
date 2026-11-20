@@ -26,6 +26,11 @@ http:
   # ---- schedules -----------------------------------------------------------------------------------
   SCHEDULE_NOT_FOUND:      { status: 404, message: "The schedule does not exist or is not visible to you." }
   SCHEDULE_LIMIT_REACHED:  { status: 409, message: "The flow already has the maximum number of schedules." }
+  # ---- session and assistant ----------------------------------------------------------------------
+  INVALID_CREDENTIALS:     { status: 401, message: "Wrong username or password." }
+  ASSISTANT_DISABLED:      { status: 503, message: "The report assistant is not configured." }
+  LAST_MESSAGE_NOT_FROM_USER: { status: 422, message: "The last message must be the user's request." }
+  SUGGESTION_NOT_FOUND:    { status: 404, message: "The suggestion does not exist or is not yours." }
   # ---- mail templates ------------------------------------------------------------------------------
   TEMPLATE_NOT_FOUND:      { status: 404, message: "The mail template does not exist." }
   NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a report admin may change the template." }

@@ -1,0 +1,232 @@
+openapi: 3.1.0
+info:
+  title: Report assistant and session API
+  version: 1.0.0
+  description: |
+    **Report assistant** (`/api/report-suggestions`): a business user describes a report in plain language; an LLM
+    (any OpenAI-compatible API, e.g. OpenRouter) builds a report definition that our report builder has validated as
+    that user. Only the user's messages and the catalog *metadata* they may use leave the company, never data rows.
+    Asynchronous (docs/REST API Tasarım Rehberi.md, 10): POST answers 202, then GET until `completed` or `failed`.
+
+    **Session** (`/api/session`): browser login. The session cookie `REPORTS_SESSION` is HttpOnly, SameSite=Lax and
+    stored in the database (any instance serves it). Requests on a session that change something must send the
+    `XSRF-TOKEN` cookie's value as `X-XSRF-TOKEN`. API clients may keep using HTTP Basic (no session, no token).
+
+    Conventions as in `flows-api.yaml`: `{data, meta}` envelope, RFC 9457 problems with `code` and `traceId`,
+    snake_case enums, ISO 8601 UTC times.
+servers:
+  - url: /
+security:
+  - session: []
+  - basicAuth: []
+
+paths:
+  /api/session:
+    post:
+      tags: [session]
+      operationId: login
+      summary: Log in (browser)
+      security: []
+      description: Starts a new session (new id, against session fixation). 401 INVALID_CREDENTIALS for unknown
+        users and wrong passwords alike.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string, maxLength: 100 }
+                password: { type: string, maxLength: 200, format: password }
+      responses:
+        '201':
+          description: Logged in; sets the `REPORTS_SESSION` and `XSRF-TOKEN` cookies.
+          headers:
+            Set-Cookie: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionEnvelope' }
+        '401': { $ref: '#/components/responses/Problem' }
+    get:
+      tags: [session]
+      operationId: getSession
+      summary: Who is logged in
+      responses:
+        '200':
+          description: The current user.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionEnvelope' }
+        '401': { description: No valid session. }
+    delete:
+      tags: [session]
+      operationId: logout
+      summary: Log out
+      parameters: [{ $ref: '#/components/parameters/Csrf' }]
+      responses:
+        '204': { description: Session ended (removed from the store, so on every instance). }
+        '403': { $ref: '#/components/responses/Problem' }
+
+  /api/report-suggestions/settings:
+    get:
+      tags: [assistant]
+      operationId: getAssistantSettings
+      summary: Whether the assistant is available
+      description: The UI hides the assistant when `enabled` is false (not configured, or switched off).
+      responses:
+        '200':
+          description: Settings.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [enabled, model, provider]
+                    properties:
+                      enabled: { type: boolean }
+                      model: { type: [string, 'null'], examples: [z-ai/glm-5.3-flash] }
+                      provider: { type: [string, 'null'], examples: [openrouter.ai] }
+
+  /api/report-suggestions:
+    post:
+      tags: [assistant]
+      operationId: requestSuggestion
+      summary: Ask the assistant for a report
+      description: |
+        The model may call `validate_report` (our builder, as this user, nothing executed) as often as needed and
+        must `submit_report` a definition that passes. A plain-text answer is a question back to the user.
+        Errors: 503 ASSISTANT_DISABLED; 422 LAST_MESSAGE_NOT_FROM_USER, VALIDATION_FAILED.
+      parameters: [{ $ref: '#/components/parameters/Csrf' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messages]
+              properties:
+                messages:
+                  type: array
+                  minItems: 1
+                  maxItems: 30
+                  description: The conversation so far; the last message is the user's request.
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string, enum: [user, assistant] }
+                      content: { type: string, minLength: 1, maxLength: 4000 }
+                currentDefinition:
+                  type: [object, 'null']
+                  description: The definition on screen, also an unfinished draft; null for a new report.
+      responses:
+        '202':
+          description: Accepted; follow `Location`.
+          headers:
+            Location: { schema: { type: string }, example: /api/report-suggestions/17 }
+            Retry-After: { schema: { type: integer }, example: 1 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuggestionEnvelope' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+
+  /api/report-suggestions/{id}:
+    get:
+      tags: [assistant]
+      operationId: getSuggestion
+      summary: Poll a suggestion
+      description: Only the user who asked sees it (404 SUGGESTION_NOT_FOUND for others). Kept for
+        `assistant.retention`.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200':
+          description: The suggestion; `Retry-After` while it is still being worked on.
+          headers:
+            Retry-After: { schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuggestionEnvelope' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+components:
+  securitySchemes:
+    session: { type: apiKey, in: cookie, name: REPORTS_SESSION }
+    basicAuth: { type: http, scheme: basic }
+
+  parameters:
+    Csrf:
+      name: X-XSRF-TOKEN
+      in: header
+      required: false
+      description: Required on a session (value of the XSRF-TOKEN cookie); not used with Basic auth.
+      schema: { type: string }
+
+  responses:
+    Problem:
+      description: RFC 9457 problem with `code` and `traceId` (see errors.yaml).
+      content:
+        application/problem+json:
+          schema: { $ref: 'flows-api.yaml#/components/schemas/Problem' }
+
+  schemas:
+    SessionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [username, authorities]
+          properties:
+            username: { type: string }
+            authorities: { type: array, items: { type: string }, examples: [[REPORT_RUN, SALARY_VIEW]] }
+
+    SuggestionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, status, createdAt, finishedAt, model, reply, error]
+          properties:
+            id: { type: integer, format: int64 }
+            status: { type: string, enum: [queued, processing, completed, failed] }
+            createdAt: { type: string, format: date-time }
+            finishedAt: { type: [string, 'null'], format: date-time }
+            model: { type: [string, 'null'] }
+            reply:
+              type: [object, 'null']
+              description: Set when completed. A report (definition not null) or only a message (a question).
+              required: [message, title, explanation, definition, columns]
+              properties:
+                message: { type: [string, 'null'] }
+                title: { type: [string, 'null'] }
+                explanation: { type: [string, 'null'] }
+                definition:
+                  type: [object, 'null']
+                  description: Report definition (as POST /api/reports/run) without null properties.
+                columns:
+                  type: array
+                  items:
+                    type: object
+                    required: [label, type]
+                    properties:
+                      label: { type: string }
+                      type: { type: string, enum: [TEXT, NUMBER, DATE, DATE_TIME, BOOLEAN] }
+            error:
+              type: [object, 'null']
+              required: [code, message]
+              properties:
+                code:
+                  type: string
+                  description: >-
+                    ASSISTANT_GAVE_UP, ASSISTANT_UNAUTHORIZED, ASSISTANT_NO_CREDIT, ASSISTANT_RATE_LIMITED,
+                    ASSISTANT_BAD_REQUEST, ASSISTANT_UNAVAILABLE, ASSISTANT_BAD_RESPONSE, SUGGESTION_TIMED_OUT,
+                    INTERNAL_ERROR
+                message: { type: string }

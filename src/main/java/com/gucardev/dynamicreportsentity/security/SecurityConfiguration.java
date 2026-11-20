@@ -1,6 +1,7 @@
 package com.gucardev.dynamicreportsentity.security;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,6 +18,8 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.session.web.http.CookieSerializer;
+import org.springframework.session.web.http.DefaultCookieSerializer;
 
 /**
  * Two ways in:
@@ -52,6 +55,21 @@ class SecurityConfiguration {
 
     private static boolean hasNoSession(HttpServletRequest request) {
         return request.getSession(false) == null;
+    }
+
+    /**
+     * The session cookie, set explicitly so it is the same in every environment: HttpOnly (scripts cannot read it),
+     * SameSite=Lax (not sent on cross-site POSTs), Secure behind HTTPS ({@code security.session-cookie.secure}).
+     */
+    @Bean
+    CookieSerializer sessionCookie(@Value("${security.session-cookie.secure:false}") boolean secure) {
+        DefaultCookieSerializer cookie = new DefaultCookieSerializer();
+        cookie.setCookieName("REPORTS_SESSION");
+        cookie.setCookiePath("/");
+        cookie.setUseHttpOnlyCookie(true);
+        cookie.setSameSite("Lax");
+        cookie.setUseSecureCookie(secure);
+        return cookie;
     }
 
     @Bean
