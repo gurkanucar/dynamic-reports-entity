@@ -1,0 +1,139 @@
+### Users (password "password"): alice (HR), carol (Software Development), bob (IT, salary), admin (everything)
+### Fields are paths from "root": department.name, manager.fullName, trainingRecords.training.name, ...
+
+### Catalog: entities, the fields this user may use and the relations to navigate
+GET http://localhost:8080/api/reports/catalog
+Authorization: Basic alice password
+
+### Many-to-one + GROUP BY + HAVING: departments with >= 3 people, by average salary
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [
+    {"field": "department.name"},
+    {"aggregate": "COUNT", "label": "Headcount"},
+    {"field": "salary", "aggregate": "AVG", "label": "Average Salary"}
+  ],
+  "where":  {"field": "active", "operator": "EQ", "value": true},
+  "having": {"aggregate": "COUNT", "operator": "GTE", "value": 3},
+  "sort":   [{"field": "salary", "aggregate": "AVG", "direction": "DESC"}]
+}
+
+### Self-reference: everyone with their manager and their manager's department
+POST http://localhost:8080/api/reports/run?page=0&size=50
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "manager.fullName"}, {"field": "manager.department.name"}],
+  "sort": [{"field": "fullName"}]
+}
+
+### Many-to-many with junction fields: renewals due within 30 days (carol only sees her department)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic carol password
+Content-Type: application/json
+
+{
+  "root": "TrainingRecord",
+  "columns": [
+    {"field": "personnel.fullName"}, {"field": "training.name"},
+    {"field": "nextRenewalDate"}, {"field": "personnel.department.name"}
+  ],
+  "where": {"conditions": [
+    {"field": "nextRenewalDate", "operator": "NEXT_N_DAYS", "value": 30},
+    {"field": "training.mandatory", "operator": "EQ", "value": true}
+  ]},
+  "sort": [{"field": "nextRenewalDate"}]
+}
+
+### Pure many-to-many + nested OR: people knowing Kubernetes or Java, hired after 2018
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "skills.skill.name"}],
+  "where": {"conditions": [
+    {"field": "skills.skill.name", "operator": "IN", "value": ["Kubernetes", "Java"]},
+    {"field": "hireDate", "operator": "GTE", "value": "2018-01-01"}
+  ]},
+  "sort": [{"field": "fullName"}]
+}
+
+### Across modules: total allocation per project and owning department
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "ProjectAssignment",
+  "columns": [
+    {"field": "project.name"}, {"field": "project.department.name"},
+    {"aggregate": "COUNT", "label": "People"},
+    {"field": "allocationPercent", "aggregate": "SUM", "label": "Total Allocation (%)"}
+  ],
+  "sort": [{"field": "allocationPercent", "aggregate": "SUM", "direction": "DESC"}]
+}
+
+### Date grouping: assignments per month in 2025 (dateGroup: YEAR, QUARTER, MONTH, DAY, QUARTER_OF_YEAR, MONTH_OF_YEAR)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "ProjectAssignment",
+  "columns": [
+    {"field": "assignedOn", "dateGroup": "MONTH"},
+    {"aggregate": "COUNT", "label": "Assignments"},
+    {"field": "allocationPercent", "aggregate": "SUM"}
+  ],
+  "where": {"field": "assignedOn", "dateGroup": "YEAR", "operator": "EQ", "value": 2025},
+  "sort": [{"field": "assignedOn", "dateGroup": "MONTH"}]
+}
+
+### Date grouping: hires per year
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "hireDate", "dateGroup": "YEAR"}, {"aggregate": "COUNT", "label": "Hires"}],
+  "sort": [{"field": "hireDate", "dateGroup": "YEAR"}]
+}
+
+### 400: would inflate SUM(salary) through the one-to-many trainingRecords join
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "trainingRecords.training.name"}, {"field": "salary", "aggregate": "SUM"}]
+}
+
+### Streaming CSV export
+POST http://localhost:8080/api/reports/export
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "department.name"}, {"field": "profile.city"}, {"field": "salary"}]
+}
+
+### Generated SQL (REPORT_ADMIN only)
+POST http://localhost:8080/api/reports/preview
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Department",
+  "columns": [{"field": "name"}, {"field": "parent.name"}, {"field": "manager.fullName"}, {"field": "members.fullName"}]
+}
