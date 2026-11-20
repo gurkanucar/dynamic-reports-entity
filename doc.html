@@ -1,0 +1,585 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Dinamik Rapor Motoru</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: schematic "query plan" sheet — one stage that replays a request through the engine, then reference strips. */
+:root {
+  --paper: #f2f5f8;
+  --sheet: #ffffff;
+  --ink: #142233;
+  --muted: #56677a;
+  --rule: #d5dde6;
+  --accent: #c26a06;        /* signal amber: what changed in this step */
+  --accent-soft: #fdf1e1;
+  --join: #0f6e66;          /* aliases / joins */
+  --join-soft: #e2f3f1;
+  --ok: #1d7a3e;
+  --bad: #b42318;
+  --ghost: #e4e9ef;
+  --code-bg: #f7f9fb;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0d1621; --sheet: #142130; --ink: #dce4ec; --muted: #93a4b6; --rule: #26384b;
+    --accent: #f0a640; --accent-soft: #33260f; --join: #3fcdbd; --join-soft: #10302d;
+    --ok: #5ccb83; --bad: #ff8a7a; --ghost: #1f3042; --code-bg: #0f1a26; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0d1621; --sheet: #142130; --ink: #dce4ec; --muted: #93a4b6; --rule: #26384b;
+  --accent: #f0a640; --accent-soft: #33260f; --join: #3fcdbd; --join-soft: #10302d;
+  --ok: #5ccb83; --bad: #ff8a7a; --ghost: #1f3042; --code-bg: #0f1a26; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: clamp(28px, 4.2vw, 44px); line-height: 1.08; }
+h2 { font-size: 22px; }
+h3 { font-size: 16px; }
+p { margin: 0; }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+header { display: grid; gap: 12px; max-width: 760px; }
+header p { color: var(--muted); font-size: 16px; max-width: 65ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.sw.new { background: var(--accent); }
+.sw.alias { background: var(--join); }
+.sw.ghost { background: var(--ghost); }
+
+/* ---- stage ---- */
+.stage { background: var(--sheet); border: 1px solid var(--rule); border-radius: 14px; display: grid; overflow: hidden; }
+.rail { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); border-bottom: 1px solid var(--rule); }
+.rail button {
+  font: inherit; text-align: left; background: none; border: 0; border-right: 1px solid var(--rule); color: var(--muted);
+  padding: 12px 12px 10px; cursor: pointer; display: grid; gap: 2px; min-width: 0; position: relative;
+}
+.rail button:last-child { border-right: 0; }
+.rail button .n { font-family: var(--mono); font-size: 12px; }
+.rail button .t { font-size: 13px; line-height: 1.25; color: var(--ink); overflow-wrap: anywhere; }
+.rail button[aria-current="step"] { background: var(--accent-soft); }
+.rail button[aria-current="step"] .n { color: var(--accent); font-weight: 600; }
+.rail button.done .n { color: var(--join); }
+.rail button:focus-visible, .controls button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.bar { height: 3px; background: var(--ghost); }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+
+.caption { padding: 18px 22px 4px; display: grid; gap: 4px; }
+.caption h2 { font-size: 20px; }
+.caption p { color: var(--muted); max-width: 80ch; }
+
+.panes { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 18px; padding: 16px 22px 18px; }
+.pane { display: grid; gap: 8px; align-content: start; min-width: 0; }
+.pane > .eyebrow { display: flex; justify-content: space-between; gap: 8px; }
+.box { background: var(--code-bg); border: 1px solid var(--rule); border-radius: 10px; padding: 14px 16px; min-height: 330px; overflow-x: auto; }
+.box.fade { animation: fade .35s ease; }
+@keyframes fade { from { opacity: .35; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.7; white-space: pre; }
+.kw { color: var(--join); font-weight: 600; }
+.an { color: var(--accent); font-weight: 600; }
+.str { color: var(--ok); }
+.cm { color: var(--muted); }
+.hl { background: var(--accent-soft); border-radius: 4px; box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.sql .line { display: block; min-height: 1.7em; border-radius: 4px; padding: 0 6px; margin: 0 -6px; }
+.sql .ghostline { color: transparent; background: linear-gradient(var(--ghost), var(--ghost)) no-repeat left center / var(--w, 60%) 0.7em; user-select: none; }
+.sql .newline { background: var(--accent-soft); }
+.sql .seg-new { background: var(--accent-soft); color: var(--accent); border-radius: 3px; }
+.sql .seg-hidden { display: none; }
+.params { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--rule); }
+.params .lbl { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-right: 4px; align-self: center; }
+.chip { font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); border-radius: 999px; padding: 2px 9px; background: var(--sheet); }
+.chip.new { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.chip.hidden { display: none; }
+
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-family: var(--mono); font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.num { font-variant-numeric: tabular-nums; text-align: right; }
+.alias { font-family: var(--mono); font-weight: 600; color: var(--join); background: var(--join-soft); border-radius: 4px; padding: 0 5px; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; font-size: 14px; }
+.checks li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; }
+.mark { font-family: var(--mono); font-weight: 700; text-align: center; }
+.mark.ok { color: var(--ok); }
+.mark.bad { color: var(--bad); }
+.note { font-size: 13px; color: var(--muted); }
+.stack { display: grid; gap: 12px; }
+.pill { display: inline-block; font-family: var(--mono); font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); }
+.pill.bad { color: var(--bad); }
+
+svg.graph { width: 100%; height: auto; max-width: 100%; display: block; }
+svg .node rect { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.2; }
+svg .node.root rect { fill: var(--accent-soft); stroke: var(--accent); }
+svg .node text { fill: var(--ink); font-family: var(--display); font-size: 13px; font-weight: 600; }
+svg .edge { stroke: var(--join); stroke-width: 1.5; fill: none; }
+svg .edge.inv { stroke-dasharray: 4 3; }
+svg .elabel { fill: var(--join); font-family: var(--mono); font-size: 10.5px; }
+svg .elabel.inv { fill: var(--muted); }
+svg .arrow { fill: var(--join); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 0 22px 20px; }
+.controls button {
+  font: 600 14px var(--body); border: 1px solid var(--rule); background: var(--sheet); color: var(--ink);
+  border-radius: 8px; padding: 8px 14px; cursor: pointer;
+}
+.controls button.primary { background: var(--ink); color: var(--sheet); border-color: var(--ink); min-width: 104px; }
+.controls .hint { color: var(--muted); font-size: 13px; margin-left: auto; }
+
+/* ---- reference sections ---- */
+section { display: grid; gap: 16px; }
+section > p { color: var(--muted); max-width: 70ch; }
+.rels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rel { background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px; padding: 16px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.rel .kind { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.rel pre { font-size: 12px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 10px; overflow-x: auto; }
+.rel .path { font-family: var(--mono); font-size: 13px; color: var(--join); overflow-wrap: anywhere; }
+.rel p { font-size: 13.5px; color: var(--muted); }
+
+.guards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 28px; border-top: 1px solid var(--rule); }
+.guard { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.guard h3 { font-size: 15px; }
+.guard p { color: var(--muted); font-size: 14px; }
+
+@media (max-width: 920px) {
+  .panes { grid-template-columns: minmax(0, 1fr); }
+  .rail { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .rail button:nth-child(4) { border-right: 0; }
+  .rail button:nth-child(-n+4) { border-bottom: 1px solid var(--rule); }
+  .rels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .guards { grid-template-columns: minmax(0, 1fr); }
+  .box { min-height: 0; }
+}
+@media (max-width: 560px) {
+  .rail button .t { display: none; }
+  .rels { grid-template-columns: minmax(0, 1fr); }
+  .guard { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .controls .hint { margin-left: 0; width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .box.fade { animation: none; }
+}
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">Spring Modulith · dynamic-reports-entity</span>
+    <h1>Bir rapor isteği SQL'e nasıl dönüşür?</h1>
+    <p>İş birimi ekranda alan ve filtre seçer; motor JOIN'leri entity anotasyonlarından kendisi kurar, yetkiyi ve satır güvenliğini ekler, sayfalar ve indeks önerir. Aşağıda carol'ın (Software Development) gerçek bir raporu adım adım ilerliyor. SQL, uygulamanın ürettiği sorgunun aynısı.</p>
+    <div class="legend">
+      <span><i class="sw new"></i>bu adımda eklenen</span>
+      <span><i class="sw alias"></i>tablo alias'ı / JOIN</span>
+      <span><i class="sw ghost"></i>henüz üretilmedi</span>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <nav class="rail" id="rail" aria-label="Adımlar"></nav>
+    <div class="bar" aria-hidden="true"><i id="bar"></i></div>
+    <div class="caption" aria-live="polite">
+      <span class="eyebrow" id="cap-n"></span>
+      <h2 id="cap-t"></h2>
+      <p id="cap-d"></p>
+    </div>
+    <div class="panes">
+      <div class="pane">
+        <span class="eyebrow"><span id="left-title"></span></span>
+        <div class="box" id="left"></div>
+      </div>
+      <div class="pane">
+        <span class="eyebrow"><span>Üretilen SQL</span><span id="sql-state"></span></span>
+        <div class="box sql" id="sqlbox">
+          <pre id="sql"></pre>
+          <div class="params" id="params"><span class="lbl">parametreler</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="controls">
+      <button type="button" id="prev">← Geri</button>
+      <button type="button" class="primary" id="play">Duraklat</button>
+      <button type="button" id="next">İleri →</button>
+      <span class="hint">Bir adıma tıkla veya ← → tuşlarını kullan.</span>
+    </div>
+  </div>
+
+  <section>
+    <div class="stack" style="gap:6px">
+      <span class="eyebrow">Modelleme</span>
+      <h2>Her ilişki türü ID + isimli navigasyon</h2>
+    </div>
+    <p>Hiçbir entity başka modülün sınıfını import etmez; ilişki sadece ID kolonu ve <code>@ReportReference</code> ile tanımlanır. Raporda ilişkiye isimle gidilir, bu yüzden aynı iki tablo arasındaki birden fazla ilişki ya da kendine referans karışmaz.</p>
+    <div class="rels">
+      <article class="rel">
+        <div class="kind"><h3>Many-to-one</h3><span class="pill ok">to-one</span></div>
+        <pre><span class="an">@ReportReference</span>(target = <span class="str">"Department"</span>,
+    inverse = <span class="str">"members"</span>)
+Long departmentId;</pre>
+        <span class="path">Personnel → department.name</span>
+      </article>
+      <article class="rel">
+        <div class="kind"><h3>One-to-many</h3><span class="pill bad">to-many</span></div>
+        <pre><span class="cm">// aynı referansın tersi</span>
+inverse = <span class="str">"members"</span></pre>
+        <span class="path">Department → members.fullName</span>
+        <p>Satır çoğaltır; motor SUM/COUNT'u şişirecek kullanımları reddeder.</p>
+      </article>
+      <article class="rel">
+        <div class="kind"><h3>One-to-one</h3><span class="pill ok">to-one</span></div>
+        <pre><span class="an">@ReportReference</span>(target = <span class="str">"Personnel"</span>,
+    oneToOne = true, owner = true,
+    inverse = <span class="str">"profile"</span>)
+Long personnelId;</pre>
+        <span class="path">Personnel → profile.city</span>
+      </article>
+      <article class="rel">
+        <div class="kind"><h3>Self-reference</h3><span class="pill ok">to-one</span></div>
+        <pre><span class="an">@ReportReference</span>(target = <span class="str">"Personnel"</span>,
+    label = <span class="str">"Manager"</span>,
+    inverse = <span class="str">"directReports"</span>)
+Long managerId;</pre>
+        <span class="path">manager.manager.fullName</span>
+        <p>Her yol kendi alias'ını alır: t1, t2…</p>
+      </article>
+      <article class="rel">
+        <div class="kind"><h3>Many-to-many</h3><span class="pill bad">to-many</span></div>
+        <pre><span class="cm">// PersonnelSkill, bileşik anahtar</span>
+<span class="an">@Id @ReportReference</span>(target = <span class="str">"Personnel"</span>,
+    inverse = <span class="str">"skills"</span>) Long personnelId;
+<span class="an">@Id @ReportReference</span>(target = <span class="str">"Skill"</span>)
+    Long skillId;</pre>
+        <span class="path">Personnel → skills.skill.name</span>
+      </article>
+      <article class="rel">
+        <div class="kind"><h3>Many-to-many + alanlar</h3><span class="pill bad">to-many</span></div>
+        <pre><span class="cm">// TrainingRecord: Personnel ⇄ Training</span>
+Long personnelId; Long trainingId;
+<span class="an">@ReportField</span> Integer score;
+<span class="an">@ReportField</span> LocalDate nextRenewalDate;</pre>
+        <span class="path">Personnel → trainingRecords.training.name</span>
+      </article>
+    </div>
+  </section>
+
+  <section>
+    <div class="stack" style="gap:6px">
+      <span class="eyebrow">Korumalar</span>
+      <h2>Motorun reddettiği ya da kendiliğinden eklediği şeyler</h2>
+    </div>
+    <div class="guards">
+      <div class="guard"><h3>SQL injection</h3><p>Tablo ve kolon adı sadece katalogdan gelir; kullanıcı metni katalogda aranır, bulunamazsa 400. Değerler hep <code>?</code> parametresi; operatör, aggregate ve yön enum.</p></div>
+      <div class="guard"><h3>Alan yetkisi</h3><p><code>authority = "SALARY_VIEW"</code> olan alan yetkisiz kullanıcının kataloğunda görünmez; seçim, filtre, HAVING veya sıralamada kullanılırsa 403.</p></div>
+      <div class="guard"><h3>Satır güvenliği</h3><p>Verinin sahibi modül kuralı yazar (<code>DepartmentRowPolicy</code>). Kökte WHERE, JOIN'lenmiş veride ON ile uygulanır; <code>owner = true</code> olan kayıtlar sahibini izler.</p></div>
+      <div class="guard"><h3>Yanlış sayılar</h3><p>İki bağımsız one-to-many dalı ya da bire-çok JOIN'in şişireceği SUM/AVG/COUNT reddedilir. MIN, MAX ve COUNT_DISTINCT serbest.</p></div>
+      <div class="guard"><h3>Büyük veri</h3><p>Ekran her zaman sayfalı (varsayılan 200, en fazla 5000). <code>hasNext</code> bedava; toplam sayı sadece <code>includeTotal=true</code> ile, ayrı sorgu. CSV satır satır stream edilir. 30 sn timeout.</p></div>
+      <div class="guard"><h3>İndeksler</h3><p>Açılışta her JOIN kolonu gerçek indekslerle karşılaştırılır. Her sorgunun kullandığı kolonlar da kontrol edilir; cevapta <code>indexHints</code>, <code>/index-advice</code>'ta süreleriyle birlikte liste.</p></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---- SQL as the engine produced it for carol (each segment tagged with the step that adds it) ----
+  const SQL = [
+    [["SELECT t2.name, t3.name, COUNT(*)", 4]],
+    [["FROM training_record t0", 4]],
+    [["LEFT JOIN personnel t1 ON t1.id = t0.personnel_id", 4], [" AND t1.department_id = ?", 6]],
+    [["LEFT JOIN department t2 ON t2.id = t1.department_id", 4]],
+    [["LEFT JOIN training t3 ON t3.id = t0.training_id", 4]],
+    [["WHERE t0.next_renewal_date BETWEEN ? AND ?", 5]],
+    [["  AND t0.personnel_id IN (SELECT o.id FROM personnel o WHERE o.department_id = ?)", 6]],
+    [["GROUP BY t2.name, t3.name", 7]],
+    [["HAVING COUNT(*) >= ?", 7]],
+    [["ORDER BY COUNT(*) DESC, t2.name, t3.name", 7]],
+    [["LIMIT ? OFFSET ?", 8]]
+  ];
+  const PARAMS = [["4", 6], ["2026-11-20", 5], ["2026-12-20", 5], ["4", 6], ["1", 7], ["201", 8], ["0", 8]];
+
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const KW = /\b(SELECT|FROM|LEFT JOIN|ON|AND|WHERE|BETWEEN|IN|GROUP BY|HAVING|ORDER BY|LIMIT|OFFSET|DESC|COUNT)\b/g;
+  const sqlHtml = s => esc(s).replace(KW, '<span class="kw">$1</span>').replace(/\b(t[0-3])\b/g, '<span class="alias">$1</span>');
+
+  const graph = `
+<svg class="graph" viewBox="0 0 440 250" role="img" aria-label="Katalog: TrainingRecord, Personnel, Department ve Training arasındaki isimli navigasyonlar">
+  <defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+  <path class="edge" d="M268 58 L162 58" marker-end="url(#ah)"/>
+  <text class="elabel" x="176" y="50">personnel</text>
+  <path class="edge inv" d="M162 74 L268 74" marker-end="url(#ah)"/>
+  <text class="elabel inv" x="170" y="90">trainingRecords</text>
+  <path class="edge" d="M338 76 L338 176" marker-end="url(#ah)"/>
+  <text class="elabel" x="344" y="130">training</text>
+  <path class="edge" d="M78 76 L78 176" marker-end="url(#ah)"/>
+  <text class="elabel" x="14" y="122">department</text>
+  <path class="edge" d="M124 176 L124 76" marker-end="url(#ah)"/>
+  <text class="elabel" x="130" y="122">manager</text>
+  <text class="elabel inv" x="130" y="136">(Department)</text>
+  <path class="edge" d="M44 40 C 20 4, 120 4, 100 40" marker-end="url(#ah)"/>
+  <text class="elabel" x="40" y="14">manager</text>
+  <path class="edge" d="M44 212 C 20 248, 120 248, 100 212" marker-end="url(#ah)"/>
+  <text class="elabel" x="50" y="245">parent</text>
+  <g class="node"><rect x="20" y="40" width="142" height="36" rx="7"/><text x="91" y="63" text-anchor="middle">Personnel</text></g>
+  <g class="node root"><rect x="268" y="40" width="152" height="36" rx="7"/><text x="344" y="63" text-anchor="middle">TrainingRecord</text></g>
+  <g class="node"><rect x="20" y="176" width="142" height="36" rx="7"/><text x="91" y="199" text-anchor="middle">Department</text></g>
+  <g class="node"><rect x="268" y="176" width="152" height="36" rx="7"/><text x="344" y="199" text-anchor="middle">Training</text></g>
+</svg>`;
+
+  const STEPS = [
+    {
+      title: "Geliştirici entity'yi yazar",
+      desc: "İlişki nesne değil ID olarak tutulur, modüller birbirini import etmez. Üç anotasyon neyin raporlanabileceğini söyler; anotasyonsuz alan (ör. nationalId) hiçbir raporda görünmez.",
+      left: "TrainingRecord.java · training modülü",
+      html: `<pre><span class="an">@Entity</span>
+<span class="an">@Reportable</span>(label = <span class="str">"Training Record"</span>)
+<span class="kw">public class</span> TrainingRecord {
+
+  <span class="an">@Id</span> Long id;
+
+  <span class="hl"><span class="an">@ReportReference</span>(target = <span class="str">"Personnel"</span>,
+      owner = true, inverse = <span class="str">"trainingRecords"</span>)</span>
+  Long personnelId;      <span class="cm">// @ManyToOne yok</span>
+
+  <span class="an">@ReportReference</span>(target = <span class="str">"Training"</span>,
+      inverse = <span class="str">"records"</span>)
+  Long trainingId;
+
+  <span class="hl"><span class="an">@ReportField</span>(label = <span class="str">"Next Renewal Date"</span>)</span>
+  LocalDate nextRenewalDate;
+
+  <span class="an">@ReportField</span>(label = <span class="str">"Score"</span>)
+  Integer score;
+}</pre>`
+    },
+    {
+      title: "Açılışta katalog kurulur",
+      desc: "Motor @Reportable entity'leri JPA metamodel'inden bulur; her referans iki yönlü, isimli bir navigasyona dönüşür. Bilinmeyen hedef, isim çakışması ve indekssiz JOIN kolonu açılışta yakalanır.",
+      left: "ReportCatalog · 9 entity, 24 navigasyon",
+      html: graph + `<ul class="checks" style="margin-top:12px">
+  <li><span class="mark ok">✓</span><span>Kesik çizgi: ters yön (one-to-many). Düz çizgi: ileri yön (to-one).</span></li>
+  <li><span class="mark ok">✓</span><span>Department ⇄ Personnel arasında iki ayrı ilişki var: <code>department</code> ve <code>manager</code>. İsimli oldukları için karışmazlar.</span></li>
+  <li><span class="mark ok">✓</span><span class="note">IndexAdvisor: every report join column is indexed</span></li>
+</ul>`
+    },
+    {
+      title: "Kullanıcı raporu tanımlar",
+      desc: "Ekran sadece kök entity'yi, alan yollarını, operatörü ve değeri gönderir. Kullanıcı SQL, tablo adı ya da JOIN görmez. Örnek: 30 gün içinde yenilenecek eğitimler, departman ve eğitime göre.",
+      left: "POST /api/reports/run · carol",
+      html: `<pre>{
+  <span class="str">"root"</span>: <span class="str">"TrainingRecord"</span>,
+  <span class="str">"columns"</span>: [
+    { <span class="str">"field"</span>: <span class="hl"><span class="str">"personnel.department.name"</span></span> },
+    { <span class="str">"field"</span>: <span class="hl"><span class="str">"training.name"</span></span> },
+    { <span class="str">"aggregate"</span>: <span class="str">"COUNT"</span>, <span class="str">"label"</span>: <span class="str">"Due"</span> }
+  ],
+  <span class="str">"where"</span>: {
+    <span class="str">"field"</span>: <span class="str">"nextRenewalDate"</span>,
+    <span class="str">"operator"</span>: <span class="str">"NEXT_N_DAYS"</span>, <span class="str">"value"</span>: 30
+  },
+  <span class="str">"having"</span>: { <span class="str">"aggregate"</span>: <span class="str">"COUNT"</span>,
+              <span class="str">"operator"</span>: <span class="str">"GTE"</span>, <span class="str">"value"</span>: 1 },
+  <span class="str">"sort"</span>: [ { <span class="str">"aggregate"</span>: <span class="str">"COUNT"</span>, <span class="str">"direction"</span>: <span class="str">"DESC"</span> } ]
+}</pre>`
+    },
+    {
+      title: "Yollar JOIN'e dönüşür",
+      desc: "Her farklı yol öneki bir alias alır ve isimli navigasyonun JOIN'ini getirir. Aynı yol tekrar kullanılırsa aynı JOIN kullanılır; kendine referans (manager.manager) bu sayede karışmaz.",
+      left: "Yol → alias",
+      html: `<table>
+  <thead><tr><th>Yol</th><th>Alias</th><th>Tablo</th><th>Tür</th></tr></thead>
+  <tbody>
+    <tr><td><code>(kök)</code></td><td><span class="alias">t0</span></td><td><code>training_record</code></td><td>kök</td></tr>
+    <tr><td><code>personnel</code></td><td><span class="alias">t1</span></td><td><code>personnel</code></td><td>to-one</td></tr>
+    <tr><td><code>personnel.department</code></td><td><span class="alias">t2</span></td><td><code>department</code></td><td>to-one</td></tr>
+    <tr><td><code>training</code></td><td><span class="alias">t3</span></td><td><code>training</code></td><td>to-one</td></tr>
+  </tbody>
+</table>
+<p class="note" style="margin-top:12px">Alan kodu sadece katalogda aranır. <code>"fullName FROM x; DROP…"</code> gibi bir yol hiçbir haritada bulunamaz ve 400 döner.</p>`
+    },
+    {
+      title: "Değerler parametre olur",
+      desc: "NEXT_N_DAYS 30, bugünden 30 gün sonrasına kadar bir aralığa çevrilir. Kullanıcının değeri SQL metnine hiç girmez; hep ? olarak bağlanır.",
+      left: "Koşul → SQL",
+      html: `<div class="stack">
+<pre><span class="cm">// istek</span>
+{ <span class="str">"field"</span>: <span class="str">"nextRenewalDate"</span>,
+  <span class="str">"operator"</span>: <span class="str">"NEXT_N_DAYS"</span>, <span class="str">"value"</span>: 30 }
+
+<span class="cm">// sonuç</span>
+<span class="alias">t0</span>.next_renewal_date <span class="kw">BETWEEN</span> ? <span class="kw">AND</span> ?
+<span class="cm">// ? = 2026-11-20 (bugün), 2026-12-20</span></pre>
+<ul class="checks">
+  <li><span class="mark ok">✓</span><span>Operatör enum: <code>EQ, IN, BETWEEN, CONTAINS, IS_NULL, NEXT_N_DAYS…</code> Listede olmayan değer JSON'da reddedilir.</span></li>
+  <li><span class="mark ok">✓</span><span><code>"x' OR '1'='1"</code> gibi bir değer sadece aranan metin olur, sorguyu değiştirmez.</span></li>
+  <li><span class="mark ok">✓</span><span>Gruplar iç içe olabilir: <code>{"logic": "OR", "conditions": [...]}</code></span></li>
+</ul></div>`
+    },
+    {
+      title: "Yetki ve satır güvenliği eklenir",
+      desc: "Kullanılan her alanın yetkisi kontrol edilir. Sonra veri sahibinin kuralı eklenir: carol sadece kendi departmanını (4) görür. Kökteki eğitim kayıtları sahibi üzerinden WHERE ile, JOIN'lenen personel ON ile süzülür.",
+      left: "Kontroller · carol",
+      html: `<ul class="checks">
+  <li><span class="mark ok">✓</span><span><code>personnel.department.name</code>, <code>training.name</code>, <code>nextRenewalDate</code>: yetki gerektirmiyor</span></li>
+  <li><span class="mark bad">✗</span><span>Örnek: <code>personnel.salary</code> isteseydi (filtrede bile) 403: <span class="note">You are not allowed to use field: … / Salary</span></span></li>
+</ul>
+<pre style="margin-top:14px"><span class="cm">// personnel modülü, DepartmentRowPolicy</span>
+<span class="hl"><span class="kw">new</span> RowRestriction(<span class="str">"Personnel"</span>, <span class="str">"departmentId"</span>, 4)</span></pre>
+<ul class="checks" style="margin-top:14px">
+  <li><span class="mark ok">→</span><span>Kök <span class="alias">t0</span> TrainingRecord, <code>owner = Personnel</code> → <b>WHERE</b> … IN (alt sorgu)</span></li>
+  <li><span class="mark ok">→</span><span>JOIN'lenen <span class="alias">t1</span> personnel → <b>ON</b> … AND department_id = ?</span></li>
+  <li><span class="mark ok">→</span><span><code>ALL_DEPARTMENTS</code> yetkisi olan admin için hiçbir şey eklenmez.</span></li>
+</ul>`
+    },
+    {
+      title: "Gruplama ve doğruluk kontrolü",
+      desc: "Bir kolon aggregate olunca diğerleri GROUP BY olur. Bire-çok JOIN satırları çoğaltıp SUM/COUNT'u şişirecekse rapor reddedilir. Burada bütün yollar to-one, sayım güvenli.",
+      left: "Grup ve fan-out",
+      html: `<ul class="checks">
+  <li><span class="mark ok">✓</span><span><code>COUNT(*)</code> var → <code>t2.name, t3.name</code> GROUP BY olur</span></li>
+  <li><span class="mark ok">✓</span><span>HAVING sadece aggregate kabul eder; ORDER BY'a sayfalama için gruplar eklenir</span></li>
+  <li><span class="mark ok">✓</span><span>Navigasyonlar: personnel, department, training, hepsi to-one. Tanecik (grain) = <span class="alias">t0</span></span></li>
+</ul>
+<pre style="margin-top:14px"><span class="cm">// reddedilen örnek</span>
+root: Personnel
+columns: trainingRecords.training.name,
+         SUM(salary)
+<span class="cm">→ 400: SUM of 'salary' would be inflated by the
+  one-to-many relation 'trainingRecords'</span></pre>`
+    },
+    {
+      title: "Çalıştır, sayfala, öner",
+      desc: "Sayfa boyutundan bir fazla satır çekilir: 201 gelirse sonraki sayfa vardır, COUNT sorgusuna gerek kalmaz. Kullanılan kolonlar bellekteki indeks listesiyle karşılaştırılır; burada hepsi indeksli, öneri yok.",
+      left: "Cevap · 2 satır",
+      html: `<table>
+  <thead><tr><th>Personnel / Department / Name</th><th>Training / Name</th><th>Due</th></tr></thead>
+  <tbody>
+    <tr><td>Software Development</td><td>Occupational Health and Safety</td><td class="num">1</td></tr>
+    <tr><td>Software Development</td><td>Secure Coding</td><td class="num">1</td></tr>
+  </tbody>
+</table>
+<pre style="margin-top:14px">"page": 0, "size": 200,
+"hasNext": <span class="kw">false</span>,
+"total": <span class="kw">null</span>,        <span class="cm">// ?includeTotal=true ile dolar</span>
+"indexHints": [ ]       <span class="cm">// indekssiz kolon olsaydı:</span>
+<span class="cm">// "training_record.score [FILTER]:
+//   CREATE INDEX ix_training_record_score …"</span></pre>`
+    }
+  ];
+
+  const rail = document.getElementById("rail");
+  const left = document.getElementById("left");
+  const sqlEl = document.getElementById("sql");
+  const paramsEl = document.getElementById("params");
+  const bar = document.getElementById("bar");
+  const playBtn = document.getElementById("play");
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const DURATION = 6500;
+
+  STEPS.forEach((s, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = "step-" + (i + 1);
+    b.innerHTML = `<span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t">${s.title}</span>`;
+    b.addEventListener("click", () => { stop(); show(i); });
+    rail.appendChild(b);
+  });
+  const chips = PARAMS.map(([v, step]) => {
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.textContent = v;
+    c.dataset.step = step;
+    paramsEl.appendChild(c);
+    return c;
+  });
+
+  let current = 0, timer = null, started = 0, raf = null;
+
+  function renderSql(step) {
+    sqlEl.innerHTML = SQL.map(segs => {
+      const firstStep = segs[0][1];
+      if (firstStep > step) {
+        const w = 35 + (segs[0][0].length % 45);
+        return `<span class="line ghostline" style="--w:${w}%">${esc(segs[0][0])}</span>`;
+      }
+      const isNew = firstStep === step;
+      const inner = segs.map(([text, st], k) => {
+        if (st > step) return "";
+        const cls = k > 0 && st === step && !isNew ? "seg-new" : "";
+        return cls ? `<span class="${cls}">${sqlHtml(text)}</span>` : sqlHtml(text);
+      }).join("");
+      return `<span class="line${isNew ? " newline" : ""}">${inner}</span>`;
+    }).join("");
+    chips.forEach(c => {
+      const st = +c.dataset.step;
+      c.className = "chip" + (st > step ? " hidden" : st === step ? " new" : "");
+    });
+    const st = document.getElementById("sql-state");
+    st.textContent = step < 4 ? "henüz yok" : step < 8 ? "kuruluyor" : "çalıştırıldı";
+  }
+
+  function show(i) {
+    current = (i + STEPS.length) % STEPS.length;
+    const s = STEPS[current];
+    document.getElementById("cap-n").textContent = `Adım ${current + 1} / ${STEPS.length}`;
+    document.getElementById("cap-t").textContent = s.title;
+    document.getElementById("cap-d").textContent = s.desc;
+    document.getElementById("left-title").textContent = s.left;
+    left.innerHTML = s.html;
+    if (!reduced) { left.classList.remove("fade"); void left.offsetWidth; left.classList.add("fade"); }
+    [...rail.children].forEach((b, k) => {
+      b.toggleAttribute("aria-current", k === current);
+      if (k === current) b.setAttribute("aria-current", "step");
+      b.classList.toggle("done", k < current);
+    });
+    renderSql(current + 1);
+    started = performance.now();
+    if (!timer) bar.style.width = ((current + 1) / STEPS.length * 100) + "%";
+  }
+
+  function tick(now) {
+    const p = Math.min(1, (now - started) / DURATION);
+    bar.style.width = ((current + p) / STEPS.length * 100) + "%";
+    raf = requestAnimationFrame(tick);
+  }
+  function play() {
+    if (timer) return;
+    started = performance.now();
+    timer = setInterval(() => show(current + 1), DURATION);
+    raf = requestAnimationFrame(tick);
+    playBtn.textContent = "Duraklat";
+  }
+  function stop() {
+    clearInterval(timer); timer = null;
+    cancelAnimationFrame(raf);
+    bar.style.width = ((current + 1) / STEPS.length * 100) + "%";
+    playBtn.textContent = "Oynat";
+  }
+
+  playBtn.addEventListener("click", () => timer ? stop() : play());
+  document.getElementById("next").addEventListener("click", () => { stop(); show(current + 1); });
+  document.getElementById("prev").addEventListener("click", () => { stop(); show(current - 1); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "ArrowRight") { stop(); show(current + 1); }
+    if (e.key === "ArrowLeft") { stop(); show(current - 1); }
+  });
+
+  show(0);
+  if (reduced) stop(); else play();
+})();
+</script>
+
+</body></html>
