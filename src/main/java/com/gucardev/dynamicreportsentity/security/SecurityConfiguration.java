@@ -38,7 +38,7 @@ class SecurityConfiguration {
                 user("alice", "REPORT_RUN"),
                 user("carol", "REPORT_RUN"),
                 user("bob", "REPORT_RUN", "SALARY_VIEW"),
-                user("admin", "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW", "ALL_DEPARTMENTS"));
+                user("admin", "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW", "NATIONAL_ID_VIEW", "ALL_DEPARTMENTS"));
     }
 
     private static UserDetails user(String name, String... authorities) {

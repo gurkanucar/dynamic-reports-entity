@@ -30,12 +30,14 @@ public class Personnel {
     /** Holders see every department; everyone else only their own (see DepartmentRowPolicy). */
     public static final String ALL_DEPARTMENTS = "ALL_DEPARTMENTS";
     public static final String SALARY_VIEW = "SALARY_VIEW";
+    public static final String NATIONAL_ID_VIEW = "NATIONAL_ID_VIEW";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     /** Login name; links the authenticated user to their personnel record. */
+    @ReportField(label = "Username")
     @Column(unique = true)
     private String username;
 
@@ -56,7 +58,8 @@ public class Personnel {
     @ReportField(label = "Salary", authority = SALARY_VIEW)
     private BigDecimal salary;
 
-    /** Sensitive: deliberately NOT annotated with @ReportField, so it can never appear in a report. */
+    /** Sensitive: only users holding NATIONAL_ID_VIEW see or use it; everyone else does not even find it in the catalog. */
+    @ReportField(label = "National ID", authority = NATIONAL_ID_VIEW)
     private String nationalId;
 
     /** Many-to-one into another module, by ID only. Inverse: Department.members (one-to-many). */

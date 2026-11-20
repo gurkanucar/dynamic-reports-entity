@@ -250,7 +250,7 @@ class ReportQueryBuilderTest {
                     where("region", EQ, "EU"), null, null));
 
             assertThat(query.countSql()).isEqualTo("""
-                    SELECT COUNT(*) FROM (SELECT t0.name AS c0, t1.name AS c1
+                    SELECT COUNT(*) FROM (SELECT 1 AS c0
                     FROM customer t0
                     LEFT JOIN customer t1 ON t1.id = t0.referred_by_id
                     WHERE t0.region = ?
@@ -382,6 +382,312 @@ class ReportQueryBuilderTest {
             assertInvalid(new ReportDefinition("PurchaseOrder",
                             List.of(new ReportColumn(null, COUNT, null, DateGroup.YEAR)), null, null, null),
                     "A field is required");
+        }
+    }
+
+    @Nested
+    class NestedLists {
+
+        @Test
+        void listBecomesACorrelatedSubqueryOneRowPerParent() {
+            ReportQuery query = build("Customer", List.of(ReportColumn.of("name"), ReportColumn.of(Aggregate.LIST, "orders.total")));
+
+            assertThat(query.sql()).isEqualTo("""
+                    SELECT t0.name, (SELECT ARRAY_AGG(DISTINCT s1_0.total ORDER BY s1_0.total) FROM purchase_order s1_0 \
+                    WHERE s1_0.customer_id = t0.id AND s1_0.total IS NOT NULL)
+                    FROM customer t0
+                    ORDER BY t0.id""");
+            assertThat(query.countSql()).isEqualTo("SELECT COUNT(*) FROM (SELECT 1 AS c0\nFROM customer t0\n) report");
+            assertThat(query.columns().get(1).label()).isEqualTo("Customer / Orders / Total (list)");
+        }
+
+        @Test
+        void toOneHopsAreJoinedAndHopsAfterTheOneToManyStayInsideTheSubquery() {
+            ReportQuery query = build("PurchaseOrder", List.of(ReportColumn.of("total"),
+                    ReportColumn.of(Aggregate.LIST, "customer.referrals.name"),
+                    ReportColumn.of(Aggregate.LIST, "lines.product.tags.tag.name")));
+
+            assertThat(query.sql()).isEqualTo("""
+                    SELECT t0.total, \
+                    (SELECT ARRAY_AGG(DISTINCT s1_0.name ORDER BY s1_0.name) FROM customer s1_0 \
+                    WHERE s1_0.referred_by_id = t1.id AND s1_0.name IS NOT NULL), \
+                    (SELECT ARRAY_AGG(DISTINCT s2_3.name ORDER BY s2_3.name) FROM order_line s2_0 \
+                    LEFT JOIN product s2_1 ON s2_1.id = s2_0.product_id \
+                    LEFT JOIN product_tag s2_2 ON s2_2.product_id = s2_1.id \
+                    LEFT JOIN tag s2_3 ON s2_3.id = s2_2.tag_id \
+                    WHERE s2_0.order_id = t0.id AND s2_3.name IS NOT NULL)
+                    FROM purchase_order t0
+                    LEFT JOIN customer t1 ON t1.id = t0.customer_id
+                    ORDER BY t0.id, t1.id""");
+        }
+
+        @Test
+        void rowRestrictionsApplyInsideTheSubquery() {
+            ReportRowPolicy euOnly = viewer -> List.of(new RowRestriction("Customer", "region", "EU"));
+
+            ReportQuery query = builder(euOnly).build(new ReportDefinition("Customer",
+                    List.of(ReportColumn.of("name"), ReportColumn.of(Aggregate.LIST, "referrals.name")), null, null, null), USER);
+
+            assertThat(query.sql()).contains(
+                    "FROM customer s1_0 WHERE s1_0.referred_by_id = t0.id AND s1_0.name IS NOT NULL AND s1_0.region = ?)",
+                    "WHERE t0.region = ?");
+            assertThat(query.parameters()).containsExactly("EU", "EU");
+            assertThat(query.countParameters()).containsExactly("EU");
+        }
+
+        @Test
+        void oneToManyFilterFallsBackToGroupedArrayAgg() {
+            ReportQuery query = build(new ReportDefinition("Customer",
+                    List.of(ReportColumn.of("name"), ReportColumn.of(Aggregate.LIST, "orders.total")),
+                    where("orders.total", GT, 5), null, null));
+
+            assertThat(query.sql()).contains("ARRAY_AGG(DISTINCT t1.total ORDER BY t1.total) FILTER (WHERE t1.total IS NOT NULL)",
+                    "GROUP BY t0.name");
+        }
+
+        @Test
+        void listOfAToOneFieldIsRejected() {
+            assertInvalid(new ReportDefinition("PurchaseOrder",
+                            List.of(ReportColumn.of("total"), ReportColumn.of(Aggregate.LIST, "customer.name")), null, null, null),
+                    "needs a path through a one-to-many relation");
+        }
+
+        @Test
+        void listsMayCombineIndependentOneToManyBranches() {
+            ReportQuery query = build("Customer", List.of(ReportColumn.of("name"),
+                    ReportColumn.of(Aggregate.LIST, "orders.orderDate"),
+                    ReportColumn.of(Aggregate.LIST, "referrals.name"),
+                    ReportColumn.of(Aggregate.COUNT_DISTINCT, "orders.total")));
+
+            assertThat(query.sql()).contains("LEFT JOIN purchase_order t1", "LEFT JOIN customer t2 ON t2.referred_by_id = t0.id");
+        }
+
+        @Test
+        void butNotTogetherWithDuplicateSensitiveAggregates() {
+            assertInvalid(new ReportDefinition("Customer", List.of(ReportColumn.of("name"),
+                            ReportColumn.of(Aggregate.LIST, "referrals.name"), ReportColumn.of(SUM, "orders.total")), null, null, null),
+                    "separate one-to-many relations");
+            assertInvalid(new ReportDefinition("Customer", List.of(ReportColumn.of("name"),
+                            ReportColumn.of(Aggregate.LIST, "referrals.name"), ReportColumn.of(Aggregate.LIST, "orders.total"),
+                            ReportColumn.count()), null, null, null),
+                    "separate one-to-many relations");
+        }
+
+        @Test
+        void listCannotBeFilteredOrSorted() {
+            List<ReportColumn> cols = List.of(ReportColumn.of("name"), ReportColumn.of(Aggregate.LIST, "orders.total"));
+            assertInvalid(new ReportDefinition("Customer", cols, null, where(Aggregate.LIST, "orders.total", EQ, 1), null),
+                    "A LIST cannot be filtered");
+            assertInvalid(new ReportDefinition("Customer", cols, null, null,
+                    List.of(new ReportSort("orders.total", Aggregate.LIST, Direction.ASC))), "A LIST column cannot be sorted");
+        }
+    }
+
+    @Nested
+    class FieldComparison {
+
+        @Test
+        void comparesTwoFieldsAcrossJoins() {
+            ReportQuery query = build(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.compare("region", FilterOperator.NOT_EQ, "referredBy.region"), null, null));
+
+            assertThat(query.sql()).contains("LEFT JOIN customer t1 ON t1.id = t0.referred_by_id", "WHERE t0.region <> t1.region");
+            assertThat(query.parameters()).isEmpty();
+        }
+
+        @Test
+        void rejectsMismatchedTypesAndNonComparisonOperators() {
+            assertInvalid(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.compare("name", EQ, "orders.total"), null, null), "Cannot compare TEXT 'name' with NUMBER");
+            assertInvalid(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.compare("name", CONTAINS, "region"), null, null), "supports EQ, NOT_EQ");
+        }
+    }
+
+    @Nested
+    class FieldVersusAggregate {
+
+        @Test
+        void comparesWithTheAggregateOfARelatedGroup() {
+            ReportQuery query = build(new ReportDefinition("PurchaseOrder", columns("total"),
+                    ReportCondition.compare("total", GT, AVG, "customer.orders.total", null), null, null));
+
+            assertThat(query.sql()).isEqualTo("""
+                    SELECT t0.total
+                    FROM purchase_order t0
+                    LEFT JOIN customer t1 ON t1.id = t0.customer_id
+                    LEFT JOIN (SELECT s1_0.customer_id AS k, AVG(s1_0.total) AS v FROM purchase_order s1_0 \
+                    GROUP BY s1_0.customer_id ORDER BY k LIMIT 2147483647) g2 ON g2.k = t1.id
+                    WHERE t0.total > g2.v
+                    ORDER BY t0.id, t1.id""");
+        }
+
+        @Test
+        void comparesWithTheAggregateOfTheWholeTableFiltered() {
+            ReportQuery query = build(new ReportDefinition("PurchaseOrder", columns("total"),
+                    ReportCondition.compare("total", GTE, MAX, "total", where("orderDate", LAST_N_DAYS, 30)), null, null));
+
+            assertThat(query.sql()).contains(
+                    "WHERE t0.total >= (SELECT MAX(s1_0.total) FROM purchase_order s1_0 WHERE s1_0.order_date BETWEEN ? AND ?)");
+            assertThat(query.parameters()).containsExactly(TODAY.minusDays(30), TODAY);
+        }
+
+        @Test
+        void rowRestrictionsApplyToTheAggregate() {
+            ReportRowPolicy euOnly = viewer -> List.of(new RowRestriction("Customer", "region", "EU"));
+
+            ReportQuery query = builder(euOnly).build(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.compare("name", EQ, Aggregate.MIN, "name", null), null, null), USER);
+
+            assertThat(query.sql()).contains("WHERE t0.name = (SELECT MIN(s1_0.name) FROM customer s1_0 WHERE s1_0.region = ?)",
+                    "AND t0.region = ?");
+            assertThat(query.parameters()).containsExactly("EU", "EU");
+        }
+
+        @Test
+        void rejectsInvalidComparisons() {
+            assertInvalid(new ReportDefinition("PurchaseOrder", columns("total"),
+                    ReportCondition.compare("total", GT, Aggregate.LIST, "customer.orders.total", null), null, null),
+                    "A LIST cannot be compared");
+            assertInvalid(new ReportDefinition("PurchaseOrder", columns("total"),
+                    ReportCondition.compare("total", GT, AVG, "customer.creditLimit", null), null, null),
+                    "must cross a one-to-many relation");
+            assertInvalid(new ReportDefinition("PurchaseOrder", columns("total"),
+                    ReportCondition.compare("orderDate", GT, AVG, "total", null), null, null),
+                    "Cannot compare DATE");
+        }
+    }
+
+    @Nested
+    class Exists {
+
+        @Test
+        void notExistsWithCondition() {
+            ReportQuery query = build(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.notExists("orders", where("total", GT, 100)), null, null));
+
+            assertThat(query.sql()).isEqualTo("""
+                    SELECT t0.name
+                    FROM customer t0
+                    WHERE NOT EXISTS (SELECT 1 FROM purchase_order s1_0 WHERE s1_0.customer_id = t0.id AND s1_0.total > ?)
+                    ORDER BY t0.id""");
+            assertThat(query.parameters()).containsExactly(100);
+        }
+
+        @Test
+        void existsThroughJunctionWithJoinInside() {
+            ReportQuery query = build(new ReportDefinition("Product", columns("name"),
+                    ReportCondition.exists("tags", where("tag.name", EQ, "eco")), null, null));
+
+            assertThat(query.sql()).contains("WHERE EXISTS (SELECT 1 FROM product_tag s1_0 "
+                    + "LEFT JOIN tag s1_1 ON s1_1.id = s1_0.tag_id WHERE s1_0.product_id = t0.id AND s1_1.name = ?)");
+        }
+
+        @Test
+        void rowRestrictionsApplyInsideExists() {
+            ReportRowPolicy euOnly = viewer -> List.of(new RowRestriction("Customer", "region", "EU"));
+
+            ReportQuery query = builder(euOnly).build(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.exists("referrals", null), null, null), USER);
+
+            assertThat(query.sql()).contains("EXISTS (SELECT 1 FROM customer s1_0 WHERE s1_0.referred_by_id = t0.id AND s1_0.region = ?)");
+        }
+
+        @Test
+        void existsDoesNotFanOutSoListsStayPerRoot() {
+            ReportQuery query = build(new ReportDefinition("Customer",
+                    List.of(ReportColumn.of("name"), ReportColumn.of(Aggregate.LIST, "orders.total")),
+                    ReportCondition.exists("orders", where("total", GT, 100)), null, null));
+
+            assertThat(query.sql()).doesNotContain("GROUP BY");
+        }
+
+        @Test
+        void needsARelation() {
+            assertInvalid(new ReportDefinition("Customer", columns("name"),
+                    where("name", FilterOperator.EXISTS, null), null, null), "need a \"relation\"");
+            assertInvalid(new ReportDefinition("Customer", columns("name"),
+                    ReportCondition.exists("referredBy", null), null, null), "needs a path through a one-to-many relation");
+        }
+    }
+
+    @Nested
+    class ListOptions {
+
+        @Test
+        void listOfObjects() {
+            ReportQuery query = build("Customer", List.of(ReportColumn.of("name"), ReportColumn.objects("orders", "orderDate", "total")));
+
+            assertThat(query.sql()).contains("(SELECT CAST(JSON_ARRAYAGG(JSON_OBJECT('orderDate' VALUE s1_0.order_date, "
+                    + "'total' VALUE s1_0.total) ORDER BY s1_0.order_date, s1_0.total) AS VARCHAR) FROM purchase_order s1_0 "
+                    + "WHERE s1_0.customer_id = t0.id AND (s1_0.order_date IS NOT NULL OR s1_0.total IS NOT NULL))");
+            assertThat(query.columns().get(1).keys()).containsExactly("orderDate", "total");
+        }
+
+        @Test
+        void objectFieldsMustNotFanOutAgainAndKeysMustBeCatalogPaths() {
+            assertInvalid(new ReportDefinition("Customer",
+                    List.of(ReportColumn.of("name"), ReportColumn.objects("orders", "lines.quantity")), null, null, null),
+                    "reachable through to-one relations");
+            assertInvalid(new ReportDefinition("Customer",
+                    List.of(ReportColumn.of("name"), ReportColumn.objects("orders", "total') --")), null, null, null),
+                    "Unknown field");
+        }
+
+        @Test
+        void filteredSortedAndLimitedList() {
+            ReportQuery query = build("Customer", List.of(ReportColumn.of("name"),
+                    ReportColumn.of(Aggregate.LIST, "orders.total").where(where("total", GT, 5)).order(Direction.DESC).limit(3)));
+
+            assertThat(query.sql()).contains("ARRAY_AGG(DISTINCT s1_0.total ORDER BY s1_0.total DESC) FROM purchase_order s1_0 "
+                    + "WHERE s1_0.customer_id = t0.id AND s1_0.total > ? AND s1_0.total IS NOT NULL)");
+            assertThat(query.parameters()).containsExactly(5);
+            assertThat(query.columns().get(1).listLimit()).isEqualTo(3);
+        }
+
+        @Test
+        void columnOptionsNeedPerRootMode() {
+            assertInvalid(new ReportDefinition("Customer", List.of(ReportColumn.of("region"), ReportColumn.count(),
+                            ReportColumn.of(Aggregate.LIST, "orders.total").order(Direction.DESC)), null, null, null),
+                    "need per-root mode");
+        }
+    }
+
+    @Nested
+    class PerRoot {
+
+        private final List<ReportColumn> perCustomer = List.of(ReportColumn.of("name"),
+                ReportColumn.of(Aggregate.COUNT, "orders.total"),
+                ReportColumn.of(SUM, "orders.total"),
+                ReportColumn.of(Aggregate.LIST, "referrals.name"));
+
+        @Test
+        void childAggregatesBecomeSubqueriesWithoutGroupBy() {
+            ReportQuery query = build(new ReportDefinition("Customer", perCustomer, null,
+                    where(SUM, "orders.total", GT, 1000), List.of(new ReportSort("orders.total", SUM, Direction.DESC)), true));
+
+            assertThat(query.sql())
+                    .contains("(SELECT COUNT(s1_0.total) FROM purchase_order s1_0 WHERE s1_0.customer_id = t0.id)",
+                            "(SELECT SUM(s2_0.total) FROM purchase_order s2_0 WHERE s2_0.customer_id = t0.id)",
+                            "WHERE (SELECT SUM(s4_0.total) FROM purchase_order s4_0 WHERE s4_0.customer_id = t0.id) > ?",
+                            "ORDER BY (SELECT SUM(s5_0.total) FROM purchase_order s5_0 WHERE s5_0.customer_id = t0.id) DESC, t0.id")
+                    .doesNotContain("GROUP BY", "HAVING");
+            assertThat(query.parameters()).containsExactly(1000);
+        }
+
+        @Test
+        void sumAcrossIndependentBranchesIsSafePerRoot() {
+            ReportQuery query = build(new ReportDefinition("Customer", perCustomer, null, null, null, true));
+
+            assertThat(query.sql()).doesNotContain("LEFT JOIN");
+        }
+
+        @Test
+        void rejectsWhatOnlyMakesSenseWhenGrouping() {
+            assertInvalid(new ReportDefinition("Customer", List.of(ReportColumn.of("name"), ReportColumn.count()),
+                    null, null, null, true), "perRoot needs every aggregate to go through a one-to-many relation");
+            assertInvalid(new ReportDefinition("Customer", List.of(ReportColumn.of("orders.total"),
+                    ReportColumn.of(Aggregate.LIST, "referrals.name")), null, null, null, true), "with EXISTS / NOT_EXISTS instead");
         }
     }
 

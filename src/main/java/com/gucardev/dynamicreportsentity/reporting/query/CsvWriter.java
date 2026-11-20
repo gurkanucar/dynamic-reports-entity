@@ -27,6 +27,10 @@ final class CsvWriter {
         if (value == null) {
             return "";
         }
+        if (value instanceof java.util.Collection<?> list) {
+            // LIST columns: one cell, values separated by "; "
+            value = String.join("; ", list.stream().map(String::valueOf).toList());
+        }
         String text = value.toString();
         // Text starting with = + - @ would be executed as a formula by Excel.
         if (value instanceof CharSequence && !text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) {

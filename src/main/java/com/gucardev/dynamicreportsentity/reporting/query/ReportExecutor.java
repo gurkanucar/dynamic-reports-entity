@@ -25,6 +25,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
+import tools.jackson.databind.json.JsonMapper;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -75,10 +78,10 @@ public class ReportExecutor {
         parameters.add((long) pageNumber * size);
         log.debug("Running report page {} (size {})\n{}\nparameters: {}", pageNumber, size, sql, parameters);
 
-        int columnCount = query.columns().size();
         long start = System.nanoTime();
+        Set<Integer> truncated = new TreeSet<>();
         List<List<Object>> rows = jdbcTemplate.query(statement(sql, parameters, 0, 0),
-                (resultSet, rowNumber) -> readRow(resultSet, columnCount));
+                (resultSet, rowNumber) -> readRow(resultSet, query.columns(), truncated));
         recordTiming(query, start);
 
         boolean hasNext = rows.size() > size;
@@ -91,12 +94,13 @@ public class ReportExecutor {
                 total = (long) pageNumber * size + pageRows.size();
             } else {
                 log.debug("Counting report rows\n{}", query.countSql());
-                total = jdbcTemplate.query(statement(query.countSql(), query.parameters(), 0, 0),
+                total = jdbcTemplate.query(statement(query.countSql(), query.countParameters(), 0, 0),
                         (resultSet, rowNumber) -> resultSet.getLong(1)).getFirst();
             }
         }
+        List<String> truncatedLists = truncated.stream().map(index -> query.columns().get(index).label()).toList();
         return new ReportResult(query.columns(), pageRows, pageRows.size(), pageNumber, size, hasNext, total,
-                indexAdvisor.hints(query.columnUsages()));
+                truncatedLists, indexAdvisor.hints(query.columnUsages()));
     }
 
     /**
@@ -106,7 +110,6 @@ public class ReportExecutor {
      */
     public void writeCsv(ReportQuery query, OutputStream outputStream) {
         int limit = properties.exportMaxRows();
-        int columnCount = query.columns().size();
         log.debug("Exporting report\n{}\nparameters: {}", query.sql(), query.parameters());
 
         readOnlyTransaction.executeWithoutResult(status -> {
@@ -123,7 +126,7 @@ public class ReportExecutor {
                                 return; // the extra row only tells us the export was cut off
                             }
                             try {
-                                csv.writeRow(readRow(resultSet, columnCount));
+                                csv.writeRow(readRow(resultSet, query.columns(), new TreeSet<>()));
                             } catch (IOException e) {
                                 throw new UncheckedIOException(e);
                             }
@@ -169,19 +172,50 @@ public class ReportExecutor {
         };
     }
 
-    private static List<Object> readRow(ResultSet resultSet, int columnCount) throws SQLException {
-        List<Object> row = new ArrayList<>(columnCount);
-        for (int i = 1; i <= columnCount; i++) {
-            row.add(normalize(resultSet.getObject(i)));
+    /**
+     * Reads one row. LIST cells become JSON arrays (objects for a LIST of objects); a list that came back with
+     * one element more than its limit is cut to the limit and its column index is added to {@code truncated}.
+     */
+    private static List<Object> readRow(ResultSet resultSet, List<ResultColumn> columns, Set<Integer> truncated)
+            throws SQLException {
+        List<Object> row = new ArrayList<>(columns.size());
+        for (int i = 0; i < columns.size(); i++) {
+            ResultColumn column = columns.get(i);
+            Object value = normalize(resultSet.getObject(i + 1));
+            if (column.aggregate() == Aggregate.LIST) {
+                List<?> list = switch (value) {
+                    case null -> List.of();   // no matching children
+                    case List<?> elements -> elements;
+                    case byte[] json -> JSON.readValue(new String(json, UTF_8), List.class);
+                    default -> JSON.readValue(value.toString(), List.class);
+                };
+                if (column.listLimit() != null && list.size() > column.listLimit()) {
+                    list = list.subList(0, column.listLimit());
+                    truncated.add(i);
+                }
+                value = list;
+            }
+            row.add(value);
         }
         return row;
     }
 
-    /** JDBC drivers may return java.sql types; expose java.time instead. */
-    private static Object normalize(Object value) {
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /** JDBC drivers may return java.sql types; expose java.time (and SQL arrays as lists) instead. */
+    private static Object normalize(Object value) throws SQLException {
         return switch (value) {
             case Date date -> date.toLocalDate();
             case Timestamp timestamp -> timestamp.toLocalDateTime();
+            case java.sql.Array array -> {
+                Object[] elements = (Object[]) array.getArray();
+                List<Object> list = new ArrayList<>(elements.length);
+                for (Object element : elements) {
+                    list.add(normalize(element));
+                }
+                array.free();
+                yield list;
+            }
             case null, default -> value;
         };
     }

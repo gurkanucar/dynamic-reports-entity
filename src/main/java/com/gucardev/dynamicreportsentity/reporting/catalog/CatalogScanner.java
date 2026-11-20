@@ -1,6 +1,7 @@
 package com.gucardev.dynamicreportsentity.reporting.catalog;
 
 import com.gucardev.dynamicreportsentity.reporting.ReportField;
+import com.gucardev.dynamicreportsentity.reporting.ReportHidden;
 import com.gucardev.dynamicreportsentity.reporting.ReportReference;
 import com.gucardev.dynamicreportsentity.reporting.Reportable;
 import jakarta.persistence.Column;
@@ -49,7 +50,9 @@ final class CatalogScanner {
     }
 
     private static Draft draft(String name, Class<?> type) {
-        Draft draft = new Draft(name, type.getAnnotation(Reportable.class).label(), tableName(type));
+        Reportable reportable = type.getAnnotation(Reportable.class);
+        boolean includeAll = reportable.includeAllFields();
+        Draft draft = new Draft(name, reportable.label(), tableName(type));
         for (Field field : persistentFields(type)) {
             String column = columnName(field);
             draft.columns.put(field.getName(), column);
@@ -60,13 +63,36 @@ final class CatalogScanner {
             if (reportField != null) {
                 draft.fields.put(field.getName(), new CatalogField(field.getName(), reportField.label(), column,
                         FieldType.of(field.getType()), reportField.authority().isBlank() ? null : reportField.authority()));
+            } else if (includeAll && !field.isAnnotationPresent(ReportHidden.class)
+                    && !field.isAnnotationPresent(Id.class) && !field.isAnnotationPresent(ReportReference.class)) {
+                draft.fields.put(field.getName(), new CatalogField(field.getName(), humanize(field.getName()), column,
+                        FieldType.of(field.getType()), null));
             }
         }
         if (draft.idColumns.isEmpty()) {
             throw new IllegalStateException("@Reportable entity " + type.getName()
                     + " needs @Id field(s) (@EmbeddedId is not supported, use @IdClass)");
         }
+        exposeId(draft, type);
         return draft;
+    }
+
+    /**
+     * A single-column primary key is always reportable (label "ID"), listed first. It identifies rows
+     * (COUNT_DISTINCT, filters by id) and makes every reference value reachable as a path, e.g.
+     * {@code department.id} instead of a raw {@code departmentId} column.
+     */
+    private static void exposeId(Draft draft, Class<?> type) {
+        List<Field> idFields = persistentFields(type).stream().filter(field -> field.isAnnotationPresent(Id.class)).toList();
+        if (idFields.size() != 1 || draft.fields.containsKey(idFields.getFirst().getName())) {
+            return;
+        }
+        Field id = idFields.getFirst();
+        Map<String, CatalogField> withId = new LinkedHashMap<>();
+        withId.put(id.getName(), new CatalogField(id.getName(), "ID", columnName(id), FieldType.of(id.getType()), null));
+        withId.putAll(draft.fields);
+        draft.fields.clear();
+        draft.fields.putAll(withId);
     }
 
     private static void addReferences(Draft source, Class<?> type, Map<String, Draft> drafts) {
@@ -156,6 +182,12 @@ final class CatalogScanner {
     private static String entityName(Class<?> type) {
         String name = type.getAnnotation(Reportable.class).name();
         return name.isBlank() ? type.getSimpleName() : name;
+    }
+
+    /** {@code validityMonths} → {@code Validity Months} (label for includeAllFields). */
+    static String humanize(String name) {
+        String spaced = name.replaceAll("([a-z0-9])([A-Z])", "$1 $2");
+        return Character.toUpperCase(spaced.charAt(0)) + spaced.substring(1);
     }
 
     /** {@code managerId → manager}; other names get a {@code Ref} suffix to avoid clashing with fields. */

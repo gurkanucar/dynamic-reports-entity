@@ -361,7 +361,7 @@ class ReportApiIntegrationTest {
         void catalogHidesFieldsTheUserMayNotUseAndListsRelations() {
             var personnel = assertThat(mvc.get().uri("/api/reports/catalog")).hasStatusOk().bodyJson();
             personnel.extractingPath("$.entities[?(@.name == 'Personnel')].fields[*].name").asArray()
-                    .contains("fullName", "hireDate", "active")
+                    .contains("id", "username", "fullName", "hireDate", "active")
                     .doesNotContain("salary", "nationalId", "departmentId");
             assertThat(mvc.get().uri("/api/reports/catalog")).bodyJson()
                     .extractingPath("$.entities[?(@.name == 'Personnel')].relations[*].name").asArray()
@@ -421,6 +421,78 @@ class ReportApiIntegrationTest {
                     .hasStatusOk().bodyJson().extractingPath("$[*].column").asArray()
                     .contains("email", "score", "completed_on")
                     .doesNotContain("next_renewal_date", "personnel_id", "department_id");
+        }
+    }
+
+    @Nested
+    @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "ALL_DEPARTMENTS"})
+    class NestedLists {
+
+        private static final String PEOPLE_WITH_SKILLS_AND_TRAININGS = """
+                {"root": "Personnel",
+                 "columns": [
+                   {"field": "fullName"},
+                   {"field": "skills.skill.name", "aggregate": "LIST", "label": "Skills"},
+                   {"field": "trainingRecords.training.name", "aggregate": "LIST", "label": "Trainings"},
+                   {"field": "projectAssignments.project.code", "aggregate": "LIST", "label": "Projects"}],
+                 "where": {"field": "department.name", "operator": "EQ", "value": "Software Development"},
+                 "sort": [{"field": "fullName"}]}
+                """;
+
+        @Test
+        void eachPersonGetsArraysFromThreeOneToManyRelations() {
+            MvcTestResult result = post("/api/reports/run", PEOPLE_WITH_SKILLS_AND_TRAININGS);
+
+            assertThat(result).hasStatusOk().bodyJson().extractingPath("$.rows").asArray().containsExactly(
+                    row("Carol White", List.of("Java", "React", "SQL"),
+                            List.of("Data Protection", "Leadership Fundamentals", "Occupational Health and Safety", "Secure Coding"),
+                            List.of("PRJ-001", "PRJ-005")),
+                    row("Dave Miller", List.of("Java", "React"),
+                            List.of("Data Protection", "Occupational Health and Safety", "Secure Coding"), List.of("PRJ-001")),
+                    row("Erin Garcia", List.of("Java", "Kubernetes", "SQL"),
+                            List.of("Occupational Health and Safety", "Secure Coding"), List.of("PRJ-001")),
+                    row("Frank Wilson", List.of("React"),
+                            List.of("Occupational Health and Safety", "Secure Coding"), List.of("PRJ-003")),
+                    row("Quinn Baker", List.of("Java"),
+                            List.of("Occupational Health and Safety", "Secure Coding"), List.of("PRJ-001")));
+            assertThat(result).bodyJson().extractingPath("$.columns[1].aggregate").isEqualTo("LIST");
+        }
+
+        @Test
+        void noChildrenGivesAnEmptyArray() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "fullName"}, {"field": "skills.skill.name", "aggregate": "LIST"}],
+                     "where": {"field": "fullName", "operator": "EQ", "value": "Paul Adams"}}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray()
+                    .containsExactly(row("Paul Adams", List.of()));
+        }
+
+        @Test
+        @WithMockUser(username = "carol", authorities = "REPORT_RUN")
+        void listsRespectRowSecurity() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Department",
+                     "columns": [{"field": "name"}, {"field": "members.fullName", "aggregate": "LIST"}],
+                     "where": {"field": "name", "operator": "IN", "value": ["Finance", "Software Development"]},
+                     "sort": [{"field": "name"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray().containsExactly(
+                            row("Finance", List.of()),
+                            row("Software Development",
+                                    List.of("Carol White", "Dave Miller", "Erin Garcia", "Frank Wilson", "Quinn Baker")));
+        }
+
+        @Test
+        void csvPutsTheListInOneCell() {
+            assertThat(post("/api/reports/export", """
+                    {"root": "Department",
+                     "columns": [{"field": "name"}, {"field": "members.fullName", "aggregate": "LIST", "label": "Members"}],
+                     "where": {"field": "name", "operator": "EQ", "value": "Finance"}}
+                    """))
+                    .hasStatusOk().bodyText()
+                    .isEqualTo("﻿Department / Name,Members\r\nFinance,Jack Moore; Kate Hall; Liam Young\r\n");
         }
     }
 
@@ -490,10 +562,245 @@ class ReportApiIntegrationTest {
                     {"root": "Personnel", "columns": []}
                     """)).hasStatus(HttpStatus.BAD_REQUEST);
             assertThat(post("/api/reports/run", """
-                    {"root": "Personnel", "columns": [{"field": "nationalId"}]}
+                    {"root": "Personnel", "columns": [{"field": "doesNotExist"}]}
                     """))
                     .hasStatus(HttpStatus.BAD_REQUEST)
-                    .bodyJson().extractingPath("$.detail").isEqualTo("Unknown field: nationalId");
+                    .bodyJson().extractingPath("$.detail").isEqualTo("Unknown field: doesNotExist");
+        }
+    }
+
+    @Nested
+    @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "ALL_DEPARTMENTS"})
+    class FormerLimits {
+
+        @Test
+        void fieldToFieldComparison() {
+            // people working on a project owned by another department than their own
+            assertThat(post("/api/reports/run", """
+                    {"root": "ProjectAssignment",
+                     "columns": [{"field": "personnel.fullName"}, {"field": "project.code"}],
+                     "where": {"field": "personnel.department.id", "operator": "NOT_EQ", "otherField": "project.department.id"},
+                     "sort": [{"field": "project.code"}, {"field": "personnel.fullName"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray().containsExactly(
+                            row("Kate Hall", "PRJ-001"), row("Bob Jones", "PRJ-002"), row("Frank Wilson", "PRJ-003"),
+                            row("Carol White", "PRJ-005"), row("Henry Clark", "PRJ-006"));
+        }
+
+        @Test
+        void notExists() {
+            // IT division people WITHOUT a Fire Safety training
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "fullName"}],
+                     "where": {"conditions": [
+                       {"field": "department.parent.name", "operator": "EQ", "value": "Information Technology"},
+                       {"relation": "trainingRecords", "operator": "NOT_EXISTS",
+                        "match": {"field": "training.name", "operator": "EQ", "value": "Fire Safety"}}]},
+                     "sort": [{"field": "fullName"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray().containsExactly(
+                            "Carol White", "Dave Miller", "Erin Garcia", "Frank Wilson", "Ivy Turner", "Quinn Baker");
+        }
+
+        @Test
+        void exists() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel", "columns": [{"field": "fullName"}],
+                     "where": {"relation": "trainingRecords", "operator": "EXISTS",
+                               "match": {"field": "status", "operator": "EQ", "value": "FAILED"}}}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray().containsExactly("Frank Wilson");
+        }
+
+        @Test
+        void listOfObjects() {
+            MvcTestResult result = post("/api/reports/run", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "fullName"},
+                                 {"field": "trainingRecords", "aggregate": "LIST", "fields": ["training.name", "status"]}],
+                     "where": {"field": "username", "operator": "EQ", "value": "carol"}}
+                    """);
+            assertThat(result).hasStatusOk().bodyJson().extractingPath("$.rows[0][1]").asArray().hasSize(4);
+            assertThat(result).bodyJson().extractingPath("$.rows[0][1][0]")
+                    .isEqualTo(java.util.Map.of("training.name", "Data Protection", "status", "PASSED"));
+            assertThat(result).bodyJson().extractingPath("$.columns[1].keys").asArray().containsExactly("training.name", "status");
+        }
+
+        @Test
+        void filteredAndSortedList() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "fullName"},
+                                 {"field": "trainingRecords.training.name", "aggregate": "LIST", "order": "DESC",
+                                  "where": {"field": "status", "operator": "EQ", "value": "PASSED"}}],
+                     "where": {"field": "username", "operator": "IN", "value": ["carol", "frank"]},
+                     "sort": [{"field": "fullName"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray().containsExactly(
+                            row("Carol White", List.of("Secure Coding", "Occupational Health and Safety",
+                                    "Leadership Fundamentals", "Data Protection")),
+                            row("Frank Wilson", List.of("Occupational Health and Safety")));
+        }
+
+        @Test
+        void limitedListIsReportedAsTruncated() {
+            MvcTestResult result = post("/api/reports/run", """
+                    {"root": "Department",
+                     "columns": [{"field": "name"},
+                                 {"field": "members.fullName", "aggregate": "LIST", "limit": 2, "label": "Members"}],
+                     "where": {"field": "name", "operator": "EQ", "value": "Finance"}}
+                    """);
+            assertThat(result).hasStatusOk().bodyJson().extractingPath("$.rows[0][1]").asArray()
+                    .containsExactly("Jack Moore", "Kate Hall");
+            assertThat(result).bodyJson().extractingPath("$.truncatedLists").asArray().containsExactly("Members");
+        }
+
+        @Test
+        void perRootAggregatesWithListAndHaving() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Department", "perRoot": true,
+                     "columns": [{"field": "name"},
+                                 {"field": "members.fullName", "aggregate": "COUNT", "label": "Headcount"},
+                                 {"field": "projects.code", "aggregate": "LIST", "label": "Projects"}],
+                     "having": {"field": "members.fullName", "aggregate": "COUNT", "operator": "GTE", "value": 3},
+                     "sort": [{"field": "members.fullName", "aggregate": "COUNT", "direction": "DESC"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray().containsExactly(
+                            row("Software Development", 5, List.of("PRJ-001")),
+                            row("Sales", 4, List.of("PRJ-005")),
+                            row("Human Resources", 3, List.of("PRJ-003")),
+                            row("Infrastructure", 3, List.of("PRJ-002")),
+                            row("Finance", 3, List.of("PRJ-004")));
+        }
+
+        @Test
+        void perRootCountOfFilteredChildren() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel", "perRoot": true,
+                     "columns": [{"field": "fullName"},
+                                 {"field": "trainingRecords.status", "aggregate": "COUNT", "label": "Failed",
+                                  "where": {"field": "status", "operator": "EQ", "value": "FAILED"}}],
+                     "where": {"field": "username", "operator": "IN", "value": ["carol", "frank"]},
+                     "sort": [{"field": "fullName"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray()
+                    .containsExactly(row("Carol White", 0), row("Frank Wilson", 1));
+        }
+
+        @Test
+        void includeAllFieldsExposesEveryPlainFieldExceptHidden() {
+            var fields = assertThat(mvc.get().uri("/api/reports/catalog")).hasStatusOk().bodyJson();
+            fields.extractingPath("$.entities[?(@.name == 'Training')].fields[*].name").asArray()
+                    .containsExactly("id", "name", "category", "validityMonths", "mandatory");
+            assertThat(mvc.get().uri("/api/reports/catalog")).bodyJson()
+                    .extractingPath("$.entities[?(@.name == 'Training')].fields[*].label").asArray()
+                    .containsExactly("ID", "Name", "Category", "Validity (months)", "Mandatory");
+        }
+    }
+
+    @Nested
+    class FieldVersusAggregate {
+
+        private static final String ABOVE_DEPARTMENT_AVERAGE = """
+                {"root": "Personnel", "columns": [{"field": "fullName"}],
+                 "where": {"field": "salary", "operator": "GT",
+                           "otherField": "department.members.salary", "otherAggregate": "AVG"},
+                 "sort": [{"field": "fullName"}]}
+                """;
+
+        private static final String ABOVE_COMPANY_AVERAGE = """
+                {"root": "Personnel", "columns": [{"field": "fullName"}],
+                 "where": {"field": "salary", "operator": "GT", "otherField": "salary", "otherAggregate": "AVG"},
+                 "sort": [{"field": "fullName"}]}
+                """;
+
+        @Test
+        @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "SALARY_VIEW", "ALL_DEPARTMENTS"})
+        void salaryAboveOwnDepartmentAverage() {
+            assertThat(post("/api/reports/run", ABOVE_DEPARTMENT_AVERAGE))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray().containsExactly(
+                            "Alice Smith", "Carol White", "Dave Miller", "Grace Kim", "Jack Moore", "Mia Allen");
+        }
+
+        @Test
+        @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "SALARY_VIEW", "ALL_DEPARTMENTS"})
+        void salaryAboveCompanyAverage() {
+            // company average 68,050: Dave Miller (68,000) just misses it
+            assertThat(post("/api/reports/run", ABOVE_COMPANY_AVERAGE))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray().containsExactly(
+                            "Alice Smith", "Bob Jones", "Carol White", "Diana Prince", "Grace Kim", "Jack Moore", "Mia Allen");
+        }
+
+        @Test
+        @WithMockUser(username = "carol", authorities = {"REPORT_RUN", "SALARY_VIEW"})
+        void theAverageOnlyCoversRowsTheViewerMaySee() {
+            // for carol "company" = her department (average 64,400)
+            assertThat(post("/api/reports/run", ABOVE_COMPANY_AVERAGE))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray()
+                    .containsExactly("Carol White", "Dave Miller");
+        }
+
+        @Test
+        @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "ALL_DEPARTMENTS"})
+        void filteredGroupAverage() {
+            // hired before the latest hire among the ACTIVE members of the own department (HR: hannah, 2021)
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel", "columns": [{"field": "fullName"}],
+                     "where": {"conditions": [
+                       {"field": "department.name", "operator": "EQ", "value": "Human Resources"},
+                       {"field": "hireDate", "operator": "LT", "otherField": "department.members.hireDate", "otherAggregate": "MAX",
+                        "otherWhere": {"field": "active", "operator": "EQ", "value": true}}]},
+                     "sort": [{"field": "fullName"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[*][0]").asArray()
+                    .containsExactly("Alice Smith", "Rachel Green");
+        }
+
+        @Test
+        @WithMockUser(username = "alice", authorities = "REPORT_RUN")
+        void hiddenFieldStaysHiddenInTheAggregate() {
+            assertThat(post("/api/reports/run", ABOVE_DEPARTMENT_AVERAGE)).hasStatus(HttpStatus.FORBIDDEN);
+        }
+    }
+
+    @Nested
+    class PreviouslyHiddenFields {
+
+        @Test
+        @WithMockUser(username = "alice", authorities = "REPORT_RUN")
+        void usernameIdsAndReferenceIdsAreQueryable() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel",
+                     "columns": [{"field": "id"}, {"field": "username"}, {"field": "department.id"}, {"field": "manager.username"}],
+                     "where": {"field": "username", "operator": "IN", "value": ["alice", "hannah"]},
+                     "sort": [{"field": "id"}]}
+                    """))
+                    // alice (HR) does not see her manager ceo (Head Office): row security empties it
+                    .hasStatusOk().bodyJson().extractingPath("$.rows").asArray()
+                    .containsExactly(row(2, "alice", 2, null), row(3, "hannah", 2, "alice"));
+        }
+
+        @Test
+        @WithMockUser(username = "alice", authorities = "REPORT_RUN")
+        void nationalIdNeedsItsAuthority() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel", "columns": [{"field": "nationalId"}]}
+                    """))
+                    .hasStatus(HttpStatus.FORBIDDEN)
+                    .bodyJson().extractingPath("$.detail").isEqualTo("You are not allowed to use field: Personnel / National ID");
+        }
+
+        @Test
+        @WithMockUser(username = "admin", authorities = {"REPORT_RUN", "ALL_DEPARTMENTS", "NATIONAL_ID_VIEW"})
+        void nationalIdWithAuthority() {
+            assertThat(post("/api/reports/run", """
+                    {"root": "Personnel", "columns": [{"field": "username"}, {"field": "nationalId"}],
+                     "where": {"field": "nationalId", "operator": "STARTS_WITH", "value": "1000000000"},
+                     "sort": [{"field": "nationalId"}]}
+                    """))
+                    .hasStatusOk().bodyJson().extractingPath("$.rows[0]").asArray()
+                    .containsExactly("ceo", "10000000001");
         }
     }
 }

@@ -7,7 +7,13 @@ public enum Aggregate {
     SUM("Sum"),
     AVG("Average"),
     MIN("Minimum"),
-    MAX("Maximum");
+    MAX("Maximum"),
+    /**
+     * Distinct values as a sorted array, e.g. a person's skills: {@code ["Java", "SQL"]}. Turns a
+     * one-to-many relation into a nested list on the parent row instead of one row per child.
+     * Only usable as a column (not in having or sort).
+     */
+    LIST("List");
 
     private final String label;
 

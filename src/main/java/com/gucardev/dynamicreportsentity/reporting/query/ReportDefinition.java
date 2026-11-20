@@ -21,14 +21,23 @@ import java.util.List;
  *   "sort":    [ {"field": "salary", "aggregate": "AVG", "direction": "DESC"} ]
  * }
  * }</pre>
+ *
+ * @param perRoot one row per root entity, with aggregates over one-to-many relations computed per row
+ *                (null = automatic: on when the only aggregates are LISTs; false = always group by the columns)
  */
 public record ReportDefinition(@NotBlank String root,
                                @NotEmpty List<@NotNull @Valid ReportColumn> columns,
                                @Valid ReportCondition where,
                                @Valid ReportCondition having,
-                               List<@NotNull @Valid ReportSort> sort) {
+                               List<@NotNull @Valid ReportSort> sort,
+                               Boolean perRoot) {
 
     public ReportDefinition {
         sort = sort == null ? List.of() : sort;
+    }
+
+    public ReportDefinition(String root, List<ReportColumn> columns, ReportCondition where, ReportCondition having,
+                            List<ReportSort> sort) {
+        this(root, columns, where, having, sort, null);
     }
 }

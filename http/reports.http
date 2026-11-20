@@ -363,12 +363,11 @@ Content-Type: application/json
   "columns": [{"field": "fullName FROM personnel; DROP TABLE personnel; --"}]
 }
 
+### 27. Showcase – cross-department staffing sheet (detail, 9 table joins, nested AND/OR, IN/NOT_IN/BETWEEN/IS_NOT_NULL)
 # ===================================================================================================
 # SHOWCASE: big cross-module reports. Each pulls from many tables; the same table appears under
 # several roles (department as owning team / its division / the person's team), all from one JSON.
 # ===================================================================================================
-
-### 27. Showcase – cross-department staffing sheet (detail, 9 table joins, nested AND/OR, IN/NOT_IN/BETWEEN/IS_NOT_NULL)
 # Tables: project_assignment, project, department x3 (owning team, its division, person's team),
 #         personnel x2 (person, line manager), personnel_profile
 POST http://localhost:8080/api/reports/run?size=100&includeTotal=true
@@ -478,4 +477,340 @@ Content-Type: application/json
   ]},
   "having": {"field": "email", "aggregate": "COUNT_DISTINCT", "operator": "GTE", "value": 3},
   "sort": [{"field": "trainingRecords.score", "aggregate": "AVG"}]
+}
+
+### 30. Nested arrays (LIST): each person once, with skills[], trainings[] and projects[] from three one-to-many relations
+# Only LISTs (no COUNT/SUM/MIN...): one row per person, each list is a subquery run for the page rows only.
+# Adding another aggregate switches to grouping by the visible columns (JOIN + GROUP BY): slower, see #31.
+POST http://localhost:8080/api/reports/run?size=20
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [
+    {"field": "fullName"},
+    {"field": "email"},
+    {"field": "department.name"},
+    {"field": "skills.skill.name",               "aggregate": "LIST", "label": "Skills"},
+    {"field": "trainingRecords.training.name",   "aggregate": "LIST", "label": "Trainings"},
+    {"field": "projectAssignments.project.code", "aggregate": "LIST", "label": "Projects"}
+  ],
+  "where": {"field": "department.parent.name", "operator": "EQ", "value": "Information Technology"},
+  "sort": [{"field": "fullName"}, {"field": "email"}]
+}
+
+### 31. Nested arrays per group: each department with its member list, sub-teams and project codes
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Department",
+  "columns": [
+    {"field": "name"},
+    {"field": "manager.fullName", "label": "Manager"},
+    {"field": "subDepartments.name", "aggregate": "LIST", "label": "Sub-teams"},
+    {"field": "projects.code",       "aggregate": "LIST", "label": "Projects"},
+    {"field": "members.fullName",    "aggregate": "COUNT_DISTINCT", "label": "Headcount"}
+  ],
+  "where": {"field": "parent.name", "operator": "IS_NULL"},
+  "sort": [{"field": "name"}]
+}
+
+### 32. Limits – Person 360: 8 to-one columns over 4 levels + 10 nested lists (two of them cross a one-to-many and then 2 more relations)
+# ===================================================================================================
+# LIMITS: how far one JSON request goes. Each LIST is a correlated subquery that runs only for the
+# rows of the current page, so a person/department "360" view stays fast even with many lists.
+# ===================================================================================================
+POST http://localhost:8080/api/reports/run?size=20
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [
+    {"field": "fullName"},
+    {"field": "email"},
+    {"field": "hireDate"},
+    {"field": "department.name",                 "label": "Team"},
+    {"field": "department.parent.name",          "label": "Division"},
+    {"field": "manager.fullName",                "label": "Manager"},
+    {"field": "manager.department.parent.name",  "label": "Manager's Division"},
+    {"field": "profile.city",                    "label": "City"},
+    {"field": "skills.skill.name",                          "aggregate": "LIST", "label": "Skills"},
+    {"field": "skills.skill.category",                      "aggregate": "LIST", "label": "Skill Categories"},
+    {"field": "trainingRecords.training.name",              "aggregate": "LIST", "label": "Trainings"},
+    {"field": "trainingRecords.status",                     "aggregate": "LIST", "label": "Training Statuses"},
+    {"field": "trainingRecords.completedOn", "dateGroup": "YEAR", "aggregate": "LIST", "label": "Training Years"},
+    {"field": "projectAssignments.project.code",            "aggregate": "LIST", "label": "Projects"},
+    {"field": "projectAssignments.role",                    "aggregate": "LIST", "label": "Roles"},
+    {"field": "projectAssignments.project.department.parent.name", "aggregate": "LIST", "label": "Divisions Worked For"},
+    {"field": "directReports.fullName",                     "aggregate": "LIST", "label": "Direct Reports"},
+    {"field": "managedDepartments.name",                    "aggregate": "LIST", "label": "Departments Managed"}
+  ],
+  "where": {"conditions": [
+    {"field": "active", "operator": "EQ", "value": true},
+    {"logic": "OR", "conditions": [
+      {"field": "department.parent.name", "operator": "EQ", "value": "Information Technology"},
+      {"field": "manager.fullName", "operator": "EQ", "value": "Diana Prince"}
+    ]},
+    {"field": "profile.city", "operator": "IN", "value": ["Istanbul", "Ankara"]}
+  ]},
+  "sort": [{"field": "hireDate"}, {"field": "email"}]
+}
+
+### 33. Limits – Department 360: lists that go through TWO one-to-many relations (members -> skills, projects -> assignments)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Department",
+  "columns": [
+    {"field": "name"},
+    {"field": "parent.name",              "label": "Division"},
+    {"field": "manager.fullName",         "label": "Manager"},
+    {"field": "manager.profile.city",     "label": "Manager's City"},
+    {"field": "subDepartments.name",                          "aggregate": "LIST", "label": "Sub-teams"},
+    {"field": "members.skills.skill.name",                    "aggregate": "LIST", "label": "Skills in Team"},
+    {"field": "members.trainingRecords.training.category",    "aggregate": "LIST", "label": "Training Categories"},
+    {"field": "members.profile.city",                         "aggregate": "LIST", "label": "Cities"},
+    {"field": "members.hireDate", "dateGroup": "YEAR",        "aggregate": "LIST", "label": "Hiring Years"},
+    {"field": "projects.code",                                "aggregate": "LIST", "label": "Projects Owned"},
+    {"field": "projects.assignments.role",                    "aggregate": "LIST", "label": "Roles on Own Projects"},
+    {"field": "members.projectAssignments.project.department.name", "aggregate": "LIST", "label": "Teams Worked For"}
+  ],
+  "where": {"field": "parent.name", "operator": "IS_NOT_NULL"},
+  "sort": [{"field": "parent.name"}, {"field": "name"}]
+}
+
+### 34. Limits – Training 360: who took each training, from which divisions, which years
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Training",
+  "columns": [
+    {"field": "name"},
+    {"field": "category"},
+    {"field": "mandatory"},
+    {"field": "validityMonths"},
+    {"field": "records.personnel.department.parent.name", "aggregate": "LIST", "label": "Divisions"},
+    {"field": "records.status",                           "aggregate": "LIST", "label": "Statuses"},
+    {"field": "records.completedOn", "dateGroup": "YEAR", "aggregate": "LIST", "label": "Completion Years"},
+    {"field": "records.personnel.skills.skill.name",      "aggregate": "LIST", "label": "Skills of Attendees"}
+  ],
+  "sort": [{"field": "category"}, {"field": "name"}]
+}
+
+### 35. Limits – Expect 400: path with 5 relations (max is 4)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "manager.manager.manager.department.parent.name"}]
+}
+
+### 36. Limits – Expect 400: a LIST cannot be filtered (filter its field in "where" instead)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "department.name"}, {"field": "skills.skill.name", "aggregate": "LIST"}, {"aggregate": "COUNT"}],
+  "having": {"field": "skills.skill.name", "aggregate": "LIST", "operator": "EQ", "value": "Java"}
+}
+
+### 37. Limits – Expect 400: LIST next to SUM over two independent one-to-many relations (numbers would be inflated)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Department",
+  "columns": [
+    {"field": "name"},
+    {"field": "projects.code", "aggregate": "LIST"},
+    {"field": "members.salary", "aggregate": "SUM"}
+  ]
+}
+
+### 38. Limits – Expect 400: LIST needs a one-to-many path (a person has exactly one department)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "department.name", "aggregate": "LIST"}]
+}
+
+### 39. Field-to-field comparison: people working on a project owned by ANOTHER department than their own
+# "otherField" compares two catalog fields (EQ, NOT_EQ, LT, LTE, GT, GTE); both are permission-checked.
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "ProjectAssignment",
+  "columns": [
+    {"field": "personnel.fullName"}, {"field": "personnel.department.name", "label": "Own Team"},
+    {"field": "project.code"}, {"field": "project.department.name", "label": "Project Owner"}, {"field": "role"}
+  ],
+  "where": {"field": "personnel.department.id", "operator": "NOT_EQ", "otherField": "project.department.id"},
+  "sort": [{"field": "project.code"}, {"field": "personnel.fullName"}]
+}
+
+### 40. EXISTS / NOT_EXISTS: active people WITHOUT a valid Fire Safety training but WITH at least one project
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "email"}, {"field": "department.name"}],
+  "where": {"conditions": [
+    {"field": "active", "operator": "EQ", "value": true},
+    {"relation": "trainingRecords", "operator": "NOT_EXISTS",
+     "match": {"conditions": [
+       {"field": "training.name", "operator": "EQ", "value": "Fire Safety"},
+       {"field": "nextRenewalDate", "operator": "GTE", "value": "2026-01-01"}]}},
+    {"relation": "projectAssignments", "operator": "EXISTS"}
+  ]},
+  "sort": [{"field": "fullName"}, {"field": "email"}]
+}
+
+### 41. List of objects, filtered, sorted and limited: each person's 3 most recent passed trainings as {name, date, score}
+POST http://localhost:8080/api/reports/run?size=20
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [
+    {"field": "fullName"},
+    {"field": "trainingRecords", "aggregate": "LIST", "label": "Recent Trainings",
+     "fields": ["completedOn", "training.name", "score"],
+     "where": {"field": "status", "operator": "EQ", "value": "PASSED"},
+     "order": "DESC", "limit": 3},
+    {"field": "projectAssignments", "aggregate": "LIST", "label": "Projects",
+     "fields": ["project.code", "role", "allocationPercent"]}
+  ],
+  "where": {"field": "department.parent.name", "operator": "EQ", "value": "Information Technology"},
+  "sort": [{"field": "fullName"}, {"field": "email"}]
+}
+
+### 42. perRoot: department dashboard, one row per department with child aggregates + lists + having (fast version of #31)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Department",
+  "perRoot": true,
+  "columns": [
+    {"field": "name"},
+    {"field": "parent.name", "label": "Division"},
+    {"field": "members.fullName",  "aggregate": "COUNT", "label": "Headcount"},
+    {"field": "members.salary",    "aggregate": "AVG",   "label": "Average Salary"},
+    {"field": "members.trainingRecords.status", "aggregate": "COUNT", "label": "Failed Trainings",
+     "where": {"field": "trainingRecords.status", "operator": "EQ", "value": "FAILED"}},
+    {"field": "projects.budget",   "aggregate": "SUM",   "label": "Project Budget"},
+    {"field": "projects.code",     "aggregate": "LIST",  "label": "Projects", "limit": 5},
+    {"field": "subDepartments.name", "aggregate": "LIST", "label": "Sub-teams"}
+  ],
+  "having": {"field": "members.fullName", "aggregate": "COUNT", "operator": "GTE", "value": 3},
+  "sort": [{"field": "members.fullName", "aggregate": "COUNT", "direction": "DESC"}]
+}
+
+### 43. Everything at once – Person 360 v2: comparisons, EXISTS, per-root counts and object lists in one request
+POST http://localhost:8080/api/reports/run?size=20
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "perRoot": true,
+  "columns": [
+    {"field": "fullName"},
+    {"field": "department.name", "label": "Team"},
+    {"field": "manager.fullName", "label": "Manager"},
+    {"field": "manager.department.name", "label": "Manager's Team"},
+    {"field": "trainingRecords.status", "aggregate": "COUNT", "label": "Trainings"},
+    {"field": "trainingRecords.status", "aggregate": "COUNT", "label": "Failed",
+     "where": {"field": "status", "operator": "EQ", "value": "FAILED"}},
+    {"field": "trainingRecords.score", "aggregate": "AVG", "label": "Average Score"},
+    {"field": "trainingRecords.nextRenewalDate", "aggregate": "MIN", "label": "Next Renewal"},
+    {"field": "trainingRecords", "aggregate": "LIST", "label": "Due Soon",
+     "fields": ["training.name", "nextRenewalDate"],
+     "where": {"field": "nextRenewalDate", "operator": "NEXT_N_DAYS", "value": 90}},
+    {"field": "projectAssignments.allocationPercent", "aggregate": "SUM", "label": "Allocation (%)"},
+    {"field": "projectAssignments", "aggregate": "LIST", "label": "Projects", "fields": ["project.code", "role"]},
+    {"field": "skills.skill.name", "aggregate": "LIST", "label": "Skills", "limit": 3}
+  ],
+  "where": {"conditions": [
+    {"field": "active", "operator": "EQ", "value": true},
+    {"field": "department.id", "operator": "NOT_EQ", "otherField": "manager.department.id"},
+    {"relation": "skills", "operator": "EXISTS", "match": {"field": "skill.category", "operator": "EQ", "value": "Technical"}}
+  ]},
+  "having": {"field": "projectAssignments.allocationPercent", "aggregate": "SUM", "operator": "GTE", "value": 50},
+  "sort": [{"field": "trainingRecords.score", "aggregate": "AVG", "direction": "DESC"}]
+}
+
+### 44. includeAllFields: Training declares @Reportable(includeAllFields = true); every plain field is queryable,
+# labels derived from the names, internalNotes hidden by @ReportHidden.
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Training",
+  "columns": [{"field": "id"}, {"field": "name"}, {"field": "category"}, {"field": "validityMonths"}, {"field": "mandatory"}],
+  "sort": [{"field": "category"}, {"field": "name"}]
+}
+
+### 45. Field vs. aggregate of a related group: people earning more than their own department's average
+# The other side's path crosses a one-to-many (department -> members), so AVG is computed per row over that group.
+POST http://localhost:8080/api/reports/run?size=50
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "fullName"}, {"field": "department.name"}, {"field": "salary"}],
+  "where": {"field": "salary", "operator": "GT", "otherField": "department.members.salary", "otherAggregate": "AVG",
+            "otherWhere": {"field": "active", "operator": "EQ", "value": true}},
+  "sort": [{"field": "salary", "direction": "DESC"}]
+}
+
+### 46. Field vs. aggregate of the whole table: salary above the company average (of the rows the viewer may see)
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [{"field": "department.parent.name", "label": "Division"}, {"aggregate": "COUNT", "label": "Above Company Average"}],
+  "where": {"field": "salary", "operator": "GT", "otherField": "salary", "otherAggregate": "AVG"},
+  "sort": [{"aggregate": "COUNT", "direction": "DESC"}]
+}
+
+### 47. Field vs. aggregate on the junction: training scores below that training's average score
+POST http://localhost:8080/api/reports/run?size=50
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "TrainingRecord",
+  "columns": [{"field": "personnel.fullName"}, {"field": "training.name"}, {"field": "score"}],
+  "where": {"conditions": [
+    {"field": "status", "operator": "EQ", "value": "PASSED"},
+    {"field": "score", "operator": "LT", "otherField": "training.records.score", "otherAggregate": "AVG"}
+  ]},
+  "sort": [{"field": "training.name"}, {"field": "score"}]
 }

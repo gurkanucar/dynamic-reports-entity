@@ -22,7 +22,11 @@ public enum FilterOperator {
     /** Business-friendly: date between today and today + N days, e.g. "renewal due within 30 days". */
     NEXT_N_DAYS(null),
     /** Date between today - N days and today. */
-    LAST_N_DAYS(null);
+    LAST_N_DAYS(null),
+    /** At least one related row (via "relation") matches the optional "match" condition. */
+    EXISTS(null),
+    /** No related row matches, e.g. people WITHOUT a Fire Safety training. */
+    NOT_EXISTS(null);
 
     private final String comparison;
 
