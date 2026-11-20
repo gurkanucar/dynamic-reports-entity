@@ -4,14 +4,14 @@ import java.util.List;
 
 /**
  * One page of tabular report output.
- * <p>
- * {@code hasNext} is always there and costs nothing (one extra row is fetched). {@code total} is
- * only computed on request ({@code includeTotal=true}), because it needs a second query that has to
- * evaluate every matching row/group, which on large joins can cost more than the page itself.
  *
- * @param total      number of rows of the whole report, or {@code null} if not requested
+ * @param count      rows on this page
+ * @param hasNext    whether another page follows (free: one extra row is fetched)
+ * @param total      rows in the whole report. Returned by default; a separate {@code COUNT(*)} query runs only
+ *                   when there is a next page (otherwise it is derived from the page). {@code null} when the
+ *                   caller opted out with {@code includeTotal=false}.
  * @param indexHints columns this report used that no index serves, with suggested DDL (empty if all good)
  */
-public record ReportResult(List<ResultColumn> columns, List<List<Object>> rows,
+public record ReportResult(List<ResultColumn> columns, List<List<Object>> rows, int count,
                            int page, int size, boolean hasNext, Long total, List<String> indexHints) {
 }

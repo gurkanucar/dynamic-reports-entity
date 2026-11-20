@@ -74,14 +74,15 @@ class ReportController {
     }
 
     /**
-     * "Run" on screen: always paged. {@code includeTotal=true} also returns the total row count;
-     * a UI typically asks for it once (first page) and only uses {@code hasNext} afterwards.
+     * "Run" on screen: always paged; returns the page's row count and the report's total by default.
+     * {@code includeTotal=false} skips the total for very heavy reports (it is the only part that may
+     * need a second query, and only when there is a next page).
      */
     @PostMapping("/run")
     public ReportResult run(@Valid @RequestBody ReportDefinition definition,
                             @RequestParam(defaultValue = "0") int page,
                             @RequestParam(required = false) Integer size,
-                            @RequestParam(defaultValue = "false") boolean includeTotal,
+                            @RequestParam(defaultValue = "true") boolean includeTotal,
                             Authentication authentication) {
         return executor.run(definition, viewer(authentication), page, size, includeTotal);
     }

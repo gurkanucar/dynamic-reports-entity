@@ -82,18 +82,20 @@ public class ReportExecutor {
         recordTiming(query, start);
 
         boolean hasNext = rows.size() > size;
+        List<List<Object>> pageRows = hasNext ? rows.subList(0, size) : rows;
 
         Long total = null;
         if (includeTotal) {
-            if (pageNumber == 0 && !hasNext) {
-                total = (long) rows.size(); // everything fits on the first page: no second query needed
+            if (!hasNext && (pageNumber == 0 || !pageRows.isEmpty())) {
+                // Last page: everything before it was full, so the total is known without a second query.
+                total = (long) pageNumber * size + pageRows.size();
             } else {
                 log.debug("Counting report rows\n{}", query.countSql());
                 total = jdbcTemplate.query(statement(query.countSql(), query.parameters(), 0, 0),
                         (resultSet, rowNumber) -> resultSet.getLong(1)).getFirst();
             }
         }
-        return new ReportResult(query.columns(), hasNext ? rows.subList(0, size) : rows, pageNumber, size, hasNext, total,
+        return new ReportResult(query.columns(), pageRows, pageRows.size(), pageNumber, size, hasNext, total,
                 indexAdvisor.hints(query.columnUsages()));
     }
 
