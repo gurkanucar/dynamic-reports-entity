@@ -51,6 +51,8 @@ class SessionApiIntegrationTest {
     @Test
     void loginStartsAnHttpOnlySessionThatWorksWithoutThePassword() {
         MvcTestResult login = login("carol", "password");
+        System.out.println("DEBUG-HEADERS " + login.getResponse().getHeaderNames().stream()
+                .map(n -> n + "=" + login.getResponse().getHeaders(n)).toList() + " session=" + login.getRequest().getSession(false));
         assertThat(login).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.data.username").isEqualTo("carol");
         Cookie session = cookie(login, "REPORTS_SESSION");
         assertThat(session).isNotNull();
