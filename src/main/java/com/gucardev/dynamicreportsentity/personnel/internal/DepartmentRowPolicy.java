@@ -1,10 +1,10 @@
 package com.gucardev.dynamicreportsentity.personnel.internal;
 
 import com.gucardev.dynamicreportsentity.personnel.Personnel;
-import com.gucardev.dynamicreportsentity.reporting.ReportAccessDeniedException;
-import com.gucardev.dynamicreportsentity.reporting.ReportRowPolicy;
-import com.gucardev.dynamicreportsentity.reporting.ReportViewer;
-import com.gucardev.dynamicreportsentity.reporting.RowRestriction;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportRowPolicy;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.reporting.RowRestriction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 

@@ -1,0 +1,72 @@
+# Error code catalog of the flow API (docs/REST API Tasarım Rehberi.md, section 6).
+# A code never changes its meaning or status once published; new situations get new codes.
+# "step" codes appear on runs (run.error.code, steps[].error.code), not as HTTP errors.
+
+http:
+  # ---- generic -------------------------------------------------------------------------------------
+  MALFORMED_REQUEST:       { status: 400, message: "The request body is not valid JSON or a value has the wrong type." }
+  UNKNOWN_STEP_TYPE:       { status: 400, message: "Unknown or missing step type." }
+  INVALID_PARAMETER:       { status: 400, message: "Invalid query parameter value." }
+  INVALID_PAGINATION:      { status: 400, message: "page must be >= 1 and size between 1 and 100." }
+  INSUFFICIENT_ROLE:       { status: 403, message: "You are not allowed to do this." }
+  VERSION_MISMATCH:        { status: 412, message: "The record was changed by someone else." }
+  UNSUPPORTED_MEDIA_TYPE:  { status: 415, message: "Send the body as application/json." }
+  VALIDATION_FAILED:       { status: 422, message: "One or more fields are invalid; see errors[]." }
+  IF_MATCH_REQUIRED:       { status: 428, message: "Send the ETag in If-Match." }
+  INTERNAL_ERROR:          { status: 500, message: "Unexpected error; quote the traceId." }
+  # ---- flows ---------------------------------------------------------------------------------------
+  FLOW_NOT_FOUND:          { status: 404, message: "The flow does not exist or is not yours." }
+  REPORT_FIELD_FORBIDDEN:  { status: 403, message: "A report step uses a field you may not see." }
+  FLOW_HAS_ACTIVE_RUNS:    { status: 409, message: "Cancel the queued or running runs first." }
+  # ---- runs and files ------------------------------------------------------------------------------
+  RUN_NOT_FOUND:           { status: 404, message: "The run does not exist or is not visible to you." }
+  ARTIFACT_NOT_FOUND:      { status: 404, message: "The file does not exist or is not visible to you." }
+  RUN_ALREADY_FINISHED:    { status: 409, message: "The run has already finished." }
+  FILE_EXPIRED:            { status: 410, message: "The file was deleted after flows.file-retention." }
+  # ---- schedules -----------------------------------------------------------------------------------
+  SCHEDULE_NOT_FOUND:      { status: 404, message: "The schedule does not exist or is not visible to you." }
+  SCHEDULE_LIMIT_REACHED:  { status: 409, message: "The flow already has the maximum number of schedules." }
+  # ---- mail templates ------------------------------------------------------------------------------
+  TEMPLATE_NOT_FOUND:      { status: 404, message: "The mail template does not exist." }
+  NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a report admin may change the template." }
+  TEMPLATE_NAME_TAKEN:     { status: 409, message: "Another template already has this name." }
+  TEMPLATE_IN_USE:         { status: 409, message: "The template is used by a flow." }
+
+# Codes inside errors[] of a 422 VALIDATION_FAILED (field is a JSON path, e.g. steps[1].to[0])
+field:
+  REQUIRED: "Required."
+  INVALID_LENGTH: "Too short or too long."
+  INVALID_FORMAT: "Wrong format."
+  INVALID_EMAIL: "Not an e-mail address."
+  OUT_OF_RANGE: "Out of the allowed range."
+  DUPLICATE_STEP_KEY: "Another step uses this key."
+  INVALID_REPORT_DEFINITION: "The report cannot be built (unknown field, wrong operator, ...)."
+  MAX_ROWS_TOO_HIGH: "maxRows is above flows.report-max-rows."
+  TEMPLATE_NOT_FOUND: "The mail template does not exist."
+  RECIPIENT_NOT_ALLOWED: "The address is outside flows.mail.allowed-recipient-domains."
+  UNKNOWN_ATTACHMENT: "Not a report step before this one."
+  TEMPLATE_SYNTAX_ERROR: "The Mustache template does not compile."
+  INVALID_CRON: "Not a cron expression."
+  INVALID_TIME_ZONE: "Not an IANA time zone."
+  CRON_NEVER_FIRES: "The expression has no future fire time."
+  SCHEDULE_TOO_FREQUENT: "Fires more often than flows.min-schedule-interval."
+
+# Codes on failed or retried steps (retry: whether another attempt is made while attempts are left)
+step:
+  INVALID_REPORT_DEFINITION: { retry: false, message: "The saved report no longer builds (e.g. a field was removed)." }
+  INVALID_FLOW_DEFINITION:   { retry: false, message: "The stored flow definition cannot be read by this version." }
+  REPORT_ACCESS_DENIED:      { retry: false, message: "The flow owner may no longer see a field or any rows." }
+  RUN_AS_USER_UNAVAILABLE:   { retry: false, message: "The flow owner no longer exists or is disabled." }
+  REPORT_FILE_TOO_LARGE:     { retry: false, message: "The CSV is larger than flows.max-artifact-size." }
+  TEMPLATE_NOT_FOUND:        { retry: false, message: "The mail template was deleted." }
+  RECIPIENT_NOT_ALLOWED:     { retry: false, message: "A recipient is outside the allowed domains." }
+  ATTACHMENT_NOT_AVAILABLE:  { retry: false, message: "The report step to attach produced no file." }
+  MAIL_RECIPIENT_REJECTED:   { retry: false, message: "The mail server rejected a recipient." }
+  MAIL_REJECTED:             { retry: false, message: "The e-mail could not be built." }
+  MAIL_SERVER_UNAVAILABLE:   { retry: true,  message: "The mail server could not be reached or refused the login." }
+  STEP_TIMEOUT:              { retry: true,  message: "The step ran longer than its timeout." }
+  STEP_LEASE_EXPIRED:        { retry: true,  message: "The instance running the step stopped responding." }
+  STEP_INTERRUPTED:          { retry: true,  message: "The step was interrupted." }
+  DATABASE_ERROR:            { retry: true,  message: "Database error; details in the server log." }
+  INTERNAL_ERROR:            { retry: true,  message: "Unexpected error; details in the server log." }
+  RUN_CANCELLED:             { retry: false, message: "The run was cancelled." }

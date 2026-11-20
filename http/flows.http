@@ -1,0 +1,106 @@
+### Flows: scheduled reports sent by e-mail. Contract: api/flows-api.yaml, error codes: api/errors.yaml
+### Start the services first:  docker compose up -d   ->  e-mails at http://localhost:8025, files in S3Mock (:9090)
+### Users (password "password"): admin (everything), alice (HR), carol (Software Development), bob (IT, salary)
+### Runs act as the flow owner: carol's flows only ever see Software Development.
+
+### 1. What a mail template can use (flow, run, steps.<key>.rowCount / columns / rows[].cells ...)
+GET http://localhost:8080/api/mail-template-previews/sample-model
+Authorization: Basic admin password
+
+### 2. Try a template before saving it (values are HTML-escaped; no code, no partials)
+POST http://localhost:8080/api/mail-template-previews
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "subject": "{{flow.name}} - {{run.date}}",
+  "bodyHtml": "<h2>{{flow.name}}</h2><p>{{steps.report.rowCount}} rows</p>"
+}
+
+### 3. Save a mail template
+POST http://localhost:8080/api/mail-templates
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "name": "Report table",
+  "description": "Report name, a table of the first rows and the CSV attached",
+  "subject": "{{flow.name}} - {{run.date}} ({{steps.report.rowCount}} rows)",
+  "bodyHtml": "<h2>{{flow.name}}</h2>{{^steps.report.hasRows}}<p>No rows this time.</p>{{/steps.report.hasRows}}{{#steps.report.hasRows}}<table border=\"1\" cellpadding=\"4\"><tr>{{#steps.report.columns}}<th>{{.}}</th>{{/steps.report.columns}}</tr>{{#steps.report.rows}}<tr>{{#cells}}<td>{{.}}</td>{{/cells}}</tr>{{/steps.report.rows}}</table>{{#steps.report.previewTruncated}}<p>First rows only; the full report is attached.</p>{{/steps.report.previewTruncated}}{{/steps.report.hasRows}}"
+}
+
+### 4. A flow: run a report, mail it with the CSV attached (templateId from 3.)
+POST http://localhost:8080/api/flows
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "name": "Weekly headcount",
+  "description": "Headcount and average salary per department, every Monday",
+  "steps": [
+    {
+      "type": "report", "key": "report", "fileName": "headcount.csv",
+      "definition": {
+        "root": "Personnel",
+        "columns": [
+          {"field": "department.name", "label": "Department"},
+          {"aggregate": "COUNT", "label": "Headcount"},
+          {"field": "salary", "aggregate": "AVG", "label": "Average salary"}
+        ],
+        "where": {"field": "active", "operator": "EQ", "value": true},
+        "sort": [{"field": "department.name"}]
+      }
+    },
+    {"type": "mail", "key": "mail", "templateId": 1, "to": ["hr@example.com"], "attachments": ["report"]}
+  ]
+}
+
+### 5. Run it now: 202 + Location of the run
+POST http://localhost:8080/api/flows/1/runs
+Authorization: Basic admin password
+
+### 6. Follow the run: status, steps (attempts, errors, output), files, history
+GET http://localhost:8080/api/flow-runs/1
+Authorization: Basic admin password
+
+### 7. Download the CSV of the run (URL from "files" in 6.): 302 to a presigned S3 URL; 410 after flows.file-retention
+GET http://localhost:8080/api/flow-files/1/download
+Authorization: Basic admin password
+
+### 8. Every Monday 08:00 Istanbul time (5 cron fields; 6 with seconds; or @daily, @weekly ...)
+POST http://localhost:8080/api/flows/1/schedules
+Authorization: Basic admin password
+Content-Type: application/json
+
+{"cron": "0 8 * * MON", "timeZone": "Europe/Istanbul", "enabled": true}
+
+### 9. Pause it: changes need the ETag of what you edited (GET /api/flow-schedules/1 -> ETag)
+PUT http://localhost:8080/api/flow-schedules/1
+Authorization: Basic admin password
+Content-Type: application/json
+If-Match: "0"
+
+{"cron": "0 8 * * MON", "timeZone": "Europe/Istanbul", "enabled": false}
+
+### 10. Cancel a run: waiting steps at once, a running query is cancelled in the database
+POST http://localhost:8080/api/flow-runs/1/cancel
+Authorization: Basic admin password
+
+### 11. My runs that failed (status repeats for OR; pages start at 1, size <= 100)
+GET http://localhost:8080/api/flow-runs?status=failed&status=cancelled&page=1&size=20
+Authorization: Basic admin password
+
+### 12. Validation: problem+json with code, traceId and errors[] (here: unknown field, recipient outside
+###     flows.mail.allowed-recipient-domains when set, attachment that is not an earlier report step)
+POST http://localhost:8080/api/flows
+Authorization: Basic carol password
+Content-Type: application/json
+X-Request-Id: demo-42
+
+{
+  "name": "Broken",
+  "steps": [
+    {"type": "report", "key": "report", "definition": {"root": "Personnel", "columns": [{"field": "nope"}]}},
+    {"type": "mail", "key": "mail", "templateId": 1, "to": ["someone@example.com"], "attachments": ["missing"]}
+  ]
+}

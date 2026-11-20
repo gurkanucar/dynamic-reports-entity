@@ -1,0 +1,34 @@
+# Development services:  docker compose up -d
+#   PostgreSQL  localhost:5433  (run the app with --spring.profiles.active=postgres)
+#   Mailpit     SMTP localhost:1025, web UI http://localhost:8025 (every e-mail the flows send lands here)
+#   S3Mock      S3 API on http://localhost:9090 (run files; the app creates the bucket "flow-files")
+# perf/compose.yaml is the tuned PostgreSQL for load tests; it uses the same port, so run one or the other.
+services:
+  postgres:
+    image: postgres:17
+    container_name: dynamic-reports-postgres
+    environment:
+      POSTGRES_DB: reports
+      POSTGRES_USER: reports
+      POSTGRES_PASSWORD: reports
+    ports:
+      - "5433:5432"
+    volumes:
+      - dynamic-reports-pgdata:/var/lib/postgresql/data
+
+  # S3-compatible store for development (Apache-2.0). Production uses the company's S3.
+  s3:
+    image: adobe/s3mock:3.12.0
+    container_name: dynamic-reports-s3
+    ports:
+      - "9090:9090"
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    container_name: dynamic-reports-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  dynamic-reports-pgdata:

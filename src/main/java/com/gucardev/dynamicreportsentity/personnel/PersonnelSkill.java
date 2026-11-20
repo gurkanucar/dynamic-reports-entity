@@ -1,7 +1,7 @@
 package com.gucardev.dynamicreportsentity.personnel;
 
-import com.gucardev.dynamicreportsentity.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
+import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;

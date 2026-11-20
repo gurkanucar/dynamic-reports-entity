@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.organization;
 
-import com.gucardev.dynamicreportsentity.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
+import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
+import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

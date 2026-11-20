@@ -1,0 +1,775 @@
+openapi: 3.1.0
+info:
+  title: Flows API
+  version: 1.0.0
+  description: |
+    Business users chain steps (run a report, e-mail it) and start them by hand or on a cron schedule.
+
+    * Success bodies use the `{ "data": ..., "meta": ... }` envelope; errors are RFC 9457 problems with a
+      stable `code` and a `traceId` (catalog: `errors.yaml`).
+    * Enums are snake_case, times ISO 8601 UTC, pages 1-based (`size` 1-100, default 20).
+    * Changing a flow, schedule or template needs its ETag in `If-Match` (428 without, 412 if stale).
+    * Every operation needs the `REPORT_RUN` authority. Users see their own flows; `REPORT_ADMIN` sees all.
+      Records you may not see answer 404.
+    * Runs execute **as the flow owner**: their report field and row permissions apply, looked up when the
+      step runs.
+servers:
+  - url: /
+security:
+  - basicAuth: []
+
+tags:
+  - name: flows
+  - name: runs
+  - name: schedules
+  - name: mail-templates
+
+paths:
+  /api/flows:
+    get:
+      tags: [flows]
+      operationId: listFlows
+      summary: List flows
+      description: Own flows (all for REPORT_ADMIN), sorted by `-updatedAt,-id`.
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
+      responses:
+        '200':
+          description: A page of flows.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/FlowSummary' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [flows]
+      operationId: createFlow
+      summary: Create a flow
+      description: |
+        The whole flow is checked: report definitions are built (not run) for the editor, templates must exist,
+        recipients must be in `flows.mail.allowed-recipient-domains`, attachments must name earlier report steps.
+        422 codes in `errors[]`: DUPLICATE_STEP_KEY, INVALID_REPORT_DEFINITION, MAX_ROWS_TOO_HIGH,
+        TEMPLATE_NOT_FOUND, RECIPIENT_NOT_ALLOWED, UNKNOWN_ATTACHMENT and the field rules.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FlowRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { schema: { type: string }, example: /api/flows/12 }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlowEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/flows/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [flows]
+      operationId: getFlow
+      summary: Get a flow
+      responses:
+        '200':
+          description: The flow.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlowEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [flows]
+      operationId: replaceFlow
+      summary: Replace a flow
+      description: Name, description and steps are replaced. Running runs keep their own copy of the steps.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FlowRequest' }
+      responses:
+        '200':
+          description: Saved.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FlowEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [flows]
+      operationId: deleteFlow
+      summary: Delete a flow
+      description: Deletes its schedules too; finished runs stay as history. 409 FLOW_HAS_ACTIVE_RUNS.
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/flows/{id}/runs:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [runs]
+      operationId: startRun
+      summary: Start a run
+      description: |
+        Queues a run and answers at once; follow `Location`. Manual runs go before scheduled ones. Never rejected
+        for load: runs wait in the queue until an instance has a free slot.
+      responses:
+        '202':
+          description: Queued.
+          headers:
+            Location: { schema: { type: string }, example: /api/flow-runs/91 }
+            Retry-After: { schema: { type: integer }, example: 2 }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RunSummary' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    get:
+      tags: [runs]
+      operationId: listFlowRuns
+      summary: List the runs of a flow
+      description: Newest first (`-createdAt,-id`).
+      parameters:
+        - { $ref: '#/components/parameters/Status' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { $ref: '#/components/responses/RunPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/flows/{id}/schedules:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [schedules]
+      operationId: listSchedules
+      summary: List the schedules of a flow
+      description: At most `flows.max-schedules-per-flow` (10), so not paged.
+      responses:
+        '200':
+          description: The schedules.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Schedule' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [schedules]
+      operationId: createSchedule
+      summary: Add a schedule
+      description: |
+        422 codes: INVALID_CRON, INVALID_TIME_ZONE, CRON_NEVER_FIRES, SCHEDULE_TOO_FREQUENT.
+        409 SCHEDULE_LIMIT_REACHED. If the previous run is still active at a fire time, that fire time is
+        skipped (`lastSkipReason`). Fire times missed while no instance ran fire once.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScheduleRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { schema: { type: string }, example: /api/flow-schedules/7 }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/flow-schedules/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [schedules]
+      operationId: getSchedule
+      summary: Get a schedule
+      responses:
+        '200':
+          description: The schedule.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [schedules]
+      operationId: replaceSchedule
+      summary: Replace a schedule
+      description: Firing changes the version too (lastFiredAt); reload on 412.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScheduleRequest' }
+      responses:
+        '200':
+          description: Saved.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScheduleEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [schedules]
+      operationId: deleteSchedule
+      summary: Delete a schedule
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/flow-runs:
+    get:
+      tags: [runs]
+      operationId: listRuns
+      summary: List runs of every visible flow
+      description: Newest first. Users see runs that act as them; REPORT_ADMIN sees all.
+      parameters:
+        - { $ref: '#/components/parameters/Status' }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { $ref: '#/components/responses/RunPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /api/flow-runs/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [runs]
+      operationId: getRun
+      summary: Get a run with its steps, files and history
+      description: While the run is queued or running, `Retry-After` suggests when to ask again.
+      responses:
+        '200':
+          description: The run.
+          headers:
+            Retry-After: { schema: { type: integer }, description: Only while the run is active. }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RunDetail' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/flow-runs/{id}/cancel:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [runs]
+      operationId: cancelRun
+      summary: Cancel a run
+      description: |
+        Waiting steps are cancelled at once. A running step is stopped within seconds: its database query is
+        cancelled (`Statement.cancel()`), other work is interrupted; then the run becomes `cancelled`.
+        Cancelling twice is harmless while the run is active; 409 RUN_ALREADY_FINISHED afterwards.
+      responses:
+        '200':
+          description: Cancel requested (`cancelRequested` true) or already done (`status` cancelled).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/RunSummary' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/flow-files/{id}/download:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [runs]
+      operationId: downloadFile
+      summary: Download a file produced by a run
+      description: |
+        Redirects to a presigned URL of the object store valid for `storage.s3.presigned-url-ttl` (the bytes do not
+        pass through the app). Streamed instead when the store offers no presigned URLs. Files are deleted
+        `flows.file-retention` after they were made: 410 FILE_EXPIRED afterwards.
+      responses:
+        '302':
+          description: Download from the object store.
+          headers:
+            Location: { schema: { type: string, format: uri } }
+        '200':
+          description: The file (CSV, UTF-8 with BOM), when not redirected.
+          content:
+            text/csv: { schema: { type: string, format: binary } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/Gone' }
+
+  /api/mail-templates:
+    get:
+      tags: [mail-templates]
+      operationId: listMailTemplates
+      summary: List mail templates
+      description: Every user may use every template. Sorted by `name,id`.
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
+      responses:
+        '200':
+          description: A page of templates.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/TemplateSummary' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    post:
+      tags: [mail-templates]
+      operationId: createMailTemplate
+      summary: Create a mail template
+      description: 422 TEMPLATE_SYNTAX_ERROR (subject or bodyHtml); 409 TEMPLATE_NAME_TAKEN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { schema: { type: string } }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateEnvelope' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/mail-templates/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [mail-templates]
+      operationId: getMailTemplate
+      summary: Get a mail template
+      responses:
+        '200':
+          description: The template.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [mail-templates]
+      operationId: replaceMailTemplate
+      summary: Replace a mail template
+      description: Owner or REPORT_ADMIN only (403 NOT_TEMPLATE_OWNER).
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TemplateRequest' }
+      responses:
+        '200':
+          description: Saved.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TemplateEnvelope' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [mail-templates]
+      operationId: deleteMailTemplate
+      summary: Delete a mail template
+      description: Owner or REPORT_ADMIN only; 409 TEMPLATE_IN_USE while a flow uses it.
+      responses:
+        '204': { description: Deleted. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/mail-template-previews:
+    post:
+      tags: [mail-templates]
+      operationId: previewMailTemplate
+      summary: Render a draft template
+      description: Nothing is saved. Without `model`, the sample model (`GET .../sample-model`) is used.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, bodyHtml]
+              properties:
+                subject: { type: string, maxLength: 500 }
+                bodyHtml: { type: string, maxLength: 200000 }
+                model: { type: [object, 'null'], additionalProperties: true }
+      responses:
+        '200':
+          description: Rendered subject (plain text) and body (values HTML-escaped).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [subject, bodyHtml]
+                    properties: { subject: { type: string }, bodyHtml: { type: string } }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/mail-template-previews/sample-model:
+    get:
+      tags: [mail-templates]
+      operationId: getSampleTemplateModel
+      summary: What a template can use
+      description: |
+        `flow.{id,name}`, `run.{id,trigger,triggeredBy,startedAt,date}` and `steps.<key>` = the outputs of the
+        earlier steps. A report step's output: `rowCount`, `hasRows`, `fileName`, `columns[]`,
+        `rows[].cells[]` (first `flows.preview-rows` rows), `previewTruncated`.
+      responses:
+        '200':
+          description: The sample model.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { type: object, additionalProperties: true } }
+
+components:
+  securitySchemes:
+    basicAuth: { type: http, scheme: basic }
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Size: { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Status:
+      name: status
+      in: query
+      description: Repeat for several (OR).
+      schema: { type: array, items: { $ref: '#/components/schemas/RunStatus' } }
+      style: form
+      explode: true
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      description: The ETag of the version being edited.
+      schema: { type: string, example: '"3"' }
+
+  headers:
+    ETag: { schema: { type: string }, example: '"3"' }
+
+  responses:
+    BadRequest: { description: 'Malformed request.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Forbidden: { description: 'Not allowed.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    NotFound: { description: 'Missing or not visible.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Conflict: { description: 'The current state does not allow it.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    PreconditionFailed: { description: 'Stale If-Match (VERSION_MISMATCH).', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Unprocessable: { description: 'Validation failed; see errors[].', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    PreconditionRequired: { description: 'If-Match missing (IF_MATCH_REQUIRED).', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    Gone: { description: 'No longer available (FILE_EXPIRED).', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+    RunPage:
+      description: A page of runs.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [data, meta]
+            properties:
+              data: { type: array, items: { $ref: '#/components/schemas/RunSummary' } }
+              meta: { $ref: '#/components/schemas/PageMeta' }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status, code, traceId]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, description: See errors.yaml. }
+        detail: { type: [string, 'null'] }
+        instance: { type: string }
+        traceId: { type: string, description: Same as the X-Request-Id header when one is sent. }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, code, message]
+            properties:
+              field: { type: string, example: 'steps[1].to[0]' }
+              code: { type: string }
+              message: { type: string }
+
+    PageMeta:
+      type: object
+      required: [page, size, totalItems, totalPages]
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        totalItems: { type: integer, format: int64 }
+        totalPages: { type: integer }
+
+    UserRef:
+      type: object
+      required: [username]
+      properties: { username: { type: string } }
+
+    StepKey: { type: string, pattern: '^[a-z][a-z0-9_]{0,39}$' }
+
+    ReportStep:
+      type: object
+      description: |
+        Runs a report (same definition as `/api/reports/run`) as the flow owner and stores it as CSV.
+      required: [type, key, definition]
+      properties:
+        type: { const: report }
+        key: { $ref: '#/components/schemas/StepKey' }
+        definition: { type: object, description: 'ReportDefinition: root, columns, where, having, sort, perRoot.' }
+        fileName: { type: [string, 'null'], maxLength: 100, pattern: '^[\w .-]+\.csv$', description: 'Default <key>.csv' }
+        maxRows: { type: [integer, 'null'], minimum: 1, description: Fail above this; at most flows.report-max-rows. }
+        timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 3600, description: Default flows.report-timeout. }
+        maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10, description: Default flows.max-attempts. }
+
+    MailStep:
+      type: object
+      description: Sends an e-mail from a template; sent at most once per step run (at least once on a crash).
+      required: [type, key, templateId, to]
+      properties:
+        type: { const: mail }
+        key: { $ref: '#/components/schemas/StepKey' }
+        templateId: { type: integer, format: int64 }
+        to: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email } }
+        cc: { type: array, maxItems: 50, items: { type: string, format: email } }
+        attachments: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/StepKey' }, description: Earlier report steps. }
+        timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 600 }
+        maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10 }
+
+    FlowStep:
+      oneOf:
+        - { $ref: '#/components/schemas/ReportStep' }
+        - { $ref: '#/components/schemas/MailStep' }
+      discriminator:
+        propertyName: type
+        mapping:
+          report: '#/components/schemas/ReportStep'
+          mail: '#/components/schemas/MailStep'
+
+    FlowRequest:
+      type: object
+      required: [name, steps]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        steps: { type: array, minItems: 1, maxItems: 20, items: { $ref: '#/components/schemas/FlowStep' } }
+
+    FlowSummary:
+      type: object
+      required: [id, name, description, owner, stepCount, version, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        owner: { $ref: '#/components/schemas/UserRef' }
+        stepCount: { type: integer }
+        version: { type: integer, format: int64 }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    FlowEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, name, description, owner, steps, version, createdAt, updatedAt, updatedBy]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            description: { type: [string, 'null'] }
+            owner: { $ref: '#/components/schemas/UserRef' }
+            steps: { type: array, items: { $ref: '#/components/schemas/FlowStep' } }
+            version: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            updatedBy: { $ref: '#/components/schemas/UserRef' }
+
+    ScheduleRequest:
+      type: object
+      required: [cron, timeZone, enabled]
+      properties:
+        cron: { type: string, maxLength: 100, examples: ['0 8 * * MON-FRI', '@daily', '0 30 6 1 * *'] }
+        timeZone: { type: string, maxLength: 60, examples: [Europe/Istanbul] }
+        enabled: { type: boolean }
+
+    Schedule:
+      type: object
+      required: [id, flowId, cron, timeZone, enabled, nextFireAt, lastFiredAt, lastRunId, lastSkipReason, version, createdBy, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        flowId: { type: integer, format: int64 }
+        cron: { type: string }
+        timeZone: { type: string }
+        enabled: { type: boolean }
+        nextFireAt: { type: [string, 'null'], format: date-time, description: Null while disabled. }
+        lastFiredAt: { type: [string, 'null'], format: date-time }
+        lastRunId: { type: [integer, 'null'], format: int64 }
+        lastSkipReason: { type: [string, 'null'] }
+        version: { type: integer, format: int64 }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ScheduleEnvelope:
+      type: object
+      required: [data]
+      properties: { data: { $ref: '#/components/schemas/Schedule' } }
+
+    RunStatus: { type: string, enum: [queued, running, completed, failed, cancelled] }
+
+    ErrorInfo:
+      type: [object, 'null']
+      required: [code, message]
+      properties:
+        code: { type: string, description: 'Step codes in errors.yaml (step:).' }
+        message: { type: string }
+
+    RunSummary:
+      type: object
+      required: [id, flow, status, cancelRequested, trigger, triggeredBy, runAs, scheduleId, createdAt, startedAt, finishedAt, error]
+      properties:
+        id: { type: integer, format: int64 }
+        flow:
+          type: object
+          required: [id, name]
+          properties: { id: { type: integer, format: int64 }, name: { type: string } }
+        status: { $ref: '#/components/schemas/RunStatus' }
+        cancelRequested: { type: boolean }
+        trigger: { type: string, enum: [manual, schedule] }
+        triggeredBy: { type: string, description: 'Username or schedule:<id>.' }
+        runAs: { $ref: '#/components/schemas/UserRef' }
+        scheduleId: { type: [integer, 'null'], format: int64 }
+        createdAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+        error: { $ref: '#/components/schemas/ErrorInfo' }
+
+    RunDetail:
+      allOf:
+        - { $ref: '#/components/schemas/RunSummary' }
+        - type: object
+          required: [steps, files, events]
+          properties:
+            steps:
+              type: array
+              items:
+                type: object
+                required: [key, type, status, attempt, maxAttempts, timeoutSeconds, startedAt, finishedAt, nextAttemptAt, error, output]
+                properties:
+                  key: { type: string }
+                  type: { type: string, enum: [report, mail] }
+                  status: { type: string, enum: [ready, running, completed, failed, cancelled] }
+                  attempt: { type: integer }
+                  maxAttempts: { type: integer }
+                  timeoutSeconds: { type: integer }
+                  startedAt: { type: [string, 'null'], format: date-time }
+                  finishedAt: { type: [string, 'null'], format: date-time }
+                  nextAttemptAt: { type: [string, 'null'], format: date-time, description: Set while waiting for a retry. }
+                  error: { $ref: '#/components/schemas/ErrorInfo' }
+                  output: { type: [object, 'null'], additionalProperties: true }
+            files:
+              type: array
+              items:
+                type: object
+                required: [id, stepKey, fileName, sizeBytes, expiresAt, expired, downloadUrl]
+                properties:
+                  id: { type: integer, format: int64 }
+                  stepKey: { type: string }
+                  fileName: { type: string }
+                  sizeBytes: { type: integer, format: int64 }
+                  expiresAt: { type: string, format: date-time, description: Deleted from storage after this. }
+                  expired: { type: boolean }
+                  downloadUrl: { type: [string, 'null'], example: /api/flow-files/5/download, description: Null once expired. }
+            events:
+              type: array
+              description: Append-only history, oldest first.
+              items:
+                type: object
+                required: [id, type, stepKey, message, occurredAt]
+                properties:
+                  id: { type: integer, format: int64 }
+                  type:
+                    type: string
+                    description: >-
+                      run_queued, step_started, step_completed, step_retry_scheduled, step_released, step_failed,
+                      step_cancelled, cancel_requested, run_completed, run_failed, run_cancelled
+                  stepKey: { type: [string, 'null'] }
+                  message: { type: [string, 'null'] }
+                  occurredAt: { type: string, format: date-time }
+
+    TemplateRequest:
+      type: object
+      required: [name, subject, bodyHtml]
+      properties:
+        name: { type: string, maxLength: 100 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        subject: { type: string, maxLength: 500, description: Mustache, rendered as plain text. }
+        bodyHtml: { type: string, maxLength: 200000, description: 'Mustache; values are HTML-escaped, no partials, no code.' }
+
+    TemplateSummary:
+      type: object
+      required: [id, name, description, owner, version, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        owner: { $ref: '#/components/schemas/UserRef' }
+        version: { type: integer, format: int64 }
+        updatedAt: { type: string, format: date-time }
+
+    TemplateEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [id, name, description, subject, bodyHtml, owner, version, createdAt, updatedAt, updatedBy]
+          properties:
+            id: { type: integer, format: int64 }
+            name: { type: string }
+            description: { type: [string, 'null'] }
+            subject: { type: string }
+            bodyHtml: { type: string }
+            owner: { $ref: '#/components/schemas/UserRef' }
+            version: { type: integer, format: int64 }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            updatedBy: { $ref: '#/components/schemas/UserRef' }
