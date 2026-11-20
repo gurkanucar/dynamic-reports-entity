@@ -362,3 +362,120 @@ Content-Type: application/json
   "root": "Personnel",
   "columns": [{"field": "fullName FROM personnel; DROP TABLE personnel; --"}]
 }
+
+# ===================================================================================================
+# SHOWCASE: big cross-module reports. Each pulls from many tables; the same table appears under
+# several roles (department as owning team / its division / the person's team), all from one JSON.
+# ===================================================================================================
+
+### 27. Showcase – cross-department staffing sheet (detail, 9 table joins, nested AND/OR, IN/NOT_IN/BETWEEN/IS_NOT_NULL)
+# Tables: project_assignment, project, department x3 (owning team, its division, person's team),
+#         personnel x2 (person, line manager), personnel_profile
+POST http://localhost:8080/api/reports/run?size=100&includeTotal=true
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "ProjectAssignment",
+  "columns": [
+    {"field": "project.code"},
+    {"field": "project.name"},
+    {"field": "project.status"},
+    {"field": "project.department.name",        "label": "Owning Team"},
+    {"field": "project.department.parent.name", "label": "Owning Division"},
+    {"field": "personnel.fullName",             "label": "Person"},
+    {"field": "personnel.department.name",      "label": "Person's Team"},
+    {"field": "personnel.manager.fullName",     "label": "Line Manager"},
+    {"field": "personnel.profile.city",         "label": "City"},
+    {"field": "role"},
+    {"field": "allocationPercent"},
+    {"field": "assignedOn"},
+    {"field": "personnel.hireDate"}
+  ],
+  "where": {"conditions": [
+    {"field": "project.status", "operator": "IN", "value": ["ACTIVE", "ON_HOLD"]},
+    {"logic": "OR", "conditions": [
+      {"field": "allocationPercent", "operator": "GTE", "value": 50},
+      {"field": "role", "operator": "IN", "value": ["Lead", "Architect"]}
+    ]},
+    {"field": "personnel.active", "operator": "EQ", "value": true},
+    {"field": "personnel.profile.city", "operator": "IS_NOT_NULL"},
+    {"field": "assignedOn", "operator": "BETWEEN", "value": ["2025-01-01", "2026-12-31"]},
+    {"field": "project.department.parent.name", "operator": "NOT_IN", "value": ["Sales"]}
+  ]},
+  "sort": [
+    {"field": "project.code"},
+    {"field": "allocationPercent", "direction": "DESC"}
+  ]
+}
+
+### 28. Showcase – division staffing scorecard (grouped: 3 group columns incl. YEAR, 8 aggregates, WHERE + HAVING)
+# Tables: project_assignment, project, department x3, personnel
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "ProjectAssignment",
+  "columns": [
+    {"field": "project.department.parent.name", "label": "Division"},
+    {"field": "project.status",                 "label": "Status"},
+    {"field": "assignedOn", "dateGroup": "YEAR", "label": "Year"},
+    {"aggregate": "COUNT",                                         "label": "Assignments"},
+    {"field": "personnel.email",   "aggregate": "COUNT_DISTINCT",  "label": "People"},
+    {"field": "project.code",      "aggregate": "COUNT_DISTINCT",  "label": "Projects"},
+    {"field": "allocationPercent", "aggregate": "SUM",             "label": "Total Allocation (%)"},
+    {"field": "allocationPercent", "aggregate": "AVG",             "label": "Average Allocation (%)"},
+    {"field": "personnel.salary",  "aggregate": "AVG",             "label": "Average Salary"},
+    {"field": "personnel.hireDate","aggregate": "MIN",             "label": "Earliest Hire"},
+    {"field": "project.budget",    "aggregate": "MAX",             "label": "Largest Budget"}
+  ],
+  "where": {"conditions": [
+    {"field": "project.status", "operator": "NOT_IN", "value": ["COMPLETED"]},
+    {"logic": "OR", "conditions": [
+      {"field": "personnel.department.parent.name", "operator": "EQ", "value": "Information Technology"},
+      {"field": "project.budget", "operator": "GT", "value": 100000}
+    ]},
+    {"field": "assignedOn", "dateGroup": "YEAR", "operator": "GTE", "value": 2024}
+  ]},
+  "having": {"conditions": [
+    {"aggregate": "COUNT", "operator": "GTE", "value": 5},
+    {"field": "allocationPercent", "aggregate": "SUM", "operator": "GT", "value": 200}
+  ]},
+  "sort": [
+    {"field": "allocationPercent", "aggregate": "SUM", "direction": "DESC"},
+    {"field": "project.department.parent.name"}
+  ]
+}
+
+### 29. Showcase – mandatory-training compliance per division and team (one-to-many chain + one-to-one + self-reference)
+# Tables: personnel x2 (person, manager), department x2 (team, division), personnel_profile, training_record, training
+# Safe on the many side: AVG/COUNT of training-record fields, COUNT_DISTINCT for people and managers.
+POST http://localhost:8080/api/reports/run
+Authorization: Basic admin password
+Content-Type: application/json
+
+{
+  "root": "Personnel",
+  "columns": [
+    {"field": "department.parent.name",           "label": "Division"},
+    {"field": "department.name",                  "label": "Team"},
+    {"field": "trainingRecords.training.category","label": "Category"},
+    {"field": "email",   "aggregate": "COUNT_DISTINCT", "label": "People"},
+    {"field": "manager.email", "aggregate": "COUNT_DISTINCT", "label": "Managers"},
+    {"field": "trainingRecords.status", "aggregate": "COUNT", "label": "Records"},
+    {"field": "trainingRecords.score",  "aggregate": "AVG",   "label": "Average Score"},
+    {"field": "trainingRecords.nextRenewalDate", "aggregate": "MIN", "label": "Earliest Renewal"}
+  ],
+  "where": {"conditions": [
+    {"field": "active", "operator": "EQ", "value": true},
+    {"field": "trainingRecords.training.mandatory", "operator": "EQ", "value": true},
+    {"logic": "OR", "conditions": [
+      {"field": "trainingRecords.nextRenewalDate", "operator": "LAST_N_DAYS", "value": 90},
+      {"field": "trainingRecords.nextRenewalDate", "operator": "NEXT_N_DAYS", "value": 60}
+    ]},
+    {"field": "profile.city", "operator": "IN", "value": ["Istanbul", "Ankara", "Izmir"]}
+  ]},
+  "having": {"field": "email", "aggregate": "COUNT_DISTINCT", "operator": "GTE", "value": 3},
+  "sort": [{"field": "trainingRecords.score", "aggregate": "AVG"}]
+}

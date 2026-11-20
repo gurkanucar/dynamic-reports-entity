@@ -172,6 +172,41 @@ class ReportApiIntegrationTest {
                             row("2026-07-01", 1), row("2027-01-01", 1));
         }
 
+        /** Showcase #28 of reports.http: 7 joins (department four times), 3 group columns, 8 aggregates. */
+        @Test
+        void divisionStaffingScorecard() {
+            MvcTestResult result = post("/api/reports/run", """
+                    {"root": "ProjectAssignment",
+                     "columns": [
+                       {"field": "project.department.parent.name"}, {"field": "project.status"},
+                       {"field": "assignedOn", "dateGroup": "YEAR"},
+                       {"aggregate": "COUNT"},
+                       {"field": "personnel.email", "aggregate": "COUNT_DISTINCT"},
+                       {"field": "project.code", "aggregate": "COUNT_DISTINCT"},
+                       {"field": "allocationPercent", "aggregate": "SUM"},
+                       {"field": "allocationPercent", "aggregate": "AVG"},
+                       {"field": "personnel.salary", "aggregate": "AVG"},
+                       {"field": "personnel.hireDate", "aggregate": "MIN"},
+                       {"field": "project.budget", "aggregate": "MAX"}],
+                     "where": {"conditions": [
+                       {"field": "project.status", "operator": "NOT_IN", "value": ["COMPLETED"]},
+                       {"logic": "OR", "conditions": [
+                         {"field": "personnel.department.parent.name", "operator": "EQ", "value": "Information Technology"},
+                         {"field": "project.budget", "operator": "GT", "value": 100000}]},
+                       {"field": "assignedOn", "dateGroup": "YEAR", "operator": "GTE", "value": 2024}]},
+                     "having": {"conditions": [
+                       {"aggregate": "COUNT", "operator": "GTE", "value": 5},
+                       {"field": "allocationPercent", "aggregate": "SUM", "operator": "GT", "value": 200}]},
+                     "sort": [{"field": "allocationPercent", "aggregate": "SUM", "direction": "DESC"}]}
+                    """);
+
+            // Payroll Modernization (5 people, 360%) + Data Center Migration (4 people, 270%), both owned under IT, 2025
+            assertThat(result).hasStatusOk().bodyJson().extractingPath("$.rows").asArray().hasSize(1);
+            assertThat(result).bodyJson().extractingPath("$.rows[0][0:7]").asArray()
+                    .containsExactly("Information Technology", "ACTIVE", 2025, 9, 9, 2, 630);
+            assertThat(result).bodyJson().extractingPath("$.rows[0][9]").isEqualTo("2014-01-15");
+        }
+
         @Test
         void inflatedSumIsRejected() {
             assertThat(post("/api/reports/run", """
