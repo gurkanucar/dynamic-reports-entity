@@ -83,6 +83,19 @@ class FlowRunController {
     }
 
     /**
+     * For browser apps that authenticate with a header and cannot follow {@code /download}'s redirect: the presigned
+     * URL to open, or {@code url: null} when the store has none (then fetch {@code /download}, it streams).
+     */
+    @GetMapping("/api/flow-files/{id}/download-link")
+    ApiResponse<java.util.Map<String, Object>> downloadLink(@PathVariable long id, Authentication authentication) {
+        RunArtifact file = runs.file(id, viewer(authentication));
+        java.util.Map<String, Object> link = new java.util.LinkedHashMap<>();
+        link.put("url", artifacts.downloadUrl(file).map(URI::toString).orElse(null));
+        link.put("fileName", file.getFileName());
+        return ApiResponse.of(link);
+    }
+
+    /**
      * 302 to a short-lived presigned URL of the object store (the bytes do not pass through the app); streamed when
      * the store offers none ({@code storage.s3.presigned-downloads=false}, filesystem store). 410 once expired.
      */

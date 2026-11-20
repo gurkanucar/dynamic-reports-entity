@@ -59,6 +59,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        <!-- Browser sessions in the database: shared by every instance, survive restarts and rolling deploys -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-session-jdbc</artifactId>
+        </dependency>
         <!-- Logic-less mail templates written by business users (no expression language, no reflection) -->
         <dependency>
             <groupId>com.samskivert</groupId>

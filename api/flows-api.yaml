@@ -321,6 +321,34 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
 
+  /api/flow-files/{id}/download-link:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [runs]
+      operationId: getFileDownloadLink
+      summary: Presigned download URL as JSON
+      description: |
+        For browser apps that send credentials in a header and therefore cannot follow the redirect of
+        `/download` to the object store. `url` is null when the store offers no presigned URLs; then GET
+        `/download`, which streams the file.
+      responses:
+        '200':
+          description: The link.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [url, fileName]
+                    properties:
+                      url: { type: [string, 'null'], format: uri }
+                      fileName: { type: string }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '410': { $ref: '#/components/responses/Gone' }
+
   /api/mail-templates:
     get:
       tags: [mail-templates]
