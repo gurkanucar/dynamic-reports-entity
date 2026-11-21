@@ -283,6 +283,22 @@ class DatasetSuggestionIntegrationTest {
                 .doesNotContain("{{DATASETS}}", "{{CATALOG}}", "{{DATASET_GRAMMAR}}");
     }
 
+    @Test
+    void plainLanguageSchedulesBecomeCronExpressionsThatFireAtMostEveryFiveMinutes() {
+        ANSWERS.add(Map.entry(200, toolCall("c1", "submit_cron", "{\"cron\": \"* 3 * * *\", \"description\": \"x\"}")));
+        ANSWERS.add(Map.entry(200, toolCall("c2", "check_cron", "{\"cron\": \"0 3 * * *\"}")));
+        ANSWERS.add(Map.entry(200, toolCall("c3", "submit_cron",
+                "{\"cron\": \"0 3 * * *\", \"description\": \"Her gece 03:00\"}")));
+
+        JsonNode suggestion = ask("/api/cron-suggestions", ALICE, "her gece 3te");
+
+        assertThat(suggestion.get("status").asString()).isEqualTo("completed");
+        assertThat(suggestion.get("reply").get("draft").get("cron").asString()).isEqualTo("0 3 * * *");
+        assertThat(suggestion.get("reply").get("draft").get("description").asString()).isEqualTo("Her gece 03:00");
+        assertThat(REQUESTS.get(1).getValue().toString()).contains("every 5 minutes");
+        assertThat(REQUESTS.get(2).getValue().toString()).contains("nextFireTimes", "03:00");
+    }
+
     /** A wrong example teaches the model wrong datasets: every example in the prompt must build. */
     @Test
     void everyExampleInTheSystemPromptIsAValidDataset() throws IOException {

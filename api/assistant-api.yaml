@@ -208,6 +208,30 @@ paths:
         '422': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
 
+  /api/cron-suggestions:
+    post:
+      tags: [assistant]
+      operationId: requestCronSuggestion
+      summary: Turn a schedule in plain language into a cron expression
+      description: |
+        Same request/poll pattern as `/api/dataset-suggestions` ("her gece 3'te", `current` = `{cron}` on screen).
+        The model checks its expression (`check_cron`: valid, five fields, at most every 5 minutes, next fire times
+        in Europe/Istanbul). The reply's `draft` is `{cron, description}`. Poll `GET /api/cron-suggestions/{id}`.
+      parameters: [{ $ref: '#/components/parameters/Csrf' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DraftSuggestionRequest' }
+      responses:
+        '202':
+          description: Accepted; follow `Location`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuggestionEnvelope' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: PLATFORM_SESSION }
