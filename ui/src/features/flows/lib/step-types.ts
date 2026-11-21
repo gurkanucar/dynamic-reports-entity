@@ -47,18 +47,18 @@ export const STEP_TYPES: StepTypeInfo[] = [
     outcomes: [{ id: "approved", label: "Onaylandı" }, { id: "rejected", label: "Reddedildi" },
       { id: "timeout", label: "Zaman aşımı" }],
     description: "Bir onay grubundan birinin kararını bekler.",
-    create: (key) => ({ type: "approval", key, groupId: 0, title: "{{flow.name}} onayı", timeoutHours: 72 }),
+    create: (key) => ({ type: "approval", key, groupId: "", title: "{{flow.name}} onayı", timeoutHours: 72 }),
   },
   {
     type: "survey", group: "Mantık", label: "Anket gönder", icon: ClipboardListIcon,
     outcomes: [{ id: "answered", label: "Yanıtlandı" }, { id: "timeout", label: "Zaman aşımı" }],
     description: "Bir anketin tek kullanımlık bağlantısını mailler ve yanıtı bekler; cevaplar sonraki adımlarda kullanılır.",
-    create: (key) => ({ type: "survey", key, surveyId: 0, to: [], timeoutHours: 72 }),
+    create: (key) => ({ type: "survey", key, surveyId: "", to: [], timeoutHours: 72 }),
   },
   {
     type: "mail", group: "Eylemler", label: "Mail", icon: MailIcon, outcomes: SINGLE,
     description: "Şablondan mail gönderir, veri setlerini ekleyebilir.",
-    create: (key) => ({ type: "mail", key, templateId: 0, to: [], attachments: [] }),
+    create: (key) => ({ type: "mail", key, templateId: "", to: [], attachments: [] }),
   },
   {
     type: "webhook", group: "Eylemler", label: "HTTP isteği", icon: WebhookIcon, outcomes: SINGLE,

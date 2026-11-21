@@ -7,7 +7,7 @@ import type { Answers, FollowUpChange, SurveyRequest } from "../types/survey.dto
 export function useSaveSurvey() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, version, request }: { id?: number; version?: number; request: SurveyRequest }) =>
+    mutationFn: ({ id, version, request }: { id?: string; version?: number; request: SurveyRequest }) =>
       id !== undefined && version !== undefined ? surveysApi.replace(id, version, request) : surveysApi.create(request),
     onSuccess: (saved) => {
       queryClient.setQueryData(surveyKeys.detail(saved.id), saved)
@@ -19,16 +19,16 @@ export function useSaveSurvey() {
 export function useDeleteSurvey() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => surveysApi.remove(id),
+    mutationFn: (id: string) => surveysApi.remove(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: surveyKeys.all }),
   })
 }
 
 /** Changes a response's follow-up; the list and the survey's counts refresh. */
-export function useFollowUp(id: number) {
+export function useFollowUp(id: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ responseId, change }: { responseId: number; change: FollowUpChange }) =>
+    mutationFn: ({ responseId, change }: { responseId: string; change: FollowUpChange }) =>
       surveysApi.followUp(id, responseId, change),
     onSuccess: (row) => {
       queryClient.setQueryData(surveyKeys.response(id, row.id), row)
@@ -38,17 +38,17 @@ export function useFollowUp(id: number) {
   })
 }
 
-export function useResponseNote(id: number, responseId: number) {
+export function useResponseNote(id: string, responseId: string) {
   const queryClient = useQueryClient()
   const refresh = () => queryClient.invalidateQueries({ predicate: (query) => query.queryKey[0] === "surveys"
     && (query.queryKey[1] === "notes" || query.queryKey[1] === "responses") })
   return {
     add: useMutation({ mutationFn: (text: string) => surveysApi.addNote(id, responseId, text), onSuccess: refresh }),
-    remove: useMutation({ mutationFn: (noteId: number) => surveysApi.deleteNote(id, responseId, noteId), onSuccess: refresh }),
+    remove: useMutation({ mutationFn: (noteId: string) => surveysApi.deleteNote(id, responseId, noteId), onSuccess: refresh }),
   }
 }
 
-export function useSubmitResponse(id: number, invitation?: string | null) {
+export function useSubmitResponse(id: string, invitation?: string | null) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (answers: Answers) => surveysApi.submit(id, answers, invitation),

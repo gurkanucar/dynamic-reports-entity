@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingSteps;
 import org.springframework.stereotype.Component;
 
@@ -18,7 +19,7 @@ class WaitingStepsService implements WaitingSteps {
     }
 
     @Override
-    public boolean resume(long stepRunId, String outcome, Map<String, Object> output, String eventType,
+    public boolean resume(UUID stepRunId, String outcome, Map<String, Object> output, String eventType,
                           String message) {
         boolean resumed = store.resume(stepRunId, outcome, output, eventType, message);
         if (resumed) {

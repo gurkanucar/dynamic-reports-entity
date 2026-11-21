@@ -86,54 +86,54 @@ class FlowApiIntegrationTest {
         return mvc.post().uri(uri).with(user).contentType(MediaType.APPLICATION_JSON).content(body).exchange();
     }
 
-    private long createTemplate(String name, String subject, String body) {
+    private String createTemplate(String name, String subject, String body) {
         MvcTestResult result = post("/api/mail-templates", ADMIN, JSON.writeValueAsString(Map.of(
                 "name", name, "subject", subject, "bodyHtml", body)));
         assertThat(result).hasStatus(HttpStatus.CREATED);
-        return json(result).get("data").get("id").asLong();
+        return json(result).get("data").get("id").asString();
     }
 
-    private long datasetTemplate(String name) {
+    private String datasetTemplate(String name) {
         return createTemplate(name, "{{flow.name}} ({{steps.dataset.rowCount}} rows)", """
                 <h1>{{flow.name}}</h1>
                 <table>{{#steps.dataset.rows}}<tr>{{#cells}}<td>{{.}}</td>{{/cells}}</tr>{{/steps.dataset.rows}}</table>""");
     }
 
-    private String datasetAndMail(String name, long templateId, String recipient) {
+    private String datasetAndMail(String name, String templateId, String recipient) {
         return """
                 {"name": "%s",
                  "steps": [
                    {"type": "dataset", "key": "dataset", "definition": %s, "fileName": "headcount.csv"},
-                   {"type": "mail", "key": "mail", "templateId": %d, "to": ["%s"], "attachments": ["dataset"]}
+                   {"type": "mail", "key": "mail", "templateId": "%s", "to": ["%s"], "attachments": ["dataset"]}
                  ]}""".formatted(name, HEADCOUNT, templateId, recipient);
     }
 
-    private String mailOnly(String name, long templateId, Integer maxAttempts) {
+    private String mailOnly(String name, String templateId, Integer maxAttempts) {
         return """
                 {"name": "%s",
-                 "steps": [{"type": "mail", "key": "mail", "templateId": %d, "to": ["team@example.com"], "maxAttempts": %s}]}
+                 "steps": [{"type": "mail", "key": "mail", "templateId": "%s", "to": ["team@example.com"], "maxAttempts": %s}]}
                 """.formatted(name, templateId, maxAttempts);
     }
 
-    private long createFlow(RequestPostProcessor user, String body) {
+    private String createFlow(RequestPostProcessor user, String body) {
         MvcTestResult result = post("/api/flows", user, body);
         assertThat(result).hasStatus(HttpStatus.CREATED);
-        return json(result).get("data").get("id").asLong();
+        return json(result).get("data").get("id").asString();
     }
 
-    private long start(RequestPostProcessor user, long flowId) {
+    private String start(RequestPostProcessor user, String flowId) {
         MvcTestResult result = mvc.post().uri("/api/flows/" + flowId + "/runs").with(user).exchange();
         assertThat(result).hasStatus(HttpStatus.ACCEPTED);
         String location = result.getResponse().getHeader(HttpHeaders.LOCATION);
         assertThat(location).startsWith("/api/flow-runs/");
-        return Long.parseLong(location.substring(location.lastIndexOf('/') + 1));
+        return location.substring(location.lastIndexOf('/') + 1);
     }
 
-    private JsonNode run(RequestPostProcessor user, long runId) {
+    private JsonNode run(RequestPostProcessor user, String runId) {
         return json(mvc.get().uri("/api/flow-runs/" + runId).with(user).exchange()).get("data");
     }
 
-    private JsonNode awaitRun(RequestPostProcessor user, long runId, String... statuses) {
+    private JsonNode awaitRun(RequestPostProcessor user, String runId, String... statuses) {
         Set<String> wanted = Set.of(statuses);
         JsonNode[] last = new JsonNode[1];
         await(() -> wanted.contains((last[0] = run(user, runId)).get("status").asString()),
@@ -177,10 +177,10 @@ class FlowApiIntegrationTest {
 
     @Test
     void scheduledDatasetIsRunAndMailedWithTheCsvAttached() throws Exception {
-        long template = datasetTemplate("Headcount mail");
-        long flow = createFlow(ADMIN, datasetAndMail("Weekly headcount", template, "hr@example.com"));
+        String template = datasetTemplate("Headcount mail");
+        String flow = createFlow(ADMIN, datasetAndMail("Weekly headcount", template, "hr@example.com"));
 
-        long runId = start(ADMIN, flow);
+        String runId = start(ADMIN, flow);
         JsonNode run = awaitRun(ADMIN, runId, "completed");
 
         assertThat(run.get("trigger").asString()).isEqualTo("manual");
@@ -209,22 +209,22 @@ class FlowApiIntegrationTest {
                 .hasStatus(HttpStatus.NOT_FOUND);
 
         // what was sent is kept with the run, to be shown in the page
-        long body = run.get("steps").get(1).get("output").get("bodyFileId").asLong();
+        String body = run.get("steps").get(1).get("output").get("bodyFileId").asString();
         MvcTestResult content = mvc.get().uri("/api/flow-files/" + body + "/content").with(ADMIN).exchange();
         assertThat(content).hasStatusOk();
         assertThat(json(content).get("data").get("content").asString()).isEqualTo(RecordingMailSender.html(mail));
-        assertThat(mvc.get().uri("/api/flow-files/" + file.get("id").asLong() + "/content").with(ADMIN).exchange())
+        assertThat(mvc.get().uri("/api/flow-files/" + file.get("id").asString() + "/content").with(ADMIN).exchange())
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
     void excelFilesAreAttachedAndTheMailShowsAsManyRowsAsTheStepAllows() throws Exception {
-        long template = datasetTemplate("Excel mail");
-        long flow = createFlow(ADMIN, """
+        String template = datasetTemplate("Excel mail");
+        String flow = createFlow(ADMIN, """
                 {"name": "Excel headcount",
                  "steps": [
                    {"type": "dataset", "key": "dataset", "definition": %s, "format": "xlsx", "mailRows": 3},
-                   {"type": "mail", "key": "mail", "templateId": %d, "to": ["excel@example.com"], "attachments": ["dataset"]}
+                   {"type": "mail", "key": "mail", "templateId": "%s", "to": ["excel@example.com"], "attachments": ["dataset"]}
                  ]}""".formatted(HEADCOUNT, template));
 
         JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "completed");
@@ -247,10 +247,10 @@ class FlowApiIntegrationTest {
 
     @Test
     void styleBlocksOfTemplatesAreInlinedForMailClientsThatDropThem() throws Exception {
-        long template = createTemplate("Styled", "Styled", """
+        String template = createTemplate("Styled", "Styled", """
                 <style>h1 { color: #dc2626; font-size: 20px } .data td { padding: 8px } a:hover { color: red }</style>
                 <h1 style="font-size: 18px">{{flow.name}}</h1><table class="data"><tr><td>x</td></tr></table>""");
-        long flow = createFlow(ADMIN, mailOnly("Styled mail", template, null));
+        String flow = createFlow(ADMIN, mailOnly("Styled mail", template, null));
 
         awaitRun(ADMIN, start(ADMIN, flow), "completed");
 
@@ -261,8 +261,8 @@ class FlowApiIntegrationTest {
 
     @Test
     void datasetsRunWithTheOwnersRowSecurity() {
-        long template = datasetTemplate("Carol's mail");
-        long flow = createFlow(CAROL, datasetAndMail("My department", template, "carol@example.com"));
+        String template = datasetTemplate("Carol's mail");
+        String flow = createFlow(CAROL, datasetAndMail("My department", template, "carol@example.com"));
 
         JsonNode run = awaitRun(CAROL, start(CAROL, flow), "completed");
 
@@ -275,7 +275,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void transientMailErrorsAreRetried() {
-        long flow = createFlow(ADMIN, mailOnly("Retried", createTemplate("Retry", "Hi", "<p>Hi</p>"), 3));
+        String flow = createFlow(ADMIN, mailOnly("Retried", createTemplate("Retry", "Hi", "<p>Hi</p>"), 3));
         RecordingMailSender.FAILURES.set(2);
 
         JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "completed");
@@ -288,7 +288,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void runFailsWhenAttemptsAreUsedUp() {
-        long flow = createFlow(ADMIN, mailOnly("Failing", createTemplate("Fail", "Hi", "<p>Hi</p>"), 2));
+        String flow = createFlow(ADMIN, mailOnly("Failing", createTemplate("Fail", "Hi", "<p>Hi</p>"), 2));
         RecordingMailSender.FAILURES.set(10);
 
         JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "failed");
@@ -300,9 +300,9 @@ class FlowApiIntegrationTest {
 
     @Test
     void cancelStopsARunningStep() {
-        long flow = createFlow(ADMIN, mailOnly("Cancelled", createTemplate("Cancel", "Hi", "<p>Hi</p>"), null));
+        String flow = createFlow(ADMIN, mailOnly("Cancelled", createTemplate("Cancel", "Hi", "<p>Hi</p>"), null));
         RecordingMailSender.block = true;
-        long runId = start(ADMIN, flow);
+        String runId = start(ADMIN, flow);
         await(() -> RecordingMailSender.BLOCKED.get() > 0, () -> "the mail step to start");
 
         MvcTestResult cancel = mvc.post().uri("/api/flow-runs/" + runId + "/cancel").with(ADMIN).exchange();
@@ -318,9 +318,9 @@ class FlowApiIntegrationTest {
 
     @Test
     void aStepWhoseLeaseExpiresIsTakenOverAndRetried() {
-        long flow = createFlow(ADMIN, mailOnly("Taken over", createTemplate("Takeover", "Hi", "<p>Hi</p>"), 3));
+        String flow = createFlow(ADMIN, mailOnly("Taken over", createTemplate("Takeover", "Hi", "<p>Hi</p>"), 3));
         RecordingMailSender.block = true;
-        long runId = start(ADMIN, flow);
+        String runId = start(ADMIN, flow);
         await(() -> RecordingMailSender.BLOCKED.get() > 0, () -> "the mail step to start");
 
         // the instance "dies": its lease runs out and somebody else owns the claim now
@@ -338,9 +338,9 @@ class FlowApiIntegrationTest {
 
     @Test
     void runsWaitForAFreeSlotInsteadOfBeingRejected() throws InterruptedException {
-        long flow = createFlow(ADMIN, mailOnly("Queued", createTemplate("Queue", "Hi", "<p>Hi</p>"), null));
+        String flow = createFlow(ADMIN, mailOnly("Queued", createTemplate("Queue", "Hi", "<p>Hi</p>"), null));
         RecordingMailSender.block = true;
-        List<Long> runs = new ArrayList<>();
+        List<String> runs = new ArrayList<>();
         for (int i = 0; i < 8; i++) {
             runs.add(start(ADMIN, flow));   // never rejected
         }
@@ -359,10 +359,10 @@ class FlowApiIntegrationTest {
 
     @Test
     void filesAreDeletedAfterTheRetention() {
-        long flow = createFlow(ADMIN, datasetAndMail("Kept a while", datasetTemplate("Retention"), "keep@example.com"));
+        String flow = createFlow(ADMIN, datasetAndMail("Kept a while", datasetTemplate("Retention"), "keep@example.com"));
         JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "completed");
         JsonNode file = run.get("files").get(0);
-        long fileId = file.get("id").asLong();
+        String fileId = file.get("id").asString();
         assertThat(file.get("expired").asBoolean()).isFalse();
         assertThat(Instant.parse(file.get("expiresAt").asString())).isAfter(Instant.now().plus(Duration.ofDays(6)));
         java.nio.file.Path stored = java.nio.file.Path.of("target/test-files").resolve(
@@ -376,7 +376,7 @@ class FlowApiIntegrationTest {
         assertThat(stored).doesNotExist();
         assertThat(mvc.get().uri("/api/flow-files/" + fileId + "/download").with(ADMIN).exchange())
                 .hasStatus(HttpStatus.GONE).bodyJson().extractingPath("$.code").isEqualTo("FILE_EXPIRED");
-        JsonNode after = run(ADMIN, run.get("id").asLong()).get("files").get(0);
+        JsonNode after = run(ADMIN, run.get("id").asString()).get("files").get(0);
         assertThat(after.get("expired").asBoolean()).isTrue();
         assertThat(after.get("downloadUrl").isNull()).isTrue();
     }
@@ -385,13 +385,13 @@ class FlowApiIntegrationTest {
 
     @Test
     void dueSchedulesStartOneRunPerFireTime() {
-        long flow = createFlow(ADMIN, datasetAndMail("Daily", datasetTemplate("Daily mail"), "daily@example.com"));
+        String flow = createFlow(ADMIN, datasetAndMail("Daily", datasetTemplate("Daily mail"), "daily@example.com"));
         MvcTestResult created = post("/api/flows/" + flow + "/schedules", ADMIN,
                 """
                 {"cron": "0 7 * * MON-FRI", "timeZone": "Europe/Istanbul", "enabled": true}""");
         assertThat(created).hasStatus(HttpStatus.CREATED);
         JsonNode schedule = json(created).get("data");
-        long scheduleId = schedule.get("id").asLong();
+        String scheduleId = schedule.get("id").asString();
         Instant firstFire = Instant.parse(schedule.get("nextFireAt").asString());
         assertThat(firstFire.atZone(java.time.ZoneId.of("Europe/Istanbul")).getHour()).isEqualTo(7);
 
@@ -406,17 +406,17 @@ class FlowApiIntegrationTest {
         assertThat(runs.get("meta").get("totalItems").asInt()).isEqualTo(1);
         JsonNode run = runs.get("data").get(0);
         assertThat(run.get("trigger").asString()).isEqualTo("schedule");
-        assertThat(run.get("scheduleId").asLong()).isEqualTo(scheduleId);
-        awaitRun(ADMIN, run.get("id").asLong(), "completed");
+        assertThat(run.get("scheduleId").asString()).isEqualTo(scheduleId);
+        awaitRun(ADMIN, run.get("id").asString(), "completed");
 
         JsonNode after = json(mvc.get().uri("/api/flow-schedules/" + scheduleId).with(ADMIN).exchange()).get("data");
-        assertThat(after.get("lastRunId").asLong()).isEqualTo(run.get("id").asLong());
+        assertThat(after.get("lastRunId").asString()).isEqualTo(run.get("id").asString());
         assertThat(Instant.parse(after.get("nextFireAt").asString())).isAfter(Instant.now());
     }
 
     @Test
     void schedulesAreValidated() {
-        long flow = createFlow(ADMIN, mailOnly("Scheduled", createTemplate("Sched", "Hi", "<p>Hi</p>"), null));
+        String flow = createFlow(ADMIN, mailOnly("Scheduled", createTemplate("Sched", "Hi", "<p>Hi</p>"), null));
         String uri = "/api/flows/" + flow + "/schedules";
 
         assertThat(post(uri, ADMIN, """
@@ -438,7 +438,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void flowsAreValidatedWhenSaved() {
-        long template = createTemplate("Validation", "Hi", "<p>Hi</p>");
+        String template = createTemplate("Validation", "Hi", "<p>Hi</p>");
 
         assertThat(post("/api/flows", ADMIN, """
                 {"name": "x", "steps": [{"type": "ftp", "key": "a"}]}"""))
@@ -449,8 +449,8 @@ class FlowApiIntegrationTest {
                 .bodyJson().extractingPath("$.errors[*].field").asArray().contains("name", "steps");
         assertThat(post("/api/flows", ADMIN, """
                 {"name": "x", "steps": [
-                  {"type": "mail", "key": "mail", "templateId": %d, "to": ["boss@gmail.com"], "attachments": ["dataset"]},
-                  {"type": "mail", "key": "mail", "templateId": 999999, "to": ["a@example.com"]}]}""".formatted(template)))
+                  {"type": "mail", "key": "mail", "templateId": "%s", "to": ["boss@gmail.com"], "attachments": ["dataset"]},
+                  {"type": "mail", "key": "mail", "templateId": "%s", "to": ["a@example.com"]}]}""".formatted(template, java.util.UUID.randomUUID())))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
                 .bodyJson().extractingPath("$.errors[*].code").asArray().containsExactly(
                         "RECIPIENT_NOT_ALLOWED", "UNKNOWN_ATTACHMENT", "DUPLICATE_STEP_KEY", "TEMPLATE_NOT_FOUND");
@@ -466,7 +466,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void problemsCarryCodeAndTraceId() {
-        MvcTestResult missing = mvc.get().uri("/api/flows/987654").with(ADMIN).header("X-Request-Id", "req-42")
+        MvcTestResult missing = mvc.get().uri("/api/flows/" + java.util.UUID.randomUUID()).with(ADMIN).header("X-Request-Id", "req-42")
                 .exchange();
         assertThat(missing).hasStatus(HttpStatus.NOT_FOUND).hasContentType(MediaType.APPLICATION_PROBLEM_JSON);
         assertThat(json(missing).get("code").asString()).isEqualTo("FLOW_NOT_FOUND");
@@ -477,7 +477,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void usersOnlySeeTheirOwnFlows() {
-        long flow = createFlow(CAROL, mailOnly("Carol's", createTemplate("Private", "Hi", "<p>Hi</p>"), null));
+        String flow = createFlow(CAROL, mailOnly("Carol's", createTemplate("Private", "Hi", "<p>Hi</p>"), null));
 
         assertThat(mvc.get().uri("/api/flows/" + flow).with(ALICE).exchange()).hasStatus(HttpStatus.NOT_FOUND);
         assertThat(mvc.post().uri("/api/flows/" + flow + "/runs").with(ALICE).exchange())
@@ -489,8 +489,8 @@ class FlowApiIntegrationTest {
 
     @Test
     void updatesNeedTheCurrentVersion() {
-        long template = createTemplate("Versioned", "Hi", "<p>Hi</p>");
-        long flow = createFlow(ADMIN, mailOnly("Versioned", template, null));
+        String template = createTemplate("Versioned", "Hi", "<p>Hi</p>");
+        String flow = createFlow(ADMIN, mailOnly("Versioned", template, null));
         MvcTestResult current = mvc.get().uri("/api/flows/" + flow).with(ADMIN).exchange();
         String etag = current.getResponse().getHeader(HttpHeaders.ETAG);
         String changed = mailOnly("Renamed", template, 2);
@@ -529,8 +529,8 @@ class FlowApiIntegrationTest {
 
     @Test
     void templatesInUseCannotBeDeleted() {
-        long template = createTemplate("In use", "Hi", "<p>Hi</p>");
-        long flow = createFlow(ADMIN, mailOnly("Uses it", template, null));
+        String template = createTemplate("In use", "Hi", "<p>Hi</p>");
+        String flow = createFlow(ADMIN, mailOnly("Uses it", template, null));
 
         assertThat(mvc.delete().uri("/api/mail-templates/" + template).with(ADMIN).exchange())
                 .hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.code").isEqualTo("TEMPLATE_IN_USE");

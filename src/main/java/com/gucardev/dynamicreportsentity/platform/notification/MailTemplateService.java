@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.notification;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
@@ -63,7 +64,7 @@ public class MailTemplateService {
                         com.gucardev.dynamicreportsentity.platform.api.ListQuery.sort(sort, SORTS, "name")));
     }
 
-    public MailTemplate get(long id) {
+    public MailTemplate get(UUID id) {
         return templates.findById(id).orElseThrow(() -> notFound(id));
     }
 
@@ -81,7 +82,7 @@ public class MailTemplateService {
     }
 
     @Transactional
-    public MailTemplate update(long id, long expectedVersion, TemplateInput input, Actor editor) {
+    public MailTemplate update(UUID id, long expectedVersion, TemplateInput input, Actor editor) {
         MailTemplate template = get(id);
         guardChange(template, editor);
         if (template.getVersion() != expectedVersion) {
@@ -100,7 +101,7 @@ public class MailTemplateService {
     }
 
     @Transactional
-    public void delete(long id, Actor editor) {
+    public void delete(UUID id, Actor editor) {
         MailTemplate template = get(id);
         guardChange(template, editor);
         if (usages.stream().anyMatch(usage -> usage.usesTemplate(id))) {
@@ -110,15 +111,15 @@ public class MailTemplateService {
         templates.delete(template);
     }
 
-    public boolean exists(long id) {
-        return templates.existsById(id);
+    public boolean exists(UUID id) {
+        return id != null && templates.existsById(id);   // a step that has not picked one yet
     }
 
     /**
      * Fills in the template with {@code model}: subject as plain text, body as escaped HTML with its {@code <style>}
      * rules inlined ({@link CssInliner}); empty if it is gone.
      */
-    public Optional<RenderedMail> render(long id, Map<String, ?> model) {
+    public Optional<RenderedMail> render(UUID id, Map<String, ?> model) {
         return templates.findById(id).map(template -> new RenderedMail(renderer.renderText(template.getSubject(), model),
                 CssInliner.inline(renderer.renderHtml(template.getBodyHtml(), model))));
     }
@@ -150,7 +151,7 @@ public class MailTemplateService {
                         "previewTruncated", false)));
     }
 
-    private void check(TemplateInput input, Long id) {
+    private void check(TemplateInput input, UUID id) {
         List<FieldProblem> problems = new ArrayList<>();
         checkSyntax("subject", input.subject(), problems);
         checkSyntax("bodyHtml", input.bodyHtml(), problems);
@@ -178,7 +179,7 @@ public class MailTemplateService {
         }
     }
 
-    private static NotificationException notFound(long id) {
+    private static NotificationException notFound(UUID id) {
         return new NotificationException(Kind.NOT_FOUND, "TEMPLATE_NOT_FOUND", "Mail template " + id + " does not exist.");
     }
 

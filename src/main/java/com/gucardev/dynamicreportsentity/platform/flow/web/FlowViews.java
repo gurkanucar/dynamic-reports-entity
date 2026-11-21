@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.core.Flow;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowDefinition;
@@ -34,7 +35,7 @@ final class FlowViews {
     record UserRef(String username) {
     }
 
-    record FlowRef(long id, String name) {
+    record FlowRef(UUID id, String name) {
     }
 
     record ErrorInfo(String code, String message) {
@@ -45,11 +46,11 @@ final class FlowViews {
 
     // ---- flows ----------------------------------------------------------------------------------------
 
-    record FlowSummary(long id, String name, String description, UserRef owner, int stepCount, long version,
+    record FlowSummary(UUID id, String name, String description, UserRef owner, int stepCount, long version,
                        String createdAt, String updatedAt) {
     }
 
-    record FlowDetail(long id, String name, String description, UserRef owner, List<FlowStep> steps,
+    record FlowDetail(UUID id, String name, String description, UserRef owner, List<FlowStep> steps,
                       List<FlowEdge> edges, Map<String, FlowDefinition.Position> layout, long version,
                       String createdAt, String updatedAt, UserRef updatedBy) {
     }
@@ -70,8 +71,8 @@ final class FlowViews {
     // ---- triggers -------------------------------------------------------------------------------------
 
     /** @param webhookUrl path to call (WEBHOOK); the secret is only shown when created or rotated */
-    record TriggerView(long id, long flowId, String type, boolean enabled, String topic, Object filter,
-                       String webhookUrl, String lastFiredAt, Long lastRunId, long version, UserRef createdBy,
+    record TriggerView(UUID id, UUID flowId, String type, boolean enabled, String topic, Object filter,
+                       String webhookUrl, String lastFiredAt, UUID lastRunId, long version, UserRef createdBy,
                        String createdAt, String updatedAt) {
     }
 
@@ -88,8 +89,8 @@ final class FlowViews {
 
     // ---- schedules ------------------------------------------------------------------------------------
 
-    record ScheduleView(long id, long flowId, String cron, String timeZone, boolean enabled, String nextFireAt,
-                        String lastFiredAt, Long lastRunId, String lastSkipReason, long version, UserRef createdBy,
+    record ScheduleView(UUID id, UUID flowId, String cron, String timeZone, boolean enabled, String nextFireAt,
+                        String lastFiredAt, UUID lastRunId, String lastSkipReason, long version, UserRef createdBy,
                         String createdAt, String updatedAt) {
     }
 
@@ -102,13 +103,13 @@ final class FlowViews {
 
     // ---- runs -----------------------------------------------------------------------------------------
 
-    record RunSummary(long id, FlowRef flow, String status, boolean cancelRequested, String trigger,
-                      String triggeredBy, UserRef runAs, Long scheduleId, String createdAt, String startedAt,
+    record RunSummary(UUID id, FlowRef flow, String status, boolean cancelRequested, String trigger,
+                      String triggeredBy, UserRef runAs, UUID scheduleId, String createdAt, String startedAt,
                       String finishedAt, ErrorInfo error) {
     }
 
     /** @param downloadUrl null once the file has expired */
-    record FileView(long id, String stepKey, String fileName, long sizeBytes, String expiresAt, boolean expired,
+    record FileView(UUID id, String stepKey, String fileName, long sizeBytes, String expiresAt, boolean expired,
                     String downloadUrl) {
     }
 
@@ -121,11 +122,11 @@ final class FlowViews {
                     ErrorInfo error, Map<String, Object> output) {
     }
 
-    record EventView(long id, String type, String stepKey, String message, String occurredAt) {
+    record EventView(UUID id, String type, String stepKey, String message, String occurredAt) {
     }
 
-    record RunDetail(long id, FlowRef flow, String status, boolean cancelRequested, String trigger,
-                     String triggeredBy, UserRef runAs, Long scheduleId, String createdAt, String startedAt,
+    record RunDetail(UUID id, FlowRef flow, String status, boolean cancelRequested, String trigger,
+                     String triggeredBy, UserRef runAs, UUID scheduleId, String createdAt, String startedAt,
                      String finishedAt, ErrorInfo error, List<StepView> steps, List<FileView> files,
                      List<EventView> events, Object triggerPayload, GraphView definition) {
     }
@@ -144,7 +145,7 @@ final class FlowViews {
     static RunDetail detail(FlowRun run, List<StepRun> steps, List<RunEvent> events, List<RunArtifact> artifacts,
                             java.time.Instant now) {
         List<StepView> stepViews = new ArrayList<>();
-        Map<Long, String> stepKeys = new java.util.HashMap<>();
+        Map<UUID, String> stepKeys = new java.util.HashMap<>();
         for (StepRun step : steps) {
             stepKeys.put(step.getId(), step.getStepKey());
             Map<String, Object> output = output(step.getOutputJson());

@@ -1,17 +1,19 @@
 package com.gucardev.dynamicreportsentity.platform.dataset.saved;
 
+import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import org.hibernate.annotations.UuidGenerator;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 
-/** A dataset definition saved under a name. */
+/** A dataset definition saved under a name (flows use the name; URLs and the API use the id). */
 @Entity
 @Table(name = "saved_dataset")
 @Getter
@@ -19,7 +21,10 @@ import java.time.Instant;
 class SavedDataset {
 
     @Id
-    @Column(length = 40)
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
+
+    @Column(length = 40, nullable = false, unique = true, updatable = false)
     private String name;
 
     @Version

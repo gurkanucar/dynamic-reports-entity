@@ -30,7 +30,7 @@ import { useFlow } from "../queries/use-flow"
 import { useFlowRuns } from "../queries/use-flow-runs"
 
 export function FlowDetailPage() {
-  const flowId = Number(useParams().flowId)
+  const flowId = useParams().flowId ?? ""
   const flow = useFlow(flowId)
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(20)
@@ -38,7 +38,7 @@ export function FlowDetailPage() {
   const start = useStartRun()
   const remove = useDeleteFlow()
   const navigate = useNavigate()
-  const [selectedRun, setSelectedRun] = useState<number | null>(null)
+  const [selectedRun, setSelectedRun] = useState<string | null>(null)
   const schedules = useSchedules(flowId)
   const triggers = useTriggers(flowId)
   const startLines: StartLine[] | undefined = useMemo(() => schedules.data && triggers.data ? [

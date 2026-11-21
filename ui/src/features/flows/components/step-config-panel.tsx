@@ -246,7 +246,7 @@ function DatasetFields({ step, onChange }: {
           )}
           {step.datasetName && (
             <FieldDescription>
-              <Link className="underline underline-offset-4" to={`/datasets/${step.datasetName}`} target="_blank">Veri setini aç</Link>
+              <Link className="underline underline-offset-4" to={`/datasets/${saved.data?.find((item) => item.name === step.datasetName)?.id ?? ""}`} target="_blank">Veri setini aç</Link>
             </FieldDescription>
           )}
         </Field>
@@ -333,7 +333,7 @@ function MailFields({ step, model, onChange }: {
           </div>
         </div>
         <Select value={step.templateId ? String(step.templateId) : undefined}
-          onValueChange={(value) => onChange({ ...step, templateId: Number(value) })}>
+          onValueChange={(value) => onChange({ ...step, templateId: value })}>
           <SelectTrigger className="w-full"><SelectValue placeholder="Şablon seçin" /></SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -403,7 +403,7 @@ function SurveyStepFields({ step, onChange }: {
           </Button>
         </div>
         <Select value={step.surveyId ? String(step.surveyId) : undefined}
-          onValueChange={(value) => onChange({ ...step, surveyId: Number(value) })}>
+          onValueChange={(value) => onChange({ ...step, surveyId: value })}>
           <SelectTrigger className="w-full"><SelectValue placeholder="Yayındaki bir anket seçin" /></SelectTrigger>
           <SelectContent>
             <SelectGroup>
@@ -494,7 +494,7 @@ function ApprovalFields({ step, onChange }: {
           )}
         </div>
         <Select value={step.groupId ? String(step.groupId) : undefined}
-          onValueChange={(value) => onChange({ ...step, groupId: Number(value) })}>
+          onValueChange={(value) => onChange({ ...step, groupId: value })}>
           <SelectTrigger className="w-full"><SelectValue placeholder="Grup seçin" /></SelectTrigger>
           <SelectContent>
             <SelectGroup>

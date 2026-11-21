@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowReferences;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplateUsage;
 import org.springframework.stereotype.Component;
@@ -23,7 +24,7 @@ class FlowReferenceIndex implements FlowReferences, MailTemplateUsage {
     }
 
     @Override
-    public boolean usesTemplate(long templateId) {
-        return isReferenced(CoreStepTypes.MAIL_TEMPLATE, Long.toString(templateId));
+    public boolean usesTemplate(UUID templateId) {
+        return isReferenced(CoreStepTypes.MAIL_TEMPLATE, templateId.toString());
     }
 }

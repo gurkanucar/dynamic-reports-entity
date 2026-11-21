@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepReference;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -7,8 +9,6 @@ import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Embeddable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
@@ -33,8 +33,8 @@ import java.util.Set;
 public class Flow {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Version
     private long version;

@@ -14,7 +14,7 @@ import { useDeleteSchedule } from "../mutations/use-delete-schedule"
 import { useSaveSchedule } from "../mutations/use-save-schedule"
 import { useSchedules } from "../queries/use-schedules"
 
-export function SchedulesCard({ flowId }: { flowId: number }) {
+export function SchedulesCard({ flowId }: { flowId: string }) {
   const schedules = useSchedules(flowId)
   const save = useSaveSchedule(flowId)
   const remove = useDeleteSchedule(flowId)

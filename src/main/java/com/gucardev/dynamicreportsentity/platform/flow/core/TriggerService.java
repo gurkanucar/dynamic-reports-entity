@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
 
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
@@ -46,8 +47,8 @@ public class TriggerService implements FlowEvents {
     }
 
     /** What happened to an incoming event. */
-    public record Delivery(String status, Long runId) {
-        static Delivery started(long runId) {
+    public record Delivery(String status, UUID runId) {
+        static Delivery started(UUID runId) {
             return new Delivery("started", runId);
         }
     }
@@ -77,12 +78,12 @@ public class TriggerService implements FlowEvents {
 
     // ---- managing -------------------------------------------------------------------------------------
 
-    public List<FlowTrigger> list(long flowId, Actor viewer) {
+    public List<FlowTrigger> list(UUID flowId, Actor viewer) {
         flows.get(flowId, viewer);
         return triggers.findByFlowIdOrderById(flowId);
     }
 
-    public FlowTrigger get(long id, Actor viewer) {
+    public FlowTrigger get(UUID id, Actor viewer) {
         FlowTrigger trigger = triggers.findById(id).orElseThrow(() -> notFound(id));
         try {
             flows.get(trigger.getFlowId(), viewer);
@@ -93,7 +94,7 @@ public class TriggerService implements FlowEvents {
     }
 
     @Transactional
-    public FlowTrigger create(long flowId, TriggerInput input, Actor viewer) {
+    public FlowTrigger create(UUID flowId, TriggerInput input, Actor viewer) {
         flows.get(flowId, viewer);
         if (triggers.countByFlowId(flowId) >= MAX_TRIGGERS_PER_FLOW) {
             throw new FlowException(Kind.CONFLICT, "TRIGGER_LIMIT_REACHED",
@@ -110,7 +111,7 @@ public class TriggerService implements FlowEvents {
     }
 
     @Transactional
-    public FlowTrigger update(long id, long expectedVersion, TriggerInput input, Actor viewer) {
+    public FlowTrigger update(UUID id, long expectedVersion, TriggerInput input, Actor viewer) {
         FlowTrigger trigger = get(id, viewer);
         if (trigger.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -130,7 +131,7 @@ public class TriggerService implements FlowEvents {
 
     /** A new webhook secret; the old one stops working at once. */
     @Transactional
-    public FlowTrigger rotateSecret(long id, Actor viewer) {
+    public FlowTrigger rotateSecret(UUID id, Actor viewer) {
         FlowTrigger trigger = get(id, viewer);
         if (trigger.getType() != FlowTrigger.Type.WEBHOOK) {
             throw new FlowException(Kind.CONFLICT, "NOT_A_WEBHOOK", "Only webhook triggers have a secret.");
@@ -140,7 +141,7 @@ public class TriggerService implements FlowEvents {
     }
 
     @Transactional
-    public void delete(long id, Actor viewer) {
+    public void delete(UUID id, Actor viewer) {
         triggers.delete(get(id, viewer));
     }
 
@@ -293,7 +294,7 @@ public class TriggerService implements FlowEvents {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    private static FlowException notFound(long id) {
+    private static FlowException notFound(UUID id) {
         return FlowException.notFound("TRIGGER_NOT_FOUND", "Trigger " + id + " does not exist.");
     }
 

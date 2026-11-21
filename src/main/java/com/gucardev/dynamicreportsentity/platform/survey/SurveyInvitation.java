@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -27,7 +28,7 @@ public class SurveyInvitation {
     private String token;
 
     @Column(name = "survey_id", nullable = false)
-    private Long surveyId;
+    private UUID surveyId;
 
     @Column(name = "source_type", nullable = false, length = 40)
     private String sourceType;
@@ -41,11 +42,11 @@ public class SurveyInvitation {
     @Column(nullable = false)
     private Instant expiresAt;
 
-    private Long responseId;
+    private UUID responseId;
 
     private boolean revoked;
 
-    SurveyInvitation(String token, long surveyId, String sourceType, String sourceId, Instant now, Instant expiresAt) {
+    SurveyInvitation(String token, UUID surveyId, String sourceType, String sourceId, Instant now, Instant expiresAt) {
         this.token = token;
         this.surveyId = surveyId;
         this.sourceType = sourceType;
@@ -58,7 +59,7 @@ public class SurveyInvitation {
         return !revoked && responseId == null && expiresAt.isAfter(now);
     }
 
-    void use(long responseId) {
+    void use(UUID responseId) {
         this.responseId = responseId;
     }
 

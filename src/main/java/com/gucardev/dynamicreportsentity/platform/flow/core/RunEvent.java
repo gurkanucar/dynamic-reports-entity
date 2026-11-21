@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -21,11 +21,11 @@ import java.time.Instant;
 public class RunEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "run_id", nullable = false)
-    private Long runId;
+    private UUID runId;
 
     @Column(nullable = false)
     private Instant occurredAt;
@@ -40,7 +40,7 @@ public class RunEvent {
     @Column(length = 1000)
     private String message;
 
-    RunEvent(Long runId, Instant occurredAt, String type, String stepKey, String message) {
+    RunEvent(UUID runId, Instant occurredAt, String type, String stepKey, String message) {
         this.runId = runId;
         this.occurredAt = occurredAt;
         this.type = type;

@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -28,11 +28,11 @@ import java.time.Instant;
 class TriggerEvent {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "trigger_id", nullable = false)
-    private Long triggerId;
+    private UUID triggerId;
 
     /** {@code X-Event-Id} of a webhook, {@code topic:partition:offset} of a Kafka message. */
     @Column(name = "event_key", nullable = false, length = 200)
@@ -41,9 +41,9 @@ class TriggerEvent {
     @Column(name = "received_at", nullable = false)
     private Instant receivedAt;
 
-    private Long runId;
+    private UUID runId;
 
-    TriggerEvent(Long triggerId, String eventKey, Instant receivedAt, Long runId) {
+    TriggerEvent(UUID triggerId, String eventKey, Instant receivedAt, UUID runId) {
         this.triggerId = triggerId;
         this.eventKey = eventKey;
         this.receivedAt = receivedAt;

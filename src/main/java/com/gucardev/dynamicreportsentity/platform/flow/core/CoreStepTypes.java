@@ -68,7 +68,7 @@ final class CoreStepTypes {
 
         @Override
         public Set<StepReference> references(MailStep step) {
-            return Set.of(StepReference.of(MAIL_TEMPLATE, step.templateId()));
+            return step.templateId() == null ? Set.of() : Set.of(StepReference.of(MAIL_TEMPLATE, step.templateId()));
         }
     }
 

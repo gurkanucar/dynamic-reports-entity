@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowapproval;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -24,7 +25,7 @@ import java.util.Set;
  */
 public record ApprovalStep(
         @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
-        @NotNull Long groupId,
+        @NotNull UUID groupId,
         @NotBlank @Size(max = 300) String title,
         @Size(max = 4000) String description,
         @Min(1) @Max(720) Integer timeoutHours,

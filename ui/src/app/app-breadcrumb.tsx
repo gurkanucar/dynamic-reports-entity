@@ -6,6 +6,7 @@ import {
 import { useSavedDataset } from "@/features/datasets/queries/use-saved-datasets"
 import { useFlow } from "@/features/flows/queries/use-flow"
 import { useSurvey } from "@/features/surveys/queries/use-surveys"
+import { shortId } from "@/shared/lib/format"
 
 const SECTIONS: Record<string, string> = {
   datasets: "Veri setleri",
@@ -35,11 +36,11 @@ interface Crumb {
  */
 export function AppBreadcrumb() {
   const [section, id, action] = useLocation().pathname.split("/").filter(Boolean)
-  const flowId = section === "flows" && id && id !== "new" ? Number(id) : 0
+  const flowId = section === "flows" && id && id !== "new" ? id : ""
   const datasetName = section === "datasets" && id && id !== "new" ? decodeURIComponent(id) : undefined
   const flow = useFlow(flowId)
   const dataset = useSavedDataset(datasetName)
-  const surveyId = section === "surveys" && id && id !== "new" ? Number(id) : null
+  const surveyId = section === "surveys" && id && id !== "new" ? id : null
   const survey = useSurvey(surveyId)
 
   if (!section || !SECTIONS[section]) return null
@@ -47,11 +48,11 @@ export function AppBreadcrumb() {
   if (section === "admin" && id && ADMIN_PAGES[id]) crumbs.push({ label: ADMIN_PAGES[id] })
   else if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : section === "surveys" ? "Yeni anket" : "Yeni veri seti" })
   else if (surveyId) {
-    crumbs.push({ label: survey.data?.title ?? `#${surveyId}`, to: action ? `/surveys/${surveyId}` : undefined })
+    crumbs.push({ label: survey.data?.title ?? `#${shortId(surveyId)}`, to: action ? `/surveys/${surveyId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })
   }
   else if (flowId) {
-    crumbs.push({ label: flow.data?.name ?? `#${flowId}`, to: action ? `/flows/${flowId}` : undefined })
+    crumbs.push({ label: flow.data?.name ?? `#${shortId(flowId)}`, to: action ? `/flows/${flowId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })
   } else if (datasetName) crumbs.push({ label: dataset.data?.label ?? datasetName })
 

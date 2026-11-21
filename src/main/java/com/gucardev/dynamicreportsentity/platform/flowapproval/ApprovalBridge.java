@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowapproval;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalDecided;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalService;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingStepEnded;
@@ -47,7 +48,7 @@ class ApprovalBridge {
         output.put("decidedAt", decided.decidedAt() == null ? null : decided.decidedAt().toString());
         String message = decided.decidedBy() == null ? null : decided.decidedBy()
                 + (decided.comment() == null ? "" : ": " + decided.comment());
-        steps.resume(Long.parseLong(decided.sourceId()), outcome, output, switch (decided.outcome()) {
+        steps.resume(UUID.fromString(decided.sourceId()), outcome, output, switch (decided.outcome()) {
             case APPROVED -> "approval_approved";
             case REJECTED -> "approval_rejected";
             case TIMED_OUT -> "approval_timed_out";
@@ -57,7 +58,7 @@ class ApprovalBridge {
     @ApplicationModuleListener
     void on(WaitingStepEnded ended) {
         if (ApprovalStep.TYPE.equals(ended.stepType())) {
-            approvals.cancel(ApprovalStepHandler.SOURCE_TYPE, Long.toString(ended.stepRunId()));
+            approvals.cancel(ApprovalStepHandler.SOURCE_TYPE, ended.stepRunId().toString());
         }
     }
 }

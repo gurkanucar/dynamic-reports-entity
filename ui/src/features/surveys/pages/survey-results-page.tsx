@@ -21,7 +21,7 @@ import { ResponseSheet } from "../components/response-sheet"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
 import { Pager } from "@/shared/components/pager"
-import { formatDateTime } from "@/shared/lib/format"
+import { formatDateTime, shortId } from "@/shared/lib/format"
 import { surveysApi } from "../api/surveys.api"
 import {
   FOLLOW_LABELS, FollowStatusBadge, PRIORITY_LABELS, PriorityBadge, SurveyStatusBadge,
@@ -32,7 +32,7 @@ import type { FollowStatus, Priority, SurveyResponse, SurveySummary } from "../t
 
 /** `/surveys/:surveyId`: the owner's view of the answers: a summary per question, every response, Excel. */
 export function SurveyResultsPage() {
-  const id = Number(useParams().surveyId)
+  const id = useParams().surveyId ?? ""
   const survey = useSurvey(id)
   const summary = useSurveySummary(id)
   if (survey.isPending) return <Skeleton className="h-96 w-full" />
@@ -197,7 +197,7 @@ function Responses({ survey }: { survey: SurveyResponse }) {
     q: list.query || undefined, sort: list.sort, size: list.size })
   // "?response=<id>": a run's survey step links straight to the response
   const [params] = useSearchParams()
-  const [open, setOpen] = useState<number | null>(params.get("response") ? Number(params.get("response")) : null)
+  const [open, setOpen] = useState<string | null>(params.get("response"))
   const tracking = survey.settings.tracking
   const questions = survey.definition.fields.filter((field) => field.type !== "section")
   const columns = questions.slice(0, 2)
@@ -252,7 +252,7 @@ function Responses({ survey }: { survey: SurveyResponse }) {
               <TableBody>
                 {responses.data.data.map((row) => (
                   <TableRow key={row.id} className="cursor-pointer" onClick={() => setOpen(row.id)}>
-                    <TableCell className="pl-4 tabular-nums text-muted-foreground">#{row.id}</TableCell>
+                    <TableCell className="pl-4 tabular-nums text-muted-foreground" title={row.id}>#{shortId(row.id)}</TableCell>
                     <TableCell className="whitespace-nowrap tabular-nums">{formatDateTime(row.submittedAt)}</TableCell>
                     {!survey.anonymous && <TableCell>{row.respondent}</TableCell>}
                     {tracking.status && <TableCell><FollowStatusBadge status={row.status} /></TableCell>}

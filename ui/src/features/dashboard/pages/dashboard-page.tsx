@@ -19,7 +19,7 @@ import { RunSheet } from "@/features/flows/components/run-sheet"
 import { RunStatusBadge } from "@/features/flows/components/run-status-badge"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
-import { formatDateTime } from "@/shared/lib/format"
+import { formatDateTime, shortId } from "@/shared/lib/format"
 import { recent, runsPerDay } from "../lib/run-stats"
 import { useDashboard } from "../queries/use-dashboard"
 
@@ -35,7 +35,7 @@ const TRIGGERS: Record<string, string> = { manual: "Elle", schedule: "Zamanlama"
 export function DashboardPage() {
   const user = useCurrentUser().data
   const dashboard = useDashboard()
-  const [runId, setRunId] = useState<number | null>(null)
+  const [runId, setRunId] = useState<string | null>(null)
   const data = dashboard.data
 
   const week = data ? recent(data.runs, 7) : []
@@ -45,7 +45,7 @@ export function DashboardPage() {
     ? Math.round((100 * (finishedWeek.length - failedWeek.length)) / finishedWeek.length) : null
   const days = data ? runsPerDay(data.runs, 14) : []
   // flows whose latest run failed: what to look at first
-  const latestByFlow = new Map<number, (typeof week)[number]>()
+  const latestByFlow = new Map<string, (typeof week)[number]>()
   for (const run of data?.runs ?? []) if (!latestByFlow.has(run.flow.id)) latestByFlow.set(run.flow.id, run)
   const broken = [...latestByFlow.values()].filter((run) => run.status === "failed")
 
@@ -151,7 +151,7 @@ export function DashboardPage() {
                       <ItemContent className="min-w-0">
                         <ItemTitle className="w-full truncate">{run.flow.name}</ItemTitle>
                         <ItemDescription className="truncate">
-                          #{run.id} · {TRIGGERS[run.trigger] ?? run.trigger} · {formatDateTime(run.createdAt)}
+                          #{shortId(run.id)} · {TRIGGERS[run.trigger] ?? run.trigger} · {formatDateTime(run.createdAt)}
                           {run.error ? ` · ${run.error.code}` : ""}
                         </ItemDescription>
                       </ItemContent>

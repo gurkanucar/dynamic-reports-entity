@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -28,14 +28,14 @@ import java.time.Instant;
 public class FlowSchedule {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Version
     private long version;
 
     @Column(name = "flow_id", nullable = false)
-    private Long flowId;
+    private UUID flowId;
 
     /** As entered: 5 fields (minute precision) or 6 (with seconds), or a macro like {@code @daily}. */
     @Column(nullable = false, length = 100)
@@ -52,7 +52,7 @@ public class FlowSchedule {
 
     private Instant lastFiredAt;
 
-    private Long lastRunId;
+    private UUID lastRunId;
 
     /** Why the last fire time did not start a run (e.g. the previous run was still active). */
     @Column(length = 300)
@@ -67,7 +67,7 @@ public class FlowSchedule {
     @Column(nullable = false)
     private Instant updatedAt;
 
-    FlowSchedule(Long flowId, String createdBy, Instant now) {
+    FlowSchedule(UUID flowId, String createdBy, Instant now) {
         this.flowId = flowId;
         this.createdBy = createdBy;
         this.createdAt = now;
@@ -81,7 +81,7 @@ public class FlowSchedule {
         this.updatedAt = now;
     }
 
-    void fired(Instant fireTime, Instant next, Long runId, String skipReason) {
+    void fired(Instant fireTime, Instant next, UUID runId, String skipReason) {
         this.lastFiredAt = fireTime;
         this.nextFireAt = next;
         this.lastRunId = runId == null ? lastRunId : runId;

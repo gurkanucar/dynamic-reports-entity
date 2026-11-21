@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowapproval;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalGroupUsage;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowReferences;
 import org.springframework.stereotype.Component;
@@ -15,7 +16,7 @@ class FlowGroupUsage implements ApprovalGroupUsage {
     }
 
     @Override
-    public boolean usesGroup(long groupId) {
-        return references.isReferenced(ApprovalStepType.APPROVAL_GROUP, Long.toString(groupId));
+    public boolean usesGroup(UUID groupId) {
+        return references.isReferenced(ApprovalStepType.APPROVAL_GROUP, groupId.toString());
     }
 }

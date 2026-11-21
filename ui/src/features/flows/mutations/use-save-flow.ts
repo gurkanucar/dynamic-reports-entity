@@ -7,7 +7,7 @@ import type { FlowRequest } from "../types/flow.dto"
 export function useSaveFlow() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, version, request }: { id?: number; version?: number; request: FlowRequest }) =>
+    mutationFn: ({ id, version, request }: { id?: string; version?: number; request: FlowRequest }) =>
       id !== undefined && version !== undefined ? flowsApi.replace(id, version, request) : flowsApi.create(request),
     onSuccess: (saved) => {
       queryClient.setQueryData(flowKeys.detail(saved.id), saved)

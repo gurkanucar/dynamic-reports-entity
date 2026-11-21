@@ -55,7 +55,7 @@ const NEW_SURVEY: SurveyRequest = {
 /** `/surveys/new` and `/surveys/:surveyId/edit`. */
 export function SurveyBuilderPage() {
   const { surveyId } = useParams()
-  const id = surveyId ? Number(surveyId) : null
+  const id = surveyId ?? null
   const survey = useSurvey(id)
   if (id !== null && survey.isPending) return <Skeleton className="h-96 w-full" />
   if (id !== null && survey.isError) return <ErrorAlert error={survey.error} title="Anket yüklenemedi" />

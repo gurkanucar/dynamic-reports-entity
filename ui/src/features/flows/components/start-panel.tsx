@@ -14,6 +14,7 @@ import { CRON_PRESETS, looksLikeCron } from "../lib/cron"
 import { CronAssist } from "./cron-assist"
 import { newTrigger, type TriggerDraft, type TriggerKind } from "../lib/triggers"
 import { JsonLogicEditor } from "./json-logic-editor"
+import { shortId } from "@/shared/lib/format"
 
 const CUSTOM = "__custom__"
 const KAFKA_VARIABLES = ["trigger.value.type", "trigger.value.amount", "trigger.key", "trigger.headers"]
@@ -119,8 +120,8 @@ function SurveyFields({ trigger, onChange }: {
       <Field data-invalid={trigger.surveyId === null ? true : undefined}>
         <FieldLabel htmlFor={`survey-${trigger.uid}`}>Anket</FieldLabel>
         <Select value={trigger.surveyId === null ? "" : String(trigger.surveyId)}
-          onValueChange={(value) => onChange({ surveyId: Number(value),
-            title: surveys.data?.data.find((item) => item.id === Number(value))?.title } as Partial<TriggerDraft>)}>
+          onValueChange={(value) => onChange({ surveyId: value,
+            title: surveys.data?.data.find((item) => item.id === value)?.title } as Partial<TriggerDraft>)}>
           <SelectTrigger id={`survey-${trigger.uid}`} className="w-full">
             <SelectValue placeholder={surveys.isPending ? "Yükleniyor…" : "Anket seçin"} />
           </SelectTrigger>
@@ -130,7 +131,7 @@ function SurveyFields({ trigger, onChange }: {
                 <SelectItem key={item.id} value={String(item.id)}>{item.title}</SelectItem>
               ))}
               {trigger.surveyId !== null && !surveys.data?.data.some((item) => item.id === trigger.surveyId) && (
-                <SelectItem value={String(trigger.surveyId)}>{survey.data?.title ?? `#${trigger.surveyId}`}</SelectItem>
+                <SelectItem value={String(trigger.surveyId)}>{survey.data?.title ?? `#${shortId(trigger.surveyId)}`}</SelectItem>
               )}
             </SelectGroup>
           </SelectContent>

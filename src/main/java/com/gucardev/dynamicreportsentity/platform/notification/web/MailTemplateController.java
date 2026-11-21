@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.notification.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
@@ -64,13 +65,13 @@ class MailTemplateController {
     }
 
     @GetMapping("/api/mail-templates/{id}")
-    ResponseEntity<ApiResponse<TemplateDetail>> get(@PathVariable long id) {
+    ResponseEntity<ApiResponse<TemplateDetail>> get(@PathVariable UUID id) {
         MailTemplate template = templates.get(id);
         return ResponseEntity.ok().eTag(etag(template.getVersion())).body(ApiResponse.of(NotificationApi.detail(template)));
     }
 
     @PutMapping("/api/mail-templates/{id}")
-    ResponseEntity<ApiResponse<TemplateDetail>> update(@PathVariable long id,
+    ResponseEntity<ApiResponse<TemplateDetail>> update(@PathVariable UUID id,
                                                        @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                        @Valid @RequestBody TemplateRequest request,
                                                        Authentication authentication) {
@@ -81,7 +82,7 @@ class MailTemplateController {
 
     @DeleteMapping("/api/mail-templates/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable long id, Authentication authentication) {
+    void delete(@PathVariable UUID id, Authentication authentication) {
         templates.delete(id, Actor.of(authentication));
     }
 

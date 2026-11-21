@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
+import com.gucardev.dynamicreportsentity.platform.api.Ids;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -30,8 +31,8 @@ class HelpAssistant implements Drafter {
     private static final List<Pattern> PAGES = List.of(
             Pattern.compile("/"),
             Pattern.compile("/(datasets|datasets/new|flows|flows/new|runs|approvals|approval-groups|templates|surveys|surveys/new)"),
-            Pattern.compile("/datasets/[a-z0-9_]{1,80}"),
-            Pattern.compile("/(flows|surveys)/\\d{1,12}(/edit)?"));
+            Pattern.compile("/datasets/" + Ids.PATTERN),
+            Pattern.compile("/(flows|surveys)/" + Ids.PATTERN + "(/edit)?"));
     private static final Pattern ADMIN_PAGES =
             Pattern.compile("/admin/(personnel|departments|projects|trainings|training-records|skills)");
     /** Where each specialist assistant lives; {@code ?ask=} fills its input with the request. */

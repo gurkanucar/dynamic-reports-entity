@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.approval;
 
+import java.util.UUID;
 import java.time.Instant;
 
 /**
@@ -11,7 +12,7 @@ import java.time.Instant;
  * @param sourceId   which one (e.g. the step run id)
  * @param decidedBy  the member who decided; null for a timeout
  */
-public record ApprovalDecided(long requestId, String sourceType, String sourceId, Outcome outcome, String decidedBy,
+public record ApprovalDecided(UUID requestId, String sourceType, String sourceId, Outcome outcome, String decidedBy,
                               String comment, Instant decidedAt) {
 
     public enum Outcome { APPROVED, REJECTED, TIMED_OUT }

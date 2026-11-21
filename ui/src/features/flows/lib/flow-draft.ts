@@ -20,7 +20,7 @@ export interface AppliedDraft {
  * reusable on their own; a taken name gets a number), and mail steps get their ids instead of `templateRef`.
  */
 export async function applyFlowDraft(draft: FlowDraftDto): Promise<AppliedDraft> {
-  const ids = new Map<string, number>()
+  const ids = new Map<string, string>()
   const createdTemplates: string[] = []
   for (const template of draft.newTemplates ?? []) {
     const created = await createWithFreeName(template)

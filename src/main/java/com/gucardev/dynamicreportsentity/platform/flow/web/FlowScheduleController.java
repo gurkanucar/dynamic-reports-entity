@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowSchedule;
@@ -39,13 +40,13 @@ class FlowScheduleController {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<ApiResponse<ScheduleView>> get(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<ApiResponse<ScheduleView>> get(@PathVariable UUID id, Authentication authentication) {
         FlowSchedule schedule = schedules.get(id, viewer(authentication));
         return ResponseEntity.ok().eTag(etag(schedule.getVersion())).body(ApiResponse.of(FlowViews.schedule(schedule)));
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<ApiResponse<ScheduleView>> update(@PathVariable long id,
+    ResponseEntity<ApiResponse<ScheduleView>> update(@PathVariable UUID id,
                                                      @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                      @Valid @RequestBody ScheduleRequest request,
                                                      Authentication authentication) {
@@ -56,7 +57,7 @@ class FlowScheduleController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable long id, Authentication authentication) {
+    void delete(@PathVariable UUID id, Authentication authentication) {
         schedules.delete(id, viewer(authentication));
     }
 }

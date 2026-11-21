@@ -98,17 +98,17 @@ class FlowKafkaIntegrationTest {
         }
     }
 
-    private String runStatus(long runId) {
+    private String runStatus(String runId) {
         return jdbc.queryForObject("SELECT status FROM flow_run WHERE id = ?", String.class, runId);
     }
 
     @Test
     void aStepPublishesTheRenderedEvent() throws Exception {
         RecordingMailSender.reset();
-        long flow = post("/api/flows", Map.of("name", "Publish", "steps", List.of(Map.of("type", "kafka", "key", "pub",
+        String flow = post("/api/flows", Map.of("name", "Publish", "steps", List.of(Map.of("type", "kafka", "key", "pub",
                 "topic", "flows.notifications", "messageKey", "run-{{run.id}}",
-                "payload", "{\"flow\": \"{{flow.name}}\", \"run\": {{run.id}}}")))).get("id").asLong();
-        long runId = post("/api/flows/" + flow + "/runs", Map.of()).get("id").asLong();
+                "payload", "{\"flow\": \"{{flow.name}}\", \"run\": \"{{run.id}}\"}")))).get("id").asString();
+        String runId = post("/api/flows/" + flow + "/runs", Map.of()).get("id").asString();
         await(() -> "COMPLETED".equals(runStatus(runId)), "the run");
 
         try (KafkaConsumer<String, String> consumer = new KafkaConsumer<>(Map.of(
@@ -126,7 +126,7 @@ class FlowKafkaIntegrationTest {
                 }
             }
             assertThat(found).isNotNull();
-            assertThat(JSON.readTree(found.value()).get("run").asLong()).isEqualTo(runId);
+            assertThat(JSON.readTree(found.value()).get("run").asString()).isEqualTo(runId);
             assertThat(JSON.readTree(found.value()).get("flow").asString()).isEqualTo("Publish");
             assertThat(new String(found.headers().lastHeader("flow-run-id").value(), UTF_8)).isEqualTo(String.valueOf(runId));
         }
@@ -134,9 +134,9 @@ class FlowKafkaIntegrationTest {
 
     @Test
     void messagesStartRunsOncePerMessageAndOnlyWhenTheFilterMatches() throws Exception {
-        long flow = post("/api/flows", Map.of("name", "On order", "steps", List.of(Map.of("type", "condition",
+        String flow = post("/api/flows", Map.of("name", "On order", "steps", List.of(Map.of("type", "condition",
                 "key", "big", "expression", Map.of(">", List.of(Map.of("var", "trigger.value.amount"), 100))))))
-                .get("id").asLong();
+                .get("id").asString();
         JsonNode trigger = post("/api/flows/" + flow + "/triggers", Map.of("type", "kafka", "enabled", true,
                 "topic", "flows.orders", "filter", Map.of("==", List.of(Map.of("var", "trigger.value.type"), "order"))))
                 .get("trigger");
@@ -158,11 +158,11 @@ class FlowKafkaIntegrationTest {
                 + " WHERE r.flow_id = ?", String.class, flow);
         assertThat(outcome).isEqualTo("true");
         assertThat(jdbc.queryForObject("SELECT triggered_by FROM flow_run WHERE flow_id = ?", String.class, flow))
-                .isEqualTo("kafka:" + trigger.get("id").asLong());
+                .isEqualTo("kafka:" + trigger.get("id").asString());
 
         // a redelivery of a message already handled (after a rebalance) starts nothing
         Map<String, Object> event = jdbc.queryForMap("SELECT event_key FROM flow_trigger_event WHERE trigger_id = ?",
-                trigger.get("id").asLong());
+                trigger.get("id").asString());
         String[] position = ((String) event.get("event_key")).split(":");
         triggers.receiveKafka(position[0], Integer.parseInt(position[1]), Long.parseLong(position[2]), "o-1",
                 "{\"type\": \"order\", \"amount\": 500}", Map.of());
@@ -171,8 +171,8 @@ class FlowKafkaIntegrationTest {
 
     @Test
     void topicsOutsideTheAllowListAreRejected() {
-        long flow = post("/api/flows", Map.of("name", "Elsewhere", "steps", List.of(Map.of("type", "condition",
-                "key", "c", "expression", true)))).get("id").asLong();
+        String flow = post("/api/flows", Map.of("name", "Elsewhere", "steps", List.of(Map.of("type", "condition",
+                "key", "c", "expression", true)))).get("id").asString();
         assertThat(mvc.post().uri("/api/flows/" + flow + "/triggers").with(ADMIN).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"type\": \"kafka\", \"enabled\": true, \"topic\": \"payments.internal\"}").exchange())
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson().extractingPath("$.errors[0].code")

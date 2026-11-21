@@ -1,12 +1,12 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -42,14 +42,14 @@ public class FlowTrigger {
     }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Version
     private long version;
 
     @Column(name = "flow_id", nullable = false)
-    private Long flowId;
+    private UUID flowId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "trigger_type", nullable = false, length = 20)
@@ -84,9 +84,9 @@ public class FlowTrigger {
 
     private Instant lastFiredAt;
 
-    private Long lastRunId;
+    private UUID lastRunId;
 
-    FlowTrigger(Long flowId, Type type, String createdBy, Instant now) {
+    FlowTrigger(UUID flowId, Type type, String createdBy, Instant now) {
         this.flowId = flowId;
         this.type = type;
         this.createdBy = createdBy;

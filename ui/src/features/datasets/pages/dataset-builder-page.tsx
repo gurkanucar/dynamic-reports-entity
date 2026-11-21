@@ -30,9 +30,9 @@ import type { DatasetDefinition, ExportFormat } from "../types/dataset.types"
 
 const PAGE_SIZE = 50
 
-/** /datasets/new and /datasets/:name (a saved one, updated in place). */
+/** /datasets/new and /datasets/:datasetId (a saved one, updated in place). */
 export function DatasetBuilderPage() {
-  const name = useParams().name
+  const name = useParams().datasetId
   const saved = useSavedDataset(name)
   if (!name) return <DatasetBuilder key="new" saved={null} />
   if (saved.isPending) return <Skeleton className="h-96 w-full" />
@@ -103,7 +103,7 @@ function DatasetBuilder({ saved }: { saved: SavedDatasetResponse | null }) {
               </DropdownMenu>
             </ButtonGroup>
             <SaveDatasetDialog definition={cleaned} defaultLabel={title} saved={saved} disabled={!isRunnable(definition)}
-              onSaved={(result) => { if (!saved) navigate(`/datasets/${result.name}`, { replace: true }) }} />
+              onSaved={(result) => { if (!saved) navigate(`/datasets/${result.id}`, { replace: true }) }} />
             <ScheduleDatasetDialog definition={cleaned} savedName={saved?.name} defaultName={title} disabled={!isRunnable(definition)} />
             <Button disabled={!isRunnable(definition) || run.isPending} onClick={() => execute(definition)}>
               {run.isPending ? <Spinner data-icon="inline-start" /> : <PlayIcon data-icon="inline-start" />}Çalıştır

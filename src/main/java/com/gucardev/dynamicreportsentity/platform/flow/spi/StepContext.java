@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.spi;
 
+import java.util.UUID;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -24,8 +25,8 @@ public interface StepContext {
     StoredFile storeFile(String fileName, String contentType, Path file) throws IOException;
 
     /** A file of the run's steps ({@code steps.<key>.artifactId}); null if it expired or is gone. */
-    byte[] loadFile(long fileId);
+    byte[] loadFile(UUID fileId);
 
-    record StoredFile(long id, long sizeBytes, Instant expiresAt) {
+    record StoredFile(UUID id, long sizeBytes, Instant expiresAt) {
     }
 }

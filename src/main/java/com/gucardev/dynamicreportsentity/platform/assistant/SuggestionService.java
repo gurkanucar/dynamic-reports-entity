@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -87,7 +88,7 @@ public class SuggestionService {
         }
         DatasetSuggestion suggestion = suggestions.save(new DatasetSuggestion(kind, viewer.username(),
                 JSON.writeValueAsString(request), clock.instant()));
-        long id = suggestion.getId();
+        UUID id = suggestion.getId();
         try {
             workers.execute(() -> work(id, drafter, request, viewer));
         } catch (RejectedExecutionException e) {
@@ -96,7 +97,7 @@ public class SuggestionService {
         return suggestion;
     }
 
-    private void work(long id, Drafter drafter, SuggestionRequest request, Actor viewer) {
+    private void work(UUID id, Drafter drafter, SuggestionRequest request, Actor viewer) {
         try {
             slots.acquire();
         } catch (InterruptedException e) {
@@ -124,7 +125,7 @@ public class SuggestionService {
      * The owner's suggestion of this kind; others' answer 404. A request older than the timeout is reported as timed
      * out.
      */
-    public DatasetSuggestion get(String kind, long id, Actor viewer) {
+    public DatasetSuggestion get(String kind, UUID id, Actor viewer) {
         DatasetSuggestion suggestion = suggestions.findById(id)
                 .filter(found -> found.getOwner().equals(viewer.username()) && found.getKind().equals(kind))
                 .orElseThrow(() -> new AssistantException(404, "SUGGESTION_NOT_FOUND",

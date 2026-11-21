@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -9,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 
 /** Every state change is a conditional update: it only applies from the expected state (0 rows = someone else won). */
-interface DatasetSuggestionRepository extends JpaRepository<DatasetSuggestion, Long> {
+interface DatasetSuggestionRepository extends JpaRepository<DatasetSuggestion, UUID> {
 
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -17,7 +18,7 @@ interface DatasetSuggestionRepository extends JpaRepository<DatasetSuggestion, L
             update DatasetSuggestion s set s.status = com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.PROCESSING,
                    s.startedAt = :now
              where s.id = :id and s.status = com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.QUEUED""")
-    int start(@Param("id") Long id, @Param("now") Instant now);
+    int start(@Param("id") UUID id, @Param("now") Instant now);
 
     @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -25,7 +26,7 @@ interface DatasetSuggestionRepository extends JpaRepository<DatasetSuggestion, L
             update DatasetSuggestion s set s.status = com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.COMPLETED,
                    s.resultJson = :result, s.model = :model, s.finishedAt = :now
              where s.id = :id and s.status = com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.PROCESSING""")
-    int complete(@Param("id") Long id, @Param("result") String result, @Param("model") String model,
+    int complete(@Param("id") UUID id, @Param("result") String result, @Param("model") String model,
                  @Param("now") Instant now);
 
     @Transactional
@@ -36,7 +37,7 @@ interface DatasetSuggestionRepository extends JpaRepository<DatasetSuggestion, L
              where s.id = :id and s.status in (
                    com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.QUEUED,
                    com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion.Status.PROCESSING)""")
-    int fail(@Param("id") Long id, @Param("code") String code, @Param("message") String message,
+    int fail(@Param("id") UUID id, @Param("code") String code, @Param("message") String message,
              @Param("now") Instant now);
 
     /** Requests whose instance died or that ran too long. */

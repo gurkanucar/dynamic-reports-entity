@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.notification.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplate;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplateService.TemplateInput;
 import jakarta.validation.constraints.NotBlank;
@@ -34,10 +35,10 @@ final class NotificationApi {
                           Map<String, Object> model) {
     }
 
-    record TemplateSummary(long id, String name, String description, UserRef owner, long version, String updatedAt) {
+    record TemplateSummary(UUID id, String name, String description, UserRef owner, long version, String updatedAt) {
     }
 
-    record TemplateDetail(long id, String name, String description, String subject, String bodyHtml, UserRef owner,
+    record TemplateDetail(UUID id, String name, String description, String subject, String bodyHtml, UserRef owner,
                           long version, String createdAt, String updatedAt, UserRef updatedBy) {
     }
 

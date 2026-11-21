@@ -7,7 +7,7 @@ import type { ApprovalGroupRequest } from "../types/approval.dto"
 export function useSaveApprovalGroup() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, version, request }: { id?: number; version?: number; request: ApprovalGroupRequest }) =>
+    mutationFn: ({ id, version, request }: { id?: string; version?: number; request: ApprovalGroupRequest }) =>
       id !== undefined && version !== undefined ? approvalsApi.replaceGroup(id, version, request)
         : approvalsApi.createGroup(request),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: approvalKeys.groups() }),

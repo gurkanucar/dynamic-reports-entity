@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowTrigger;
 import com.gucardev.dynamicreportsentity.platform.flow.core.TriggerService;
@@ -37,13 +38,13 @@ class FlowTriggerController {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<ApiResponse<FlowViews.TriggerView>> get(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<ApiResponse<FlowViews.TriggerView>> get(@PathVariable UUID id, Authentication authentication) {
         FlowTrigger trigger = triggers.get(id, viewer(authentication));
         return ResponseEntity.ok().eTag(etag(trigger.getVersion())).body(ApiResponse.of(FlowViews.trigger(trigger)));
     }
 
     @PutMapping("/{id}")
-    ResponseEntity<ApiResponse<FlowViews.TriggerView>> update(@PathVariable long id,
+    ResponseEntity<ApiResponse<FlowViews.TriggerView>> update(@PathVariable UUID id,
                                                               @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                               @Valid @RequestBody FlowRequests.TriggerRequest request,
                                                               Authentication authentication) {
@@ -54,14 +55,14 @@ class FlowTriggerController {
 
     /** A new webhook secret (shown once); the old one stops working at once. */
     @PostMapping("/{id}/rotate-secret")
-    ApiResponse<FlowViews.TriggerWithSecret> rotateSecret(@PathVariable long id, Authentication authentication) {
+    ApiResponse<FlowViews.TriggerWithSecret> rotateSecret(@PathVariable UUID id, Authentication authentication) {
         FlowTrigger trigger = triggers.rotateSecret(id, viewer(authentication));
         return ApiResponse.of(new FlowViews.TriggerWithSecret(FlowViews.trigger(trigger), trigger.getWebhookSecret()));
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable long id, Authentication authentication) {
+    void delete(@PathVariable UUID id, Authentication authentication) {
         triggers.delete(id, viewer(authentication));
     }
 }

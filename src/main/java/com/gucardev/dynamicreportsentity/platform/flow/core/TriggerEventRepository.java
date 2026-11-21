@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -8,9 +9,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
-interface TriggerEventRepository extends JpaRepository<TriggerEvent, Long> {
+interface TriggerEventRepository extends JpaRepository<TriggerEvent, UUID> {
 
-    boolean existsByTriggerIdAndEventKey(Long triggerId, String eventKey);
+    boolean existsByTriggerIdAndEventKey(UUID triggerId, String eventKey);
 
     @Transactional
     @Modifying

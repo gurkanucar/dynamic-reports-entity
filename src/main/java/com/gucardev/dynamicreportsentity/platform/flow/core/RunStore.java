@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.ClaimedStep;
@@ -70,7 +71,7 @@ class RunStore {
     // ---- starting -------------------------------------------------------------------------------------
 
     @Transactional
-    FlowRun createRun(Flow flow, TriggerType trigger, String triggeredBy, Long scheduleId, int priority) {
+    FlowRun createRun(Flow flow, TriggerType trigger, String triggeredBy, UUID scheduleId, int priority) {
         return newRun(flow, trigger, triggeredBy, scheduleId, priority, clock.instant(), null);
     }
 
@@ -86,7 +87,7 @@ class RunStore {
      * row ({@code SKIP LOCKED}), so each fire time starts exactly one run however many instances see it due.
      */
     @Transactional
-    Optional<FlowRun> fireSchedule(long scheduleId, Instant now) {
+    Optional<FlowRun> fireSchedule(UUID scheduleId, Instant now) {
         if (schedules.lockIfDue(scheduleId, now).isEmpty()) {
             return Optional.empty();   // another instance is firing it, or already did
         }
@@ -142,7 +143,7 @@ class RunStore {
 
     /** A schedule that failed to fire is moved to its next fire time, so it cannot block the others. */
     @Transactional
-    void skipBrokenSchedule(long scheduleId, Instant now, String error) {
+    void skipBrokenSchedule(UUID scheduleId, Instant now, String error) {
         if (schedules.lockIfDue(scheduleId, now).isEmpty()) {
             return;
         }
@@ -156,7 +157,7 @@ class RunStore {
         schedule.fired(schedule.getNextFireAt(), next, null, Texts.truncate("Could not start the run: " + error, 300));
     }
 
-    private FlowRun newRun(Flow flow, TriggerType trigger, String triggeredBy, Long scheduleId, int priority,
+    private FlowRun newRun(Flow flow, TriggerType trigger, String triggeredBy, UUID scheduleId, int priority,
                            Instant now, String payloadJson) {
         FlowRun run = runs.save(new FlowRun(flow, trigger, triggeredBy, scheduleId, priority, now, payloadJson));
         FlowGraph graph = new FlowGraph(run.definition());
@@ -190,7 +191,7 @@ class RunStore {
     List<ClaimedStep> claim(Lane lane, int limit, String instanceId, Supplier<String> tokens, Instant now,
                             Instant leaseUntil) {
         List<ClaimedStep> claimed = new ArrayList<>();
-        for (Long stepId : steps.lockReady(lane.name(), now, limit)) {
+        for (UUID stepId : steps.lockReady(lane.name(), now, limit)) {
             StepRun step = steps.findById(stepId).orElseThrow();
             FlowRun run = runs.findById(step.getRunId()).orElseThrow();   // locked by lockReady as well
             String token = tokens.get();
@@ -223,7 +224,7 @@ class RunStore {
     }
 
     @Transactional
-    int renew(long stepId, String token, Instant leaseUntil) {
+    int renew(UUID stepId, String token, Instant leaseUntil) {
         return steps.renew(stepId, token, leaseUntil);
     }
 
@@ -233,7 +234,7 @@ class RunStore {
      * @return false if this attempt no longer owned the step (its lease expired and it was taken over)
      */
     @Transactional
-    boolean complete(long stepId, String token, StepResult result) {
+    boolean complete(UUID stepId, String token, StepResult result) {
         Locked locked = lockStep(stepId);
         if (locked == null || !locked.step().isClaimedBy(token)) {
             return false;
@@ -280,7 +281,7 @@ class RunStore {
      * @throws WaitingSteps.NotWaitingYetException if the attempt that starts the wait has not finished yet
      */
     @Transactional
-    boolean resume(long stepId, String outcome, Map<String, Object> extra, String eventType, String message) {
+    boolean resume(UUID stepId, String outcome, Map<String, Object> extra, String eventType, String message) {
         Locked locked = lockStep(stepId);
         if (locked == null) {
             return false;
@@ -306,8 +307,8 @@ class RunStore {
      */
     @Transactional
     int timeOutWaitingSteps(Instant now, int limit) {
-        List<Long> due = steps.lockDueWaiting(now, limit);
-        for (Long stepId : due) {
+        List<UUID> due = steps.lockDueWaiting(now, limit);
+        for (UUID stepId : due) {
             StepRun step = steps.findById(stepId).orElseThrow();
             FlowRun run = runs.findById(step.getRunId()).orElseThrow();
             event(run.getId(), now, "step_wait_timed_out", step.getStepKey(), null);
@@ -318,7 +319,7 @@ class RunStore {
     }
 
     @Transactional
-    void fail(long stepId, String token, StepFailure failure) {
+    void fail(UUID stepId, String token, StepFailure failure) {
         Locked locked = lockStep(stepId);
         if (locked != null && locked.step().isClaimedBy(token)) {
             applyFailure(locked.run(), locked.step(), failure, clock.instant());
@@ -333,8 +334,8 @@ class RunStore {
      */
     @Transactional
     int recoverExpiredLeases(Instant now, int limit) {
-        List<Long> expired = steps.lockExpiredLeases(now, limit);
-        for (Long stepId : expired) {
+        List<UUID> expired = steps.lockExpiredLeases(now, limit);
+        for (UUID stepId : expired) {
             StepRun step = steps.findById(stepId).orElseThrow();
             FlowRun run = runs.findById(step.getRunId()).orElseThrow();
             applyFailure(run, step, StepFailure.retryable("STEP_LEASE_EXPIRED",
@@ -382,7 +383,7 @@ class RunStore {
      * finishes the cancellation. Cancelling twice is harmless.
      */
     @Transactional
-    FlowRun cancel(long runId, String by) {
+    FlowRun cancel(UUID runId, String by) {
         FlowRun run = runs.lock(runId).orElseThrow(() -> FlowException.notFound("RUN_NOT_FOUND",
                 "Run " + runId + " does not exist."));
         if (run.getStatus().isFinished()) {
@@ -417,8 +418,8 @@ class RunStore {
     }
 
     /** Locks the step's run first; the step is read after the lock, so it is current. */
-    private Locked lockStep(long stepId) {
-        Long runId = steps.findRunId(stepId).orElse(null);
+    private Locked lockStep(UUID stepId) {
+        UUID runId = steps.findRunId(stepId).orElse(null);
         if (runId == null) {
             return null;
         }
@@ -427,7 +428,7 @@ class RunStore {
         return run == null || step == null ? null : new Locked(run, step);
     }
 
-    private void event(Long runId, Instant at, String type, String stepKey, String message) {
+    private void event(UUID runId, Instant at, String type, String stepKey, String message) {
         events.save(new RunEvent(runId, at, type, stepKey, message));
     }
 }

@@ -5,7 +5,7 @@ import { flowKeys } from "../queries/flow.keys"
 export function useCancelRun() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (runId: number) => flowsApi.cancel(runId),
+    mutationFn: (runId: string) => flowsApi.cancel(runId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: flowKeys.all }),
   })
 }

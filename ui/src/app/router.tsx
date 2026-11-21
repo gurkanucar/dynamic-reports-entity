@@ -45,7 +45,7 @@ export const router = createBrowserRouter([
       { index: true, element: <DashboardPage /> },
       { path: "datasets", element: <SavedDatasetsPage /> },
       { path: "datasets/new", element: <DatasetBuilderPage /> },
-      { path: "datasets/:name", element: <DatasetBuilderPage /> },
+      { path: "datasets/:datasetId", element: <DatasetBuilderPage /> },
       { path: "reports", element: <Navigate to="/datasets/new" replace /> },   // old links
       { path: "flows", element: <FlowsPage /> },
       { path: "flows/new", element: <FlowEditorPage /> },

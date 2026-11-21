@@ -1,6 +1,7 @@
 import { flowsApi } from "../api/flows.api"
 import type { JsonLogicRule, ScheduleResponse, TriggerResponse } from "../types/flow.dto"
 import { DEFAULT_TIME_ZONE, describeCron } from "./cron"
+import { shortId } from "@/shared/lib/format"
 
 /** What starts a flow, as edited on the canvas; saved together with the flow (`id` = already saved). */
 export type TriggerDraft =
@@ -8,7 +9,7 @@ export type TriggerDraft =
   | { kind: "webhook"; uid: string; saved?: TriggerResponse; enabled: boolean }
   | { kind: "kafka"; uid: string; saved?: TriggerResponse; topic: string; filter: JsonLogicRule | null; enabled: boolean }
   /** Every response to a survey (an `event` trigger on `survey:<id>`). */
-  | { kind: "survey"; uid: string; saved?: TriggerResponse; surveyId: number | null; title?: string;
+  | { kind: "survey"; uid: string; saved?: TriggerResponse; surveyId: string | null; title?: string;
       filter: JsonLogicRule | null; enabled: boolean }
 
 export type TriggerKind = TriggerDraft["kind"]
@@ -30,7 +31,7 @@ export function newTrigger(kind: TriggerKind): TriggerDraft {
 
 export const SURVEY_SOURCE = "survey:"
 
-export function surveyTrigger(surveyId: number, title?: string, filter: JsonLogicRule | null = null): TriggerDraft {
+export function surveyTrigger(surveyId: string, title?: string, filter: JsonLogicRule | null = null): TriggerDraft {
   return { kind: "survey", uid: uid(), surveyId, title, filter, enabled: true }
 }
 
@@ -41,7 +42,7 @@ export function toDrafts(schedules: ScheduleResponse[], triggers: TriggerRespons
     ...triggers.map((saved): TriggerDraft => saved.type === "webhook"
       ? { kind: "webhook", uid: uid(), saved, enabled: saved.enabled }
       : saved.type === "event" && saved.topic?.startsWith(SURVEY_SOURCE)
-        ? { kind: "survey", uid: uid(), saved, surveyId: Number(saved.topic.slice(SURVEY_SOURCE.length)),
+        ? { kind: "survey", uid: uid(), saved, surveyId: saved.topic.slice(SURVEY_SOURCE.length),
           filter: saved.filter, enabled: saved.enabled }
         : { kind: "kafka", uid: uid(), saved, topic: saved.topic ?? "", filter: saved.filter, enabled: saved.enabled }),
   ]
@@ -54,7 +55,7 @@ export function describeTrigger(trigger: TriggerDraft): string {
     case "webhook": return trigger.saved ? "Webhook çağrısı" : "Webhook çağrısı (kaydedince adres verilir)"
     case "kafka": return `Kafka: ${trigger.topic || "topic seçilmedi"}${trigger.filter ? " · filtreli" : ""}`
     case "survey": return `Anket yanıtı: ${trigger.surveyId === null ? "anket seçilmedi"
-      : trigger.title ?? `#${trigger.surveyId}`}${trigger.filter ? " · filtreli" : ""}`
+      : trigger.title ?? `#${shortId(trigger.surveyId)}`}${trigger.filter ? " · filtreli" : ""}`
   }
 }
 
@@ -67,7 +68,7 @@ export interface WebhookSecret {
  * Brings the flow's schedules and triggers in line with the drafts: removed ones are deleted, new ones created,
  * changed ones replaced. Returns the secrets of new webhooks (shown once).
  */
-export async function saveTriggers(flowId: number, original: TriggerDraft[], drafts: TriggerDraft[])
+export async function saveTriggers(flowId: string, original: TriggerDraft[], drafts: TriggerDraft[])
   : Promise<WebhookSecret[]> {
   const kept = new Set(drafts.map((draft) => draft.saved?.id).filter((id) => id !== undefined))
   for (const old of original) {

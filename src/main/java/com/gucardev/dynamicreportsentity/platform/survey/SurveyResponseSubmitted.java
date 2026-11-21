@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
 import java.time.Instant;
 import java.util.Map;
 
@@ -12,7 +13,7 @@ import java.util.Map;
  * @param labels     question texts by id
  * @param sourceType what waited for this response through an invitation (e.g. {@code flow-step}); null otherwise
  */
-public record SurveyResponseSubmitted(long surveyId, String surveyTitle, String surveyOwner, long responseId,
+public record SurveyResponseSubmitted(UUID surveyId, String surveyTitle, String surveyOwner, UUID responseId,
                                       String respondent, Map<String, Object> answers, Map<String, String> display,
                                       Map<String, String> labels, Instant submittedAt, String sourceType,
                                       String sourceId) {

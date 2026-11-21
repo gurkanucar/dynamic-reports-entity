@@ -24,7 +24,7 @@ export interface DatasetStepDto {
 export interface MailStepDto {
   type: "mail"
   key: string
-  templateId: number
+  templateId: string
   to: string[]
   cc?: string[]
   attachments?: string[]
@@ -46,7 +46,7 @@ export interface FilterStepDto {
 export interface ApprovalStepDto {
   type: "approval"
   key: string
-  groupId: number
+  groupId: string
   title: string
   description?: string | null
   timeoutHours?: number | null
@@ -77,7 +77,7 @@ export interface KafkaPublishStepDto {
 export interface SurveyStepDto {
   type: "survey"
   key: string
-  surveyId: number
+  surveyId: string
   to: string[]
   subject?: string | null
   message?: string | null
@@ -113,7 +113,7 @@ export interface FlowRequest {
 }
 
 export interface FlowSummaryResponse {
-  id: number
+  id: string
   name: string
   description: string | null
   owner: UserRef
@@ -124,7 +124,7 @@ export interface FlowSummaryResponse {
 }
 
 export interface FlowDetailResponse {
-  id: number
+  id: string
   name: string
   description: string | null
   owner: UserRef
@@ -146,14 +146,14 @@ export interface ScheduleRequest {
 }
 
 export interface ScheduleResponse {
-  id: number
-  flowId: number
+  id: string
+  flowId: string
   cron: string
   timeZone: string
   enabled: boolean
   nextFireAt: string | null
   lastFiredAt: string | null
-  lastRunId: number | null
+  lastRunId: string | null
   lastSkipReason: string | null
   version: number
 }
@@ -161,14 +161,14 @@ export interface ScheduleResponse {
 // ---- runs ----
 
 export interface RunSummaryResponse {
-  id: number
-  flow: { id: number; name: string }
+  id: string
+  flow: { id: string; name: string }
   status: RunStatus
   cancelRequested: boolean
   trigger: "manual" | "schedule" | "webhook" | "kafka" | "event"
   triggeredBy: string
   runAs: UserRef
-  scheduleId: number | null
+  scheduleId: string | null
   createdAt: string
   startedAt: string | null
   finishedAt: string | null
@@ -200,7 +200,7 @@ export interface RunStepDto {
 }
 
 export interface RunFileDto {
-  id: number
+  id: string
   stepKey: string
   fileName: string
   sizeBytes: number
@@ -210,7 +210,7 @@ export interface RunFileDto {
 }
 
 export interface RunEventDto {
-  id: number
+  id: string
   type: string
   stepKey: string | null
   message: string | null
@@ -240,8 +240,8 @@ export interface TriggerRequest {
 }
 
 export interface TriggerResponse {
-  id: number
-  flowId: number
+  id: string
+  flowId: string
   type: TriggerType
   enabled: boolean
   topic: string | null
@@ -249,7 +249,7 @@ export interface TriggerResponse {
   /** Path to call; the secret is only returned when created or rotated. */
   webhookUrl: string | null
   lastFiredAt: string | null
-  lastRunId: number | null
+  lastRunId: string | null
   version: number
   createdBy: UserRef
   createdAt: string

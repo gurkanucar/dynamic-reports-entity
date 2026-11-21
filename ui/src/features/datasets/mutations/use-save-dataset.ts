@@ -3,7 +3,7 @@ import { savedDatasetsApi } from "../api/saved-datasets.api"
 import { datasetKeys } from "../queries/dataset.keys"
 import type { SavedDatasetRequest } from "../types/saved-dataset.dto"
 
-/** Saves a new dataset, or replaces `existing` (its name stays). */
+/** Saves a new dataset, or replaces `existing` (by id; its name stays). */
 export function useSaveDataset() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -16,7 +16,7 @@ export function useSaveDataset() {
 export function useDeleteDataset() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (name: string) => savedDatasetsApi.remove(name),
+    mutationFn: (id: string) => savedDatasetsApi.remove(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: datasetKeys.saved() }),
   })
 }

@@ -8,7 +8,7 @@ export interface TemplateRequest {
 }
 
 export interface TemplateSummaryResponse {
-  id: number
+  id: string
   name: string
   description: string | null
   owner: UserRef

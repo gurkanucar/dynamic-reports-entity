@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowsurvey;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowEvents;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingStepEnded;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingSteps;
@@ -48,7 +49,7 @@ class SurveyFlowBridge {
         output.put("answers", submitted.answers());
         output.put("text", submitted.display());
         output.put("labels", submitted.labels());
-        steps.resume(Long.parseLong(submitted.sourceId()), "answered", output, "survey_answered",
+        steps.resume(UUID.fromString(submitted.sourceId()), "answered", output, "survey_answered",
                 (submitted.respondent() == null ? "Anonim" : submitted.respondent()) + " yanıtladı");
     }
 
@@ -56,7 +57,7 @@ class SurveyFlowBridge {
     @ApplicationModuleListener
     void on(WaitingStepEnded ended) {
         if (SurveyStep.TYPE.equals(ended.stepType())) {
-            surveys.revoke(SurveyStepHandler.SOURCE_TYPE, Long.toString(ended.stepRunId()));
+            surveys.revoke(SurveyStepHandler.SOURCE_TYPE, ended.stepRunId().toString());
         }
     }
 

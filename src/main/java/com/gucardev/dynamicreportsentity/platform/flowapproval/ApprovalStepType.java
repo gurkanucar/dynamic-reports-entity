@@ -44,6 +44,6 @@ class ApprovalStepType implements StepType<ApprovalStep> {
 
     @Override
     public Set<StepReference> references(ApprovalStep step) {
-        return Set.of(StepReference.of(APPROVAL_GROUP, step.groupId()));
+        return step.groupId() == null ? Set.of() : Set.of(StepReference.of(APPROVAL_GROUP, step.groupId()));
     }
 }

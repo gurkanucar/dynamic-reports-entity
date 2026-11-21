@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Spinner } from "@/components/ui/spinner"
 import { errorMessage } from "@/shared/api/http-client"
 import { ErrorAlert } from "@/shared/components/error-alert"
-import { formatBytes, formatDateTime } from "@/shared/lib/format"
+import { formatBytes, formatDateTime, shortId } from "@/shared/lib/format"
 import { useCancelRun } from "../mutations/use-cancel-run"
 import { useDownloadFile } from "../mutations/use-download-file"
 import { useRun } from "../queries/use-run"
@@ -58,7 +58,7 @@ function eventIcon(type: string): LucideIcon {
 }
 
 /** Steps, files and history of a run; refreshes itself while the run is active. */
-export function RunSheet({ runId, onClose }: { runId: number | null; onClose: () => void }) {
+export function RunSheet({ runId, onClose }: { runId: string | null; onClose: () => void }) {
   const run = useRun(runId)
   const cancel = useCancelRun()
   const download = useDownloadFile()
@@ -77,7 +77,7 @@ export function RunSheet({ runId, onClose }: { runId: number | null; onClose: ()
     <Sheet open={runId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-3xl">
         <SheetHeader>
-          <SheetTitle>Çalışma #{runId}</SheetTitle>
+          <SheetTitle title={runId ?? undefined}>Çalışma #{shortId(runId)}</SheetTitle>
           <SheetDescription>{data ? `${data.flow.name} · ${data.runAs.username} yetkileriyle` : "Yükleniyor…"}</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-4 px-4 pb-6">

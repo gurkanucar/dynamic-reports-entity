@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.dataset.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetInfo;
 import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetRequest;
@@ -41,9 +42,9 @@ class SavedDatasetController {
         return ApiResponse.of(datasets.list());
     }
 
-    @GetMapping("/{name}")
-    ApiResponse<SavedDatasetInfo> get(@PathVariable String name) {
-        return ApiResponse.of(datasets.get(name));
+    @GetMapping("/{id}")
+    ApiResponse<SavedDatasetInfo> get(@PathVariable UUID id) {
+        return ApiResponse.of(datasets.get(id));
     }
 
     @PostMapping
@@ -52,15 +53,15 @@ class SavedDatasetController {
         return ApiResponse.of(datasets.create(request, DatasetController.viewer(authentication)));
     }
 
-    @PutMapping("/{name}")
-    ApiResponse<SavedDatasetInfo> update(@PathVariable String name, @Valid @RequestBody SavedDatasetRequest request,
+    @PutMapping("/{id}")
+    ApiResponse<SavedDatasetInfo> update(@PathVariable UUID id, @Valid @RequestBody SavedDatasetRequest request,
                                          Authentication authentication) {
-        return ApiResponse.of(datasets.update(name, request, DatasetController.viewer(authentication)));
+        return ApiResponse.of(datasets.update(id, request, DatasetController.viewer(authentication)));
     }
 
-    @DeleteMapping("/{name}")
+    @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable String name, Authentication authentication) {
-        datasets.delete(name, DatasetController.viewer(authentication));
+    void delete(@PathVariable UUID id, Authentication authentication) {
+        datasets.delete(id, DatasetController.viewer(authentication));
     }
 }

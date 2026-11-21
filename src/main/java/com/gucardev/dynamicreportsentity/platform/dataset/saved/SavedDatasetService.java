@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.dataset.saved;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetDefinition;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetExecutor;
@@ -49,12 +50,13 @@ public class SavedDatasetService {
         return repository.findAllByOrderByNameAsc().stream().map(SavedDatasetService::info).toList();
     }
 
-    public SavedDatasetInfo get(String name) {
-        return info(load(name));
+    public SavedDatasetInfo get(UUID id) {
+        return info(load(id));
     }
 
+    /** By name: how flows refer to a dataset. */
     public Optional<SavedDatasetInfo> find(String name) {
-        return repository.findById(name).map(SavedDatasetService::info);
+        return repository.findByName(name).map(SavedDatasetService::info);
     }
 
     @Transactional
@@ -65,7 +67,7 @@ public class SavedDatasetService {
                     + "starting with a letter (e.g. department_headcount)");
         }
         executor.prepare(request.definition(), editor);
-        if (repository.existsById(name)) {
+        if (repository.existsByName(name)) {
             throw nameTaken(name);
         }
         SavedDataset dataset = new SavedDataset(name, editor.username(), clock.instant());
@@ -79,8 +81,9 @@ public class SavedDatasetService {
     }
 
     @Transactional
-    public SavedDatasetInfo update(String name, SavedDatasetRequest request, Actor editor) {
-        SavedDataset dataset = load(name);
+    public SavedDatasetInfo update(UUID id, SavedDatasetRequest request, Actor editor) {
+        SavedDataset dataset = load(id);
+        String name = dataset.getName();
         requireOwner(dataset, editor);
         executor.prepare(request.definition(), editor);
         dataset.define(request.label(), request.description(), JSON.writeValueAsString(request.definition()),
@@ -95,8 +98,9 @@ public class SavedDatasetService {
 
     /** Not while something uses it (e.g. a flow step). */
     @Transactional
-    public void delete(String name, Actor editor) {
-        SavedDataset dataset = load(name);
+    public void delete(UUID id, Actor editor) {
+        SavedDataset dataset = load(id);
+        String name = dataset.getName();
         requireOwner(dataset, editor);
         if (usages.stream().anyMatch(usage -> usage.usesSavedDataset(name))) {
             throw new SavedDatasetException(ApiException.Kind.CONFLICT, "SAVED_DATASET_IN_USE",
@@ -112,9 +116,9 @@ public class SavedDatasetService {
         }
     }
 
-    private SavedDataset load(String name) {
-        return repository.findById(name).orElseThrow(() -> new SavedDatasetException(
-                ApiException.Kind.NOT_FOUND, "SAVED_DATASET_NOT_FOUND", "There is no dataset '" + name + "'"));
+    private SavedDataset load(UUID id) {
+        return repository.findById(id).orElseThrow(() -> new SavedDatasetException(
+                ApiException.Kind.NOT_FOUND, "SAVED_DATASET_NOT_FOUND", "There is no dataset " + id));
     }
 
     private static SavedDatasetException nameTaken(String name) {
@@ -123,7 +127,7 @@ public class SavedDatasetService {
     }
 
     private static SavedDatasetInfo info(SavedDataset dataset) {
-        return new SavedDatasetInfo(dataset.getName(), dataset.getLabel(), dataset.getDescription(),
+        return new SavedDatasetInfo(dataset.getId(), dataset.getName(), dataset.getLabel(), dataset.getDescription(),
                 JSON.readValue(dataset.getDefinitionJson(), DatasetDefinition.class), dataset.getVersion(),
                 dataset.getCreatedBy(), dataset.getCreatedAt(), dataset.getUpdatedBy(), dataset.getUpdatedAt());
     }

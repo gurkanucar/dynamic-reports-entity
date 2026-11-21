@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.survey.Survey;
 import com.gucardev.dynamicreportsentity.platform.survey.SurveyDefinition;
@@ -42,34 +43,34 @@ final class SurveyApi {
     record NoteRequest(@NotBlank @Size(max = 2000) String text) {
     }
 
-    record NoteView(long id, String author, String text, Instant createdAt) {
+    record NoteView(UUID id, String author, String text, Instant createdAt) {
     }
 
     /** "Try it" in the builder: the definition on screen and the answers typed into the preview. */
     record TryRequest(@NotNull Map<String, Object> definition, Map<String, Object> answers) {
     }
 
-    record SurveyView(long id, long version, String title, String description, String status, boolean anonymous,
+    record SurveyView(UUID id, long version, String title, String description, String status, boolean anonymous,
                       boolean oneResponsePerUser, Instant closesAt, String owner, Instant createdAt,
                       Instant updatedAt, String updatedBy, Instant publishedAt, SurveyDefinition definition,
                       SurveySettings settings, long responseCount, Map<String, Long> followUpCounts) {
     }
 
-    record SurveyListItem(long id, String title, String description, String status, String owner,
+    record SurveyListItem(UUID id, String title, String description, String status, String owner,
                           Instant closesAt, Instant updatedAt, int questionCount, long responseCount,
                           boolean answered, boolean anonymous) {
     }
 
-    record FormView(long id, String title, String description, String status, boolean anonymous,
+    record FormView(UUID id, String title, String description, String status, boolean anonymous,
                     boolean oneResponsePerUser, Instant closesAt, SurveyDefinition definition, boolean open,
                     String closedReason, boolean alreadyAnswered, boolean preview, String resultsVisibility,
                     boolean hasResults) {
     }
 
-    record SubmittedView(long responseId, Instant submittedAt, String successMessage) {
+    record SubmittedView(UUID responseId, Instant submittedAt, String successMessage) {
     }
 
-    record ResponseView(long id, long surveyVersion, String respondent, Instant submittedAt,
+    record ResponseView(UUID id, long surveyVersion, String respondent, Instant submittedAt,
                         Map<String, Object> answers, Map<String, String> display, String status, String priority,
                         java.time.LocalDate followUpAt, String assignee, Map<String, Object> tracking, long notes,
                         String source, Instant updatedAt, String updatedBy) {

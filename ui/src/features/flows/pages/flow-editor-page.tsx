@@ -52,14 +52,14 @@ const TRIGGER_ITEMS: { kind: TriggerKind; label: string; icon: typeof CalendarCl
 /** /flows/new and /flows/:flowId/edit */
 export function FlowEditorPage() {
   const params = useParams()
-  const flowId = params.flowId ? Number(params.flowId) : null
-  const flow = useFlow(flowId ?? 0)
-  const schedules = useSchedules(flowId ?? 0)
-  const triggers = useTriggers(flowId ?? 0)
+  const flowId = params.flowId ?? null
+  const flow = useFlow(flowId ?? "")
+  const schedules = useSchedules(flowId ?? "")
+  const triggers = useTriggers(flowId ?? "")
   const surveyParam = new URLSearchParams(useLocation().search).get("survey")
   if (flowId === null) {
     // "Akış oluştur" on a survey's results page: start with a trigger on that survey
-    return <FlowEditor key="new" flow={null} triggers={surveyParam ? [surveyTrigger(Number(surveyParam))] : []} />
+    return <FlowEditor key="new" flow={null} triggers={surveyParam ? [surveyTrigger(surveyParam)] : []} />
   }
   if (flow.isPending || schedules.isPending || triggers.isPending) return <Skeleton className="h-[32rem] w-full" />
   if (flow.isError) return <ErrorAlert error={flow.error} title="Akış yüklenemedi" />
@@ -87,7 +87,7 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
   // full window: the whole editor (steps, canvas, settings), not only the canvas
   const [expanded, setExpanded] = useState(false)
   const [savingTriggers, setSavingTriggers] = useState(false)
-  const [secrets, setSecrets] = useState<{ flowId: number; items: WebhookSecret[] } | null>(null)
+  const [secrets, setSecrets] = useState<{ flowId: string; items: WebhookSecret[] } | null>(null)
   const assistant = useAssistantSettings()
   const ask = useAskParam()
   const [showAssistant, setShowAssistant] = useState(ask !== undefined)

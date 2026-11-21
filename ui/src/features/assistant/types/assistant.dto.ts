@@ -44,7 +44,7 @@ export interface FlowDraftDto {
   flow: { name: string; steps: Record<string, unknown>[]; edges: { from: string; to: string; when?: string | null }[] }
   schedules: { cron: string; timeZone?: string }[]
   /** Run for every response to a survey; `filter` is JSON Logic over `trigger`. */
-  surveyTriggers?: { surveyId: number; filter?: unknown }[]
+  surveyTriggers?: { surveyId: string; filter?: unknown }[]
   newTemplates: (TemplateDraftDto & { ref: string })[]
 }
 
@@ -65,7 +65,7 @@ export interface SuggestionReplyDto {
 }
 
 export interface SuggestionResponse {
-  id: number
+  id: string
   status: SuggestionStatus
   createdAt: string
   finishedAt: string | null

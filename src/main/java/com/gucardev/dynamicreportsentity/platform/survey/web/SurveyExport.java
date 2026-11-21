@@ -50,7 +50,7 @@ final class SurveyExport {
             surveys.forEachResponse(survey.getId(), viewer, row -> {
                 Row line = sheet.createRow(rowIndex[0]++);
                 int at = 0;
-                line.createCell(at++).setCellValue(row.response().getId());
+                line.createCell(at++).setCellValue(row.response().getId().toString());
                 line.createCell(at++).setCellValue(TIME.format(row.response().getSubmittedAt()));
                 if (!survey.isAnonymous()) {
                     line.createCell(at++).setCellValue(row.response().getRespondent());

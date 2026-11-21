@@ -48,6 +48,6 @@ class SurveyStepType implements StepType<SurveyStep> {
 
     @Override
     public Set<StepReference> references(SurveyStep step) {
-        return Set.of(StepReference.of(SURVEY, step.surveyId()));
+        return step.surveyId() == null ? Set.of() : Set.of(StepReference.of(SURVEY, step.surveyId()));
     }
 }

@@ -59,7 +59,7 @@ export function StepAssist({ step, model, flowName, onChange }: {
           return
         }
         try {
-          const ids = new Map<string, number>()
+          const ids = new Map<string, string>()
           for (const template of draft.newTemplates ?? []) ids.set(template.ref, (await createWithFreeName(template)).id)
           const { templateRef, ...rest } = draft.step as Record<string, unknown> & { templateRef?: string }
           if (templateRef !== undefined) rest.templateId = ids.get(templateRef) ?? null

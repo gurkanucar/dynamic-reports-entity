@@ -21,3 +21,11 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
+
+/**
+ * Record ids are UUIDs (version 7): the first characters are a timestamp and look alike, so the last eight are
+ * shown ("…3a9f12c4"); the whole id is in the title.
+ */
+export function shortId(id: string | null | undefined): string {
+  return id ? id.slice(-8) : ""
+}

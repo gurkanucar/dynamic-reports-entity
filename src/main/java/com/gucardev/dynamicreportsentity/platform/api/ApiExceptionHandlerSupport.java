@@ -67,6 +67,11 @@ public abstract class ApiExceptionHandlerSupport {
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     ProblemDetail typeMismatch(MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+        if (exception.getRequiredType() == java.util.UUID.class
+                && exception.getParameter().hasParameterAnnotation(org.springframework.web.bind.annotation.PathVariable.class)) {
+            // ids are UUIDs: anything else in the path is simply a record that does not exist
+            return Problems.of(HttpStatus.NOT_FOUND, "NOT_FOUND", "There is no such record.", request);
+        }
         return Problems.of(HttpStatus.BAD_REQUEST, "INVALID_PARAMETER",
                 "Invalid value for '" + exception.getName() + "'.", request);
     }

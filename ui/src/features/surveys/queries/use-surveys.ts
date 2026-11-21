@@ -11,35 +11,35 @@ export function useSurveys(scope: "mine" | "open", page = 1,
   })
 }
 
-export function useSurvey(id: number | null) {
+export function useSurvey(id: string | null) {
   return useQuery({
-    queryKey: surveyKeys.detail(id ?? 0),
+    queryKey: surveyKeys.detail(id ?? ""),
     queryFn: () => surveysApi.get(id!),
     enabled: id !== null,
   })
 }
 
-export function useSurveyForm(id: number, invitation?: string | null) {
+export function useSurveyForm(id: string, invitation?: string | null) {
   return useQuery({ queryKey: [...surveyKeys.form(id), invitation ?? null], queryFn: () => surveysApi.form(id, invitation),
     retry: false })
 }
 
 /** The counted results for respondents; only fetched when the form says there are some to show. */
-export function useSurveyResults(id: number, enabled: boolean) {
+export function useSurveyResults(id: string, enabled: boolean) {
   return useQuery({ queryKey: surveyKeys.results(id), queryFn: () => surveysApi.results(id), enabled, retry: false })
 }
 
-export function useSurveyResponse(id: number, responseId: number | null) {
-  return useQuery({ queryKey: surveyKeys.response(id, responseId ?? 0), queryFn: () => surveysApi.response(id, responseId!),
+export function useSurveyResponse(id: string, responseId: string | null) {
+  return useQuery({ queryKey: surveyKeys.response(id, responseId ?? ""), queryFn: () => surveysApi.response(id, responseId!),
     enabled: responseId !== null })
 }
 
-export function useResponseNotes(id: number, responseId: number | null) {
-  return useQuery({ queryKey: surveyKeys.notes(id, responseId ?? 0), queryFn: () => surveysApi.notes(id, responseId!),
+export function useResponseNotes(id: string, responseId: string | null) {
+  return useQuery({ queryKey: surveyKeys.notes(id, responseId ?? ""), queryFn: () => surveysApi.notes(id, responseId!),
     enabled: responseId !== null })
 }
 
-export function useSurveyResponses(id: number, page: number, filters?: Partial<import("../types/survey.dto").ResponseFilters> & { size?: number }) {
+export function useSurveyResponses(id: string, page: number, filters?: Partial<import("../types/survey.dto").ResponseFilters> & { size?: number }) {
   return useQuery({
     queryKey: [...surveyKeys.responses(id, page), filters ?? null],
     queryFn: () => surveysApi.responses(id, page, filters?.size ?? 20, filters),
@@ -47,6 +47,6 @@ export function useSurveyResponses(id: number, page: number, filters?: Partial<i
   })
 }
 
-export function useSurveySummary(id: number) {
+export function useSurveySummary(id: string) {
   return useQuery({ queryKey: surveyKeys.summary(id), queryFn: () => surveysApi.summary(id) })
 }

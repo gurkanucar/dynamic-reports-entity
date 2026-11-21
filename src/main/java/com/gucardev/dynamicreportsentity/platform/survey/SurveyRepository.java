@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 
-interface SurveyRepository extends JpaRepository<Survey, Long> {
+interface SurveyRepository extends JpaRepository<Survey, UUID> {
 
     /** Surveys of one owner ({@code owner} null = all) in some statuses, {@code q}: a LIKE pattern over title. */
     @Query("""

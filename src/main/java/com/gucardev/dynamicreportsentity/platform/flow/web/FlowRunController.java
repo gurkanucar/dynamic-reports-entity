@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 
@@ -78,7 +79,7 @@ class FlowRunController {
 
     /** While the run is active, {@code Retry-After} suggests when to ask again. */
     @GetMapping("/api/flow-runs/{id}")
-    ResponseEntity<ApiResponse<RunDetail>> get(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<ApiResponse<RunDetail>> get(@PathVariable UUID id, Authentication authentication) {
         FlowRun run = runs.get(id, viewer(authentication));
         ResponseEntity.BodyBuilder response = ResponseEntity.ok();
         if (!run.getStatus().isFinished()) {
@@ -93,7 +94,7 @@ class FlowRunController {
      * within a few seconds, then the run becomes {@code cancelled}. 409 if the run has already finished.
      */
     @PostMapping("/api/flow-runs/{id}/cancel")
-    ApiResponse<RunSummary> cancel(@PathVariable long id, Authentication authentication) {
+    ApiResponse<RunSummary> cancel(@PathVariable UUID id, Authentication authentication) {
         return ApiResponse.of(FlowViews.summary(runs.cancel(id, viewer(authentication))));
     }
 
@@ -102,7 +103,7 @@ class FlowRunController {
      * URL to open, or {@code url: null} when the store has none (then fetch {@code /download}, it streams).
      */
     @GetMapping("/api/flow-files/{id}/download-link")
-    ApiResponse<java.util.Map<String, Object>> downloadLink(@PathVariable long id, Authentication authentication) {
+    ApiResponse<java.util.Map<String, Object>> downloadLink(@PathVariable UUID id, Authentication authentication) {
         RunArtifact file = runs.file(id, viewer(authentication));
         java.util.Map<String, Object> link = new java.util.LinkedHashMap<>();
         link.put("url", artifacts.downloadUrl(file).map(URI::toString).orElse(null));
@@ -115,7 +116,7 @@ class FlowRunController {
      * fetch the presigned URL of {@code /download} (other origin). Up to 1 MB.
      */
     @GetMapping("/api/flow-files/{id}/content")
-    ApiResponse<java.util.Map<String, Object>> content(@PathVariable long id, Authentication authentication)
+    ApiResponse<java.util.Map<String, Object>> content(@PathVariable UUID id, Authentication authentication)
             throws IOException {
         RunArtifact file = runs.file(id, viewer(authentication));
         if (!(file.getContentType().equals("text/html") || file.getContentType().equals("text/plain"))
@@ -137,7 +138,7 @@ class FlowRunController {
      * the store offers none ({@code storage.s3.presigned-downloads=false}, filesystem store). 410 once expired.
      */
     @GetMapping("/api/flow-files/{id}/download")
-    ResponseEntity<StreamingResponseBody> download(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<StreamingResponseBody> download(@PathVariable UUID id, Authentication authentication) {
         RunArtifact file = runs.file(id, viewer(authentication));
         Optional<URI> direct = artifacts.downloadUrl(file);
         if (direct.isPresent()) {

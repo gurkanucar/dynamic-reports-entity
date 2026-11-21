@@ -1,12 +1,12 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -29,11 +29,11 @@ import java.time.Instant;
 public class FlowRun {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "flow_id", nullable = false)
-    private Long flowId;
+    private UUID flowId;
 
     @Column(nullable = false, length = 100)
     private String flowName;
@@ -53,7 +53,7 @@ public class FlowRun {
     @Column(name = "triggered_by", nullable = false, length = 100)
     private String triggeredBy;
 
-    private Long scheduleId;
+    private UUID scheduleId;
 
     /** Webhook body or Kafka message that started the run (JSON); null for manual and scheduled runs. */
     @Column(name = "trigger_payload_json", length = 300_000)
@@ -80,7 +80,7 @@ public class FlowRun {
     @Column(length = 1000)
     private String errorMessage;
 
-    FlowRun(Flow flow, TriggerType triggerType, String triggeredBy, Long scheduleId, int priority, Instant now,
+    FlowRun(Flow flow, TriggerType triggerType, String triggeredBy, UUID scheduleId, int priority, Instant now,
             String triggerPayloadJson) {
         this.triggerPayloadJson = triggerPayloadJson;
         this.flowId = flow.getId();

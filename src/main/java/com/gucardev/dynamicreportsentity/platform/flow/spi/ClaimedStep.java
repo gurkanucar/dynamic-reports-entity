@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.spi;
 
+import java.util.UUID;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -11,7 +12,7 @@ import java.util.Map;
  * @param previousOutputs outputs of the completed earlier steps, by step key
  * @param triggerPayload  the webhook body or Kafka message that started the run (JSON value), else null
  */
-public record ClaimedStep(long stepRunId, String token, int attempt, long runId, long flowId, String flowName,
+public record ClaimedStep(UUID stepRunId, String token, int attempt, UUID runId, UUID flowId, String flowName,
                    String runAs, TriggerType trigger, String triggeredBy, Instant runStartedAt, FlowStep step,
                    Duration timeout, Map<String, Map<String, Object>> previousOutputs, Object triggerPayload) {
 }

@@ -29,7 +29,7 @@ export function TemplatesPage() {
   const [params] = useSearchParams()
   // "?new=1" (the help chat hands a request over) opens a new template with its assistant
   const [selected, setSelected] = useState<string | null>(params.get("new") ? NEW : null)
-  const selectedId = selected && selected !== NEW ? Number(selected) : null
+  const selectedId = selected && selected !== NEW ? selected : null
   const template = useTemplate(selectedId)
   const remove = useDeleteTemplate()
 

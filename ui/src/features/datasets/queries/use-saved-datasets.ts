@@ -7,10 +7,10 @@ export function useSavedDatasets() {
   return useQuery({ queryKey: datasetKeys.saved(), queryFn: savedDatasetsApi.list })
 }
 
-export function useSavedDataset(name: string | undefined) {
+export function useSavedDataset(id: string | undefined) {
   return useQuery({
-    queryKey: datasetKeys.savedOne(name ?? ""),
-    queryFn: () => savedDatasetsApi.get(name!),
-    enabled: !!name,
+    queryKey: datasetKeys.savedOne(id ?? ""),
+    queryFn: () => savedDatasetsApi.get(id!),
+    enabled: !!id,
   })
 }

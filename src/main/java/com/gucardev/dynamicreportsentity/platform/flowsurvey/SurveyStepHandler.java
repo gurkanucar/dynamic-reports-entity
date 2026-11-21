@@ -67,7 +67,7 @@ class SurveyStepHandler implements StepHandler {
         Instant until = clock.instant().plus(Duration.ofHours(step.timeoutHoursOrDefault()));
         String token;
         try {
-            token = surveys.invite(step.surveyId(), SOURCE_TYPE, Long.toString(claimed.stepRunId()), until);
+            token = surveys.invite(step.surveyId(), SOURCE_TYPE, claimed.stepRunId().toString(), until);
         } catch (ApiException e) {
             throw new StepException(e.code(), e.getMessage(), false);
         }

@@ -29,7 +29,7 @@ const CLOSED: Record<ClosedReason, { title: string; description: string }> = {
 
 /** `/s/:surveyId`: a platform user fills in a survey, on a page of its own (a link can be sent by mail). */
 export function SurveyFillPage() {
-  const id = Number(useParams().surveyId)
+  const id = useParams().surveyId ?? ""
   const invitation = useSearchParams()[0].get("invitation")
   const form = useSurveyForm(id, invitation)
   const submit = useSubmitResponse(id, invitation)

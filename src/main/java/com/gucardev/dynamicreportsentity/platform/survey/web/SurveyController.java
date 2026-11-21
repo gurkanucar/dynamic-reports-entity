@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
@@ -85,14 +86,14 @@ class SurveyController {
     }
 
     @GetMapping("/api/surveys/{id}")
-    ResponseEntity<ApiResponse<SurveyApi.SurveyView>> get(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<ApiResponse<SurveyApi.SurveyView>> get(@PathVariable UUID id, Authentication authentication) {
         Survey survey = surveys.get(id, Actor.of(authentication));
         return ResponseEntity.ok().eTag(etag(survey.getVersion()))
                 .body(ApiResponse.of(SurveyApi.survey(survey, surveys.responseCount(id), surveys.statusCounts(id, Actor.of(authentication)))));
     }
 
     @PutMapping("/api/surveys/{id}")
-    ResponseEntity<ApiResponse<SurveyApi.SurveyView>> update(@PathVariable long id,
+    ResponseEntity<ApiResponse<SurveyApi.SurveyView>> update(@PathVariable UUID id,
                                                              @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                              @Valid @RequestBody SurveyApi.SurveyRequest request,
                                                              Authentication authentication) {
@@ -104,7 +105,7 @@ class SurveyController {
 
     @DeleteMapping("/api/surveys/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void delete(@PathVariable long id, Authentication authentication) {
+    void delete(@PathVariable UUID id, Authentication authentication) {
         surveys.delete(id, Actor.of(authentication));
     }
 
@@ -121,19 +122,19 @@ class SurveyController {
 
     /** {@code invitation}: the token of a link a waiting flow step sent. */
     @GetMapping("/api/surveys/{id}/form")
-    ApiResponse<SurveyApi.FormView> form(@PathVariable long id, @RequestParam(required = false) String invitation,
+    ApiResponse<SurveyApi.FormView> form(@PathVariable UUID id, @RequestParam(required = false) String invitation,
                                          Authentication authentication) {
         return ApiResponse.of(SurveyApi.form(surveys.form(id, Actor.of(authentication), invitation)));
     }
 
     /** The counted answers of the questions marked "show in results", if the survey shows them to this user. */
     @GetMapping("/api/surveys/{id}/results")
-    ApiResponse<SurveyService.Summary> results(@PathVariable long id, Authentication authentication) {
+    ApiResponse<SurveyService.Summary> results(@PathVariable UUID id, Authentication authentication) {
         return ApiResponse.of(surveys.publicResults(id, Actor.of(authentication)));
     }
 
     @PostMapping("/api/surveys/{id}/responses")
-    ResponseEntity<ApiResponse<SurveyApi.SubmittedView>> submit(@PathVariable long id,
+    ResponseEntity<ApiResponse<SurveyApi.SubmittedView>> submit(@PathVariable UUID id,
                                                                 @Valid @RequestBody SurveyApi.ResponseRequest request,
                                                                 Authentication authentication) {
         SurveyResponse response = surveys.submit(id, request.answers(), Actor.of(authentication), request.invitation());
@@ -151,7 +152,7 @@ class SurveyController {
      * submittedAt, status, priority, followUpAt, assignee, respondent (default {@code -submittedAt}).
      */
     @GetMapping("/api/surveys/{id}/responses")
-    ApiResponse<List<SurveyApi.ResponseView>> responses(@PathVariable long id,
+    ApiResponse<List<SurveyApi.ResponseView>> responses(@PathVariable UUID id,
                                                         @RequestParam(required = false) List<String> status,
                                                         @RequestParam(required = false) List<String> priority,
                                                         @RequestParam(required = false) String assignee,
@@ -174,7 +175,7 @@ class SurveyController {
     }
 
     @GetMapping("/api/surveys/{id}/responses/{responseId}")
-    ApiResponse<SurveyApi.ResponseView> response(@PathVariable long id, @PathVariable long responseId,
+    ApiResponse<SurveyApi.ResponseView> response(@PathVariable UUID id, @PathVariable UUID responseId,
                                                  Authentication authentication) {
         return ApiResponse.of(SurveyApi.response(surveys.response(id, responseId, Actor.of(authentication))));
     }
@@ -186,7 +187,7 @@ class SurveyController {
      */
     @PatchMapping(value = "/api/surveys/{id}/responses/{responseId}",
             consumes = {"application/merge-patch+json", MediaType.APPLICATION_JSON_VALUE})
-    ApiResponse<SurveyApi.ResponseView> followUp(@PathVariable long id, @PathVariable long responseId,
+    ApiResponse<SurveyApi.ResponseView> followUp(@PathVariable UUID id, @PathVariable UUID responseId,
                                                  @RequestBody Map<String, Object> changes,
                                                  Authentication authentication) {
         return ApiResponse.of(SurveyApi.response(surveys.followUp(id, responseId,
@@ -194,14 +195,14 @@ class SurveyController {
     }
 
     @GetMapping("/api/surveys/{id}/responses/{responseId}/notes")
-    ApiResponse<List<SurveyApi.NoteView>> notes(@PathVariable long id, @PathVariable long responseId,
+    ApiResponse<List<SurveyApi.NoteView>> notes(@PathVariable UUID id, @PathVariable UUID responseId,
                                                 Authentication authentication) {
         return ApiResponse.of(surveys.notes(id, responseId, Actor.of(authentication)).stream().map(SurveyApi::note).toList());
     }
 
     @PostMapping("/api/surveys/{id}/responses/{responseId}/notes")
     @ResponseStatus(HttpStatus.CREATED)
-    ApiResponse<SurveyApi.NoteView> addNote(@PathVariable long id, @PathVariable long responseId,
+    ApiResponse<SurveyApi.NoteView> addNote(@PathVariable UUID id, @PathVariable UUID responseId,
                                             @Valid @RequestBody SurveyApi.NoteRequest request,
                                             Authentication authentication) {
         return ApiResponse.of(SurveyApi.note(surveys.addNote(id, responseId, request.text(), Actor.of(authentication))));
@@ -209,19 +210,19 @@ class SurveyController {
 
     @DeleteMapping("/api/surveys/{id}/responses/{responseId}/notes/{noteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteNote(@PathVariable long id, @PathVariable long responseId, @PathVariable long noteId,
+    void deleteNote(@PathVariable UUID id, @PathVariable UUID responseId, @PathVariable UUID noteId,
                     Authentication authentication) {
         surveys.deleteNote(id, responseId, noteId, Actor.of(authentication));
     }
 
     @GetMapping("/api/surveys/{id}/summary")
-    ApiResponse<SurveyService.Summary> summary(@PathVariable long id, Authentication authentication) {
+    ApiResponse<SurveyService.Summary> summary(@PathVariable UUID id, Authentication authentication) {
         return ApiResponse.of(surveys.summary(id, Actor.of(authentication)));
     }
 
     /** All responses as an Excel file: one row per response, one column per question (answers as people read them). */
     @GetMapping("/api/surveys/{id}/responses/export")
-    ResponseEntity<StreamingResponseBody> export(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<StreamingResponseBody> export(@PathVariable UUID id, Authentication authentication) {
         Actor viewer = Actor.of(authentication);
         Survey survey = surveys.get(id, viewer);   // 404 before the stream starts
         String fileName = "anket-" + id + "-yanitlar.xlsx";

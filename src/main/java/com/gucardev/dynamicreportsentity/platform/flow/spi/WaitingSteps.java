@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.spi;
 
+import java.util.UUID;
 import java.util.Map;
 
 /**
@@ -15,11 +16,11 @@ public interface WaitingSteps {
      * @return false if the step was no longer waiting (already resumed, timed out or cancelled)
      * @throws NotWaitingYetException if the step has not started waiting yet; try again later
      */
-    boolean resume(long stepRunId, String outcome, Map<String, Object> output, String eventType, String message);
+    boolean resume(UUID stepRunId, String outcome, Map<String, Object> output, String eventType, String message);
 
     /** The step is still running the attempt that starts the wait; the event came first. */
     class NotWaitingYetException extends RuntimeException {
-        public NotWaitingYetException(long stepRunId) {
+        public NotWaitingYetException(UUID stepRunId) {
             super("Flow step " + stepRunId + " is not waiting yet");
         }
     }

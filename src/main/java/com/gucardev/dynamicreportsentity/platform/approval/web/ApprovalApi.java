@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.approval.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalGroup;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalRequest;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalService;
@@ -39,17 +40,17 @@ final class ApprovalApi {
     record UserRef(String username) {
     }
 
-    record GroupRef(long id, String name) {
+    record GroupRef(UUID id, String name) {
     }
 
-    record GroupView(long id, String name, String description, List<ApprovalGroup.Member> members, long version,
+    record GroupView(UUID id, String name, String description, List<ApprovalGroup.Member> members, long version,
                      String updatedAt, UserRef updatedBy) {
     }
 
     /**
      * @param source what waits for the decision: its type and id, a label for people and an optional UI path
      */
-    record ApprovalView(long id, SourceRef source, GroupRef group, String title, String description, String status,
+    record ApprovalView(UUID id, SourceRef source, GroupRef group, String title, String description, String status,
                         String requestedBy, UserRef onBehalfOf, String createdAt, String dueAt, String decidedBy,
                         String decidedAt, String comment, boolean canDecide, String decisionBlocker,
                         boolean allowSelfApproval) {

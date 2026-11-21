@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
 
 import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
@@ -48,21 +49,21 @@ public class RunService {
      * Queues a run (answers at once); the engine picks it up on some instance. There is no per-user limit: runs
      * wait in the queue for a free slot, so many runs only take longer, they never overload the system.
      */
-    public FlowRun start(long flowId, Actor user) {
+    public FlowRun start(UUID flowId, Actor user) {
         Flow flow = flows.get(flowId, user);
         FlowRun run = store.createRun(flow, TriggerType.MANUAL, user.username(), null, RunStore.PRIORITY_MANUAL);
         engine.wakeUp();
         return run;
     }
 
-    public FlowRun cancel(long runId, Actor user) {
+    public FlowRun cancel(UUID runId, Actor user) {
         get(runId, user);
         FlowRun run = store.cancel(runId, user.username());
         engine.cancelLocal(runId);
         return run;
     }
 
-    public FlowRun get(long runId, Actor user) {
+    public FlowRun get(UUID runId, Actor user) {
         FlowRun run = runs.findById(runId).orElseThrow(() -> notFound(runId));
         if (!canSee(run, user)) {
             throw notFound(runId);
@@ -70,11 +71,11 @@ public class RunService {
         return run;
     }
 
-    public List<StepRun> steps(long runId) {
+    public List<StepRun> steps(UUID runId) {
         return steps.findByRunIdOrderById(runId);
     }
 
-    public List<RunEvent> events(long runId) {
+    public List<RunEvent> events(UUID runId) {
         return events.findByRunIdOrderById(runId);
     }
 
@@ -83,7 +84,7 @@ public class RunService {
     public static final Map<String, String> SORTS = Map.of("createdAt", "createdAt", "startedAt", "startedAt",
             "finishedAt", "finishedAt", "status", "status", "flow", "flowName", "id", "id");
 
-    public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, Actor user, int page, int size) {
+    public Page<FlowRun> list(UUID flowId, Collection<RunStatus> statuses, Actor user, int page, int size) {
         return list(flowId, statuses, List.of(), null, null, null, null, user, page, size);
     }
 
@@ -92,7 +93,7 @@ public class RunService {
      * @param q        over the flow name
      * @param from     created on or after (start of day), {@code to} created on or before (end of day)
      */
-    public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, Collection<TriggerType> triggers, String q,
+    public Page<FlowRun> list(UUID flowId, Collection<RunStatus> statuses, Collection<TriggerType> triggers, String q,
                               java.time.LocalDate from, java.time.LocalDate to, String sort, Actor user, int page,
                               int size) {
         ListQuery.range(from, to, "created");
@@ -105,12 +106,12 @@ public class RunService {
                 ListQuery.to(to), ListQuery.page(page, size, ListQuery.sort(sort, SORTS, "-createdAt")));
     }
 
-    public List<RunArtifact> files(long runId) {
+    public List<RunArtifact> files(UUID runId) {
         return artifacts.forRun(runId);
     }
 
     /** A file of a visible run; 404 if not visible, 410 once it has expired. */
-    public RunArtifact file(long artifactId, Actor user) {
+    public RunArtifact file(UUID artifactId, Actor user) {
         RunArtifact artifact = artifacts.find(artifactId).orElseThrow(() -> artifactNotFound(artifactId));
         try {
             get(artifact.getRunId(), user);
@@ -129,11 +130,11 @@ public class RunService {
                 || user.hasAuthority(FlowService.ADMIN_AUTHORITY);
     }
 
-    private static FlowException notFound(long runId) {
+    private static FlowException notFound(UUID runId) {
         return FlowException.notFound("RUN_NOT_FOUND", "Run " + runId + " does not exist.");
     }
 
-    private static FlowException artifactNotFound(long id) {
+    private static FlowException artifactNotFound(UUID id) {
         return FlowException.notFound("ARTIFACT_NOT_FOUND", "File " + id + " does not exist.");
     }
 }

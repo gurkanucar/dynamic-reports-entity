@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
@@ -143,22 +144,22 @@ public class SurveyService {
             default -> surveys.search(admin(viewer) ? null : viewer.username(),
                     statuses.isEmpty() ? List.of(Survey.Status.values()) : statuses, like, request);
         };
-        List<Long> ids = found.getContent().stream().map(Survey::getId).toList();
-        Map<Long, Long> counts = new HashMap<>();
-        Set<Long> answered = Set.of();
+        List<UUID> ids = found.getContent().stream().map(Survey::getId).toList();
+        Map<UUID, Long> counts = new HashMap<>();
+        Set<UUID> answered = Set.of();
         if (!ids.isEmpty()) {
-            responses.countBySurveyIds(ids).forEach(row -> counts.put((Long) row[0], (Long) row[1]));
+            responses.countBySurveyIds(ids).forEach(row -> counts.put((UUID) row[0], (Long) row[1]));
             answered = Set.copyOf(responses.answeredAmong(ids, viewer.username(),
                     ids.stream().map(id -> respondentKey(id, viewer.username())).toList()));
         }
-        Set<Long> mine = answered;
+        Set<UUID> mine = answered;
         return found.map(survey -> new Listed(survey, counts.getOrDefault(survey.getId(), 0L),
                 mine.contains(survey.getId())));
     }
 
     /** A survey its owner (or an admin) manages; others get 404. */
     @Transactional(readOnly = true)
-    public Survey get(long id, Actor viewer) {
+    public Survey get(UUID id, Actor viewer) {
         Survey survey = surveys.findById(id).orElseThrow(() -> SurveyException.notFound(id));
         if (!canManage(survey, viewer)) {
             throw SurveyException.notFound(id);
@@ -166,7 +167,7 @@ public class SurveyService {
         return survey;
     }
 
-    public long responseCount(long surveyId) {
+    public long responseCount(UUID surveyId) {
         return responses.countBySurveyId(surveyId);
     }
 
@@ -180,7 +181,7 @@ public class SurveyService {
     }
 
     @Transactional
-    public Survey update(long id, long expectedVersion, SurveyInput input, Actor viewer) {
+    public Survey update(UUID id, long expectedVersion, SurveyInput input, Actor viewer) {
         Survey survey = get(id, viewer);
         if (survey.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -196,7 +197,7 @@ public class SurveyService {
 
     /** Deletes the survey and its responses. */
     @Transactional
-    public void delete(long id, Actor viewer) {
+    public void delete(UUID id, Actor viewer) {
         Survey survey = get(id, viewer);
         notes.deleteBySurveyId(survey.getId());
         responses.deleteBySurveyId(survey.getId());
@@ -220,7 +221,7 @@ public class SurveyService {
     // ---- answering ------------------------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public Form form(long id, Actor viewer) {
+    public Form form(UUID id, Actor viewer) {
         return form(id, viewer, null);
     }
 
@@ -230,7 +231,7 @@ public class SurveyService {
      * the same person again, e.g. for a second request.
      */
     @Transactional(readOnly = true)
-    public Form form(long id, Actor viewer, String invitation) {
+    public Form form(UUID id, Actor viewer, String invitation) {
         Survey survey = surveys.findById(id).orElseThrow(() -> SurveyException.notFound(id));
         boolean manager = canManage(survey, viewer);
         if (survey.getStatus() == Survey.Status.DRAFT && !manager) {
@@ -239,7 +240,7 @@ public class SurveyService {
         Instant now = clock.instant();
         String invitationProblem = null;
         if (invitation != null) {
-            SurveyInvitation found = invitations.findById(invitation).filter(item -> item.getSurveyId() == id).orElse(null);
+            SurveyInvitation found = invitations.findById(invitation).filter(item -> id.equals(item.getSurveyId())).orElse(null);
             invitationProblem = found == null ? "invitation_invalid"
                     : found.getResponseId() != null ? "invitation_used" : !found.usable(now) ? "invitation_expired" : null;
         }
@@ -264,13 +265,13 @@ public class SurveyService {
     }
 
     @Transactional
-    public SurveyResponse submit(long id, Map<String, Object> answers, Actor viewer) {
+    public SurveyResponse submit(UUID id, Map<String, Object> answers, Actor viewer) {
         return submit(id, answers, viewer, null);
     }
 
     /** @param invitation the token of the link the response came through (a waiting flow step); null otherwise */
     @Transactional
-    public SurveyResponse submit(long id, Map<String, Object> answers, Actor viewer, String invitation) {
+    public SurveyResponse submit(UUID id, Map<String, Object> answers, Actor viewer, String invitation) {
         Survey survey = surveys.findById(id).orElseThrow(() -> SurveyException.notFound(id));
         Instant now = clock.instant();
         if (survey.getStatus() == Survey.Status.DRAFT && !canManage(survey, viewer)) {
@@ -288,7 +289,7 @@ public class SurveyService {
         }
         SurveyInvitation used = null;
         if (invitation != null) {
-            used = invitations.findById(invitation).filter(item -> item.getSurveyId() == id).orElse(null);
+            used = invitations.findById(invitation).filter(item -> id.equals(item.getSurveyId())).orElse(null);
             if (used == null || !used.usable(now)) {
                 throw new SurveyException(Kind.CONFLICT, "INVITATION_NOT_USABLE",
                         "This link was already used, has expired or is no longer needed.");
@@ -320,12 +321,12 @@ public class SurveyService {
     // ---- results --------------------------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public Page<ResponseRow> responses(long id, Actor viewer, int page, int size) {
+    public Page<ResponseRow> responses(UUID id, Actor viewer, int page, int size) {
         return responses(id, ResponseFilter.NONE, viewer, page, size);
     }
 
     @Transactional(readOnly = true)
-    public Page<ResponseRow> responses(long id, ResponseFilter filter, Actor viewer, int page, int size) {
+    public Page<ResponseRow> responses(UUID id, ResponseFilter filter, Actor viewer, int page, int size) {
         Survey survey = get(id, viewer);
         SurveyDefinition definition = survey.definition();
         ListQuery.range(filter.submittedFrom(), filter.submittedTo(), "submitted");
@@ -336,17 +337,17 @@ public class SurveyService {
                 filter.assignee() == null || filter.assignee().isBlank() ? null : filter.assignee().strip(),
                 ListQuery.like(filter.q()), ListQuery.from(filter.submittedFrom()), ListQuery.to(filter.submittedTo()),
                 ListQuery.page(page, size, ListQuery.sort(filter.sort(), RESPONSE_SORTS, "-submittedAt")));
-        Map<Long, Long> noteCounts = new HashMap<>();
-        List<Long> ids = found.getContent().stream().map(SurveyResponse::getId).toList();
+        Map<UUID, Long> noteCounts = new HashMap<>();
+        List<UUID> ids = found.getContent().stream().map(SurveyResponse::getId).toList();
         if (!ids.isEmpty()) {
-            notes.countByResponseIds(ids).forEach(row -> noteCounts.put((Long) row[0], (Long) row[1]));
+            notes.countByResponseIds(ids).forEach(row -> noteCounts.put((UUID) row[0], (Long) row[1]));
         }
         return found.map(response -> row(definition, response, noteCounts.getOrDefault(response.getId(), 0L)));
     }
 
     /** How many responses are in each follow-up status (for the filter chips). */
     @Transactional(readOnly = true)
-    public Map<String, Long> statusCounts(long id, Actor viewer) {
+    public Map<String, Long> statusCounts(UUID id, Actor viewer) {
         get(id, viewer);
         Map<String, Long> counts = new LinkedHashMap<>();
         for (SurveyResponse.FollowStatus status : SurveyResponse.FollowStatus.values()) {
@@ -359,14 +360,14 @@ public class SurveyService {
 
     /** One response with its notes. */
     @Transactional(readOnly = true)
-    public ResponseRow response(long id, long responseId, Actor viewer) {
+    public ResponseRow response(UUID id, UUID responseId, Actor viewer) {
         Survey survey = get(id, viewer);
         SurveyResponse response = findResponse(id, responseId);
         return row(survey.definition(), response, notes.findByResponseIdOrderById(responseId).size());
     }
 
     @Transactional(readOnly = true)
-    public List<SurveyResponseNote> notes(long id, long responseId, Actor viewer) {
+    public List<SurveyResponseNote> notes(UUID id, UUID responseId, Actor viewer) {
         get(id, viewer);
         findResponse(id, responseId);
         return notes.findByResponseIdOrderById(responseId);
@@ -374,7 +375,7 @@ public class SurveyService {
 
     /** Changes the follow-up of a response; checks values against the survey's tracking settings. */
     @Transactional
-    public ResponseRow followUp(long id, long responseId, FollowUp change, Actor viewer) {
+    public ResponseRow followUp(UUID id, UUID responseId, FollowUp change, Actor viewer) {
         Survey survey = get(id, viewer);
         SurveyResponse response = findResponse(id, responseId);
         SurveySettings.Tracking tracking = survey.settings().tracking();
@@ -418,7 +419,7 @@ public class SurveyService {
     }
 
     @Transactional
-    public SurveyResponseNote addNote(long id, long responseId, String text, Actor viewer) {
+    public SurveyResponseNote addNote(UUID id, UUID responseId, String text, Actor viewer) {
         get(id, viewer);
         SurveyResponse response = findResponse(id, responseId);
         if (text == null || text.isBlank() || text.length() > 2000) {
@@ -429,15 +430,15 @@ public class SurveyService {
 
     /** Its author or the survey's owner (or an admin) removes a note. */
     @Transactional
-    public void deleteNote(long id, long responseId, long noteId, Actor viewer) {
+    public void deleteNote(UUID id, UUID responseId, UUID noteId, Actor viewer) {
         get(id, viewer);
-        SurveyResponseNote note = notes.findById(noteId).filter(item -> item.getResponseId() == responseId)
+        SurveyResponseNote note = notes.findById(noteId).filter(item -> responseId.equals(item.getResponseId()))
                 .orElseThrow(() -> new SurveyException(Kind.NOT_FOUND, "NOTE_NOT_FOUND", "No note " + noteId + "."));
         notes.delete(note);
     }
 
-    private SurveyResponse findResponse(long id, long responseId) {
-        return responses.findById(responseId).filter(response -> response.getSurveyId() == id)
+    private SurveyResponse findResponse(UUID id, UUID responseId) {
+        return responses.findById(responseId).filter(response -> id.equals(response.getSurveyId()))
                 .orElseThrow(() -> new SurveyException(Kind.NOT_FOUND, "RESPONSE_NOT_FOUND",
                         "Survey " + id + " has no response " + responseId + "."));
     }
@@ -516,7 +517,7 @@ public class SurveyService {
      * {@code everyone} who can open it, or {@code respondents} who have answered. Text answers are never included.
      */
     @Transactional(readOnly = true)
-    public Summary publicResults(long id, Actor viewer) {
+    public Summary publicResults(UUID id, Actor viewer) {
         Survey survey = surveys.findById(id).orElseThrow(() -> SurveyException.notFound(id));
         if (survey.getStatus() == Survey.Status.DRAFT && !canManage(survey, viewer)) {
             throw SurveyException.notFound(id);
@@ -538,13 +539,13 @@ public class SurveyService {
 
     // ---- invitations (a flow step waits for a response) -----------------------------------------------
 
-    public boolean exists(long id) {
-        return surveys.existsById(id);
+    public boolean exists(UUID id) {
+        return id != null && surveys.existsById(id);
     }
 
     /** The survey's title for a waiting step's mail; empty if it does not exist. */
     @Transactional(readOnly = true)
-    public java.util.Optional<String> title(long id) {
+    public java.util.Optional<String> title(UUID id) {
         return surveys.findById(id).map(Survey::getTitle);
     }
 
@@ -556,7 +557,7 @@ public class SurveyService {
      * @return the token; the form is {@code /s/<id>?invitation=<token>}
      */
     @Transactional
-    public String invite(long id, String sourceType, String sourceId, Instant expiresAt) {
+    public String invite(UUID id, String sourceType, String sourceId, Instant expiresAt) {
         Survey survey = surveys.findById(id).orElseThrow(() -> SurveyException.notFound(id));
         if (survey.getStatus() != Survey.Status.PUBLISHED) {
             throw new SurveyException(Kind.CONFLICT, "SURVEY_CLOSED", "Survey " + id + " is not published.");
@@ -581,13 +582,13 @@ public class SurveyService {
     }
 
     @Transactional(readOnly = true)
-    public Summary summary(long id, Actor viewer) {
+    public Summary summary(UUID id, Actor viewer) {
         Survey survey = get(id, viewer);
         return summarize(survey, survey.definition().answerableFields());
     }
 
     private Summary summarize(Survey survey, List<Field> fields) {
-        long id = survey.getId();
+        UUID id = survey.getId();
         Map<String, Map<String, Long>> counts = new HashMap<>();
         Map<String, double[]> sums = new HashMap<>();   // {sum, n}
         Map<String, List<String>> samples = new HashMap<>();
@@ -667,12 +668,12 @@ public class SurveyService {
 
     /** Every response, oldest first, for exports. */
     @Transactional(readOnly = true)
-    public void forEachResponse(long id, Actor viewer, Consumer<ResponseRow> consumer) {
+    public void forEachResponse(UUID id, Actor viewer, Consumer<ResponseRow> consumer) {
         SurveyDefinition definition = get(id, viewer).definition();
         each(id, response -> consumer.accept(row(definition, response, 0)));
     }
 
-    private void each(long id, Consumer<SurveyResponse> consumer) {
+    private void each(UUID id, Consumer<SurveyResponse> consumer) {
         try (Stream<SurveyResponse> stream = responses.streamBySurveyIdOrderById(id)) {
             stream.limit(MAX_SUMMARY_RESPONSES).forEach(consumer);
         }
@@ -699,7 +700,7 @@ public class SurveyService {
     }
 
     /** Tells one user's responses apart without naming them. */
-    static String respondentKey(long surveyId, String username) {
+    static String respondentKey(UUID surveyId, String username) {
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256")
                     .digest((surveyId + ":" + username).getBytes(StandardCharsets.UTF_8));

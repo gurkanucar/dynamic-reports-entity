@@ -24,14 +24,14 @@ export function StepOutput({ step }: { step: RunStepDto }) {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
         {summary && <span className="min-w-0">{summary}</span>}
-        {step.type === "mail" && typeof output.bodyFileId === "number" && (
+        {step.type === "mail" && typeof output.bodyFileId === "string" && (
           <SentMailDialog fileId={output.bodyFileId} subject={String(output.subject ?? "")}
             recipients={[...(output.to as string[] ?? []), ...(output.cc as string[] ?? [])]}
             sentAt={output.sentAt as string | undefined} />
         )}
-        {step.type === "survey" && typeof output.surveyId === "number" && (
+        {step.type === "survey" && typeof output.surveyId === "string" && (
           <>
-            {typeof output.responseId === "number" && (
+            {typeof output.responseId === "string" && (
               <Button variant="outline" size="sm" asChild>
                 <Link to={`/surveys/${output.surveyId}?response=${output.responseId}`}>
                   <ClipboardListIcon data-icon="inline-start" />Yanıtı aç
@@ -126,7 +126,7 @@ function pretty(value: unknown): string {
 
 /** The mail as recipients got it (kept as long as the run's other files). */
 function SentMailDialog({ fileId, subject, recipients, sentAt }: {
-  fileId: number
+  fileId: string
   subject: string
   recipients: string[]
   sentAt?: string

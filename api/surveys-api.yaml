@@ -4,7 +4,8 @@ info:
   version: 1.0.0
   description: |
     Surveys and request forms (docs/REST API Tasarım Rehberi.md): `{data, meta}` envelopes, RFC 9457 problems with a
-    `code` (api/errors.yaml), 1-based paging, ETag / If-Match on changes.
+    `code` (api/errors.yaml), 1-based paging, ETag / If-Match on changes. Survey,
+    response and note ids are UUIDs.
 
     A survey's `definition` holds its questions (`fields`) and `rules`. `visibleWhen` (on a question) and `logic` (of a
     rule) are JSON Logic over the answers (`{"var": "<question id>"}`), evaluated on the server: hidden questions are
@@ -13,7 +14,7 @@ info:
     A flow's `survey` step mails a single-use link (`/s/<id>?invitation=<token>`) and waits; the response sent
     through it resumes that step (outcome `answered`) instead of starting new runs. Every other accepted response is
     published to flows as an event under the source `survey:<id>`: a flow trigger
-    `{"type": "event", "topic": "survey:42"}` starts a run with `trigger = {surveyId, surveyTitle, responseId,
+    `{"type": "event", "topic": "survey:<survey id>"}` starts a run with `trigger = {surveyId, surveyTitle, responseId,
     respondent, submittedAt, answers, text, labels}`.
 paths:
   /api/surveys:

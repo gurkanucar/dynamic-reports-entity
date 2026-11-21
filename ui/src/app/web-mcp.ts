@@ -59,7 +59,8 @@ const PAGES: { path: string; label: string; admin?: boolean }[] = [
   { path: "/admin/training-records", label: "Eğitim kayıtları", admin: true },
   { path: "/admin/skills", label: "Beceriler", admin: true },
 ]
-const DETAIL_PAGES = [/^\/datasets\/[a-z0-9_]+$/, /^\/(flows|surveys)\/\d+(\/edit)?$/, /^\/s\/\d+$/]
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+const DETAIL_PAGES = [new RegExp(`^/datasets/${UUID}$`), new RegExp(`^/(flows|surveys)/${UUID}(/edit)?$`), new RegExp(`^/s/${UUID}$`)]
 const RUN_STATUSES: RunStatus[] = ["queued", "running", "completed", "failed", "cancelled"]
 
 const text = (value: unknown, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "")
@@ -99,7 +100,7 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
     {
       name: "open_page",
       description: "Opens a page of the platform in this tab: a path from list_pages or a detail page "
-        + "(/datasets/<name>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit).",
+        + "(/datasets/<id>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit; ids are UUIDs).",
       inputSchema: schema({ path: { type: "string", description: "e.g. /runs or /flows/12" } }, ["path"]),
       execute: safely(async (input) => {
         const target = text(input.path).split(/[?#]/)[0]
@@ -143,10 +144,10 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
     {
       name: "start_flow",
       description: "Starts a run of a flow now, as the signed-in user. Returns the run id; see list_runs.",
-      inputSchema: schema({ flowId: { type: "integer" } }, ["flowId"]),
+      inputSchema: schema({ flowId: { type: "string", description: "flow id (UUID) from search_flows" } }, ["flowId"]),
       annotations: { consequentialHint: true },
       execute: safely(async (input) => {
-        const run = await flowsApi.start(int(input.flowId, 1, Number.MAX_SAFE_INTEGER, 0))
+        const run = await flowsApi.start(text(input.flowId, 36))
         return { runId: run.id, status: run.status, flow: run.flow.name }
       }),
     },
@@ -171,7 +172,7 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
       description: "Saved datasets (reports) the user can run: name, label, description and record type.",
       inputSchema: schema(),
       annotations: { readOnlyHint: true },
-      execute: safely(async () => (await savedDatasetsApi.list()).map((dataset) => ({ name: dataset.name,
+      execute: safely(async () => (await savedDatasetsApi.list()).map((dataset) => ({ id: dataset.id, name: dataset.name,
         label: dataset.label, description: dataset.description, root: dataset.definition.root }))),
     },
     {
@@ -184,7 +185,9 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
       }, ["name"]),
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: safely(async (input) => {
-        const saved = await savedDatasetsApi.get(text(input.name, 80))
+        const name = text(input.name, 80)
+        const saved = (await savedDatasetsApi.list()).find((dataset) => dataset.name === name)
+        if (!saved) return { error: `No saved dataset ${name}; see list_saved_datasets.` }
         const result = await datasetsApi.run({ definition: saved.definition,
           page: int(input.page, 1, 100_000, 1) - 1, size: int(input.size, 1, 50, 20) })
         return { columns: result.columns.map((column) => column.label), rows: result.rows, total: result.total,
@@ -207,14 +210,14 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
       name: "decide_approval",
       description: "Approves or rejects an approval request as the signed-in user (only when canDecide is true).",
       inputSchema: schema({
-        requestId: { type: "integer" },
+        requestId: { type: "string", description: "request id (UUID) from list_my_approvals" },
         decision: { type: "string", enum: ["approve", "reject"] },
         comment: { type: "string" },
       }, ["requestId", "decision"]),
       annotations: { consequentialHint: true },
       execute: safely(async (input) => {
         if (input.decision !== "approve" && input.decision !== "reject") return { error: "decision: approve or reject" }
-        const decided = await approvalsApi.decide(int(input.requestId, 1, Number.MAX_SAFE_INTEGER, 0),
+        const decided = await approvalsApi.decide(text(input.requestId, 36),
           input.decision === "approve", { comment: text(input.comment, 1000) || null })
         return { id: decided.id, status: decided.status }
       }),

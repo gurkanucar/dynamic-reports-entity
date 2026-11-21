@@ -7,7 +7,7 @@ import type { TemplateRequest } from "../types/template.dto"
 export function useSaveTemplate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, version, request }: { id?: number; version?: number; request: TemplateRequest }) =>
+    mutationFn: ({ id, version, request }: { id?: string; version?: number; request: TemplateRequest }) =>
       id !== undefined && version !== undefined ? templatesApi.replace(id, version, request)
         : templatesApi.create(request),
     onSuccess: (saved) => {

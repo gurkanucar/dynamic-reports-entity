@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -23,7 +24,7 @@ import java.util.List;
  */
 public record MailStep(
         @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
-        @NotNull Long templateId,
+        @NotNull UUID templateId,
         @NotEmpty @Size(max = 50) List<@NotBlank @Email String> to,
         @Size(max = 50) List<@NotBlank @Email String> cc,
         @Size(max = 10) List<@NotBlank String> attachments,

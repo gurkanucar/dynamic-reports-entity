@@ -20,11 +20,11 @@ export const assistantApi = {
   create: async (kind: AssistantKind, request: CreateSuggestionRequest) =>
     (await http.send<Envelope<SuggestionResponse>>("POST", PATHS[kind], request)).data,
 
-  get: async (kind: AssistantKind, id: number) =>
+  get: async (kind: AssistantKind, id: string) =>
     (await http.get<Envelope<SuggestionResponse>>(`${PATHS[kind]}/${id}`)).data,
 
   /** Polls a suggestion until the assistant is done (completed or failed). */
-  async waitFor(kind: AssistantKind, id: number, intervalMs = 1000): Promise<SuggestionResponse> {
+  async waitFor(kind: AssistantKind, id: string, intervalMs = 1000): Promise<SuggestionResponse> {
     for (;;) {
       const suggestion = await assistantApi.get(kind, id)
       if (suggestion.status === "completed" || suggestion.status === "failed") return suggestion

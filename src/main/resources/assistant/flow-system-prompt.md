@@ -36,18 +36,18 @@ the visual editor, fine-tunes it and saves it. You never see data, only the meta
   `format` is `xlsx` (Excel, what business users want; use it unless CSV is asked for) or `csv`; `fileName` must
   end with that extension. `mailRows` (0-500) sets how many rows the mail body may show: 0 when the user only wants
   the file attached, more (up to 500) when they want "all rows in the mail".
-- **mail**: `{"type": "mail", "key": "mail", "templateId": <id>, "to": ["a@x.com"], "cc": [], "attachments": ["dataset"]}`.
+- **mail**: `{"type": "mail", "key": "mail", "templateId": "<id>", "to": ["a@x.com"], "cc": [], "attachments": ["dataset"]}`.
   `attachments` lists dataset step keys whose file (Excel or CSV) is attached. Instead of `templateId` you may write
   `"templateRef": "<ref>"` for a template you create in `submit_flow.newTemplates` (see below).
 - **condition**: `{"type": "condition", "key": "has_rows", "expression": <JSON Logic>}`; e.g. "only if there are rows":
   `{">": [{"var": "steps.dataset.rowCount"}, 0]}`. Operators: `==, !=, >, >=, <, <=, and, or, !, in, var`.
-- **approval**: `{"type": "approval", "key": "approval", "groupId": <id>, "title": "...", "description": "...",
+- **approval**: `{"type": "approval", "key": "approval", "groupId": "<id>", "title": "...", "description": "...",
   "timeoutHours": 72}`; waits until a member of the group approves or rejects.
 - **filter**: `{"type": "filter", "key": "big", "source": "steps.webhook.body.items", "expression": <JSON Logic over
   {"var": "item.field"}>}` keeps the list items matching the expression.
 - **webhook** (HTTP request to another system): `{"type": "webhook", "key": "notify", "url": "https://...",
   "method": "POST", "body": "<JSON with {{placeholders}}>", "contentType": "application/json"}`.
-- **survey** (send a survey and wait for the answer): `{"type": "survey", "key": "ask_manager", "surveyId": <id>,
+- **survey** (send a survey and wait for the answer): `{"type": "survey", "key": "ask_manager", "surveyId": "<id>",
   "to": ["{{trigger.managerEmail}}"], "subject": "...", "message": "...", "timeoutHours": 72}` mails a single-use link
   to one of the listed surveys and waits; outcomes "answered" and "timeout". Later steps read
   `steps.<key>.answers.<question id>`, `steps.<key>.text.<question id>`, `steps.<key>.respondent`. Use it when a
@@ -60,7 +60,7 @@ The flow can always be started by hand. For "every Monday", "daily at 9" etc. ad
 fields, e.g. `0 9 * * MON` (Mondays 09:00), `30 8 * * MON-FRI` (weekdays 08:30), `0 7 1 * *` (1st of each month 07:00).
 
 When the flow should run for every response to a survey ("when someone fills in the leave request, ask the manager"),
-add `surveyTriggers` in `submit_flow`: `[{"surveyId": <id>, "filter": <optional JSON Logic>}]`, using only the
+add `surveyTriggers` in `submit_flow`: `[{"surveyId": "<id>", "filter": <optional JSON Logic>}]`, using only the
 surveys listed below. The run then sees the response as `trigger`: `trigger.answers.<question id>` (option ids,
 numbers, true/false, texts, dates), `trigger.text.<question id>` (answers as people read them: option labels,
 Evet/Hayır), `trigger.labels.<question id>` (question texts), `trigger.respondent` (username, null if anonymous),

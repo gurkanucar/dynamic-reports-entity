@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.approval;
 
+import java.util.UUID;
 import java.time.Instant;
 
 /**
@@ -13,7 +14,7 @@ import java.time.Instant;
  * @param onBehalfOf        who the work runs for, e.g. the flow owner (may not approve either)
  * @param notifyMembers     e-mail the group members that have an address
  */
-public record NewApproval(String sourceType, String sourceId, String subject, String link, long groupId, String title,
+public record NewApproval(String sourceType, String sourceId, String subject, String link, UUID groupId, String title,
                           String description, String requestedBy, String onBehalfOf, boolean allowSelfApproval,
                           boolean notifyMembers, Instant dueAt) {
 }

@@ -82,13 +82,13 @@ class SurveyIntegrationTest {
                 .formatted(title, status, definition, oneResponse);
     }
 
-    private long create(String body) {
+    private String create(String body) {
         MvcTestResult result = post("/api/surveys", CAROL, body);
         assertThat(result).hasStatus(HttpStatus.CREATED);
-        return json(result).get("data").get("id").asLong();
+        return json(result).get("data").get("id").asString();
     }
 
-    private MvcTestResult answer(long id, RequestPostProcessor user, Map<String, Object> answers) {
+    private MvcTestResult answer(String id, RequestPostProcessor user, Map<String, Object> answers) {
         return post("/api/surveys/" + id + "/responses", user, JSON.writeValueAsString(Map.of("answers", answers)));
     }
 
@@ -110,7 +110,7 @@ class SurveyIntegrationTest {
 
     @Test
     void responsesAreCheckedLikeTheFormAndCounted() throws Exception {
-        long id = create(survey("İzin talebi", "draft", LEAVE, true));
+        String id = create(survey("İzin talebi", "draft", LEAVE, true));
 
         // a draft: only the owner can open it, nobody can answer it
         assertThat(mvc.get().uri("/api/surveys/" + id + "/form").with(ALICE).exchange()).hasStatus(HttpStatus.NOT_FOUND);
@@ -186,12 +186,12 @@ class SurveyIntegrationTest {
         }
 
         JsonNode open = json(mvc.get().uri("/api/surveys?scope=open").with(ALICE).exchange()).get("data");
-        assertThat(open.findValues("id").stream().map(JsonNode::asLong)).contains(id);
+        assertThat(open.findValues("id").stream().map(JsonNode::asString)).contains(id);
     }
 
     @Test
     void aResponseStartsTheFlowsListeningOnTheSurvey() throws Exception {
-        long id = create(survey("Ekipman talebi", "published", """
+        String id = create(survey("Ekipman talebi", "published", """
                 {"fields": [
                   {"id": "item", "type": "dropdown", "label": "Ne lazım?", "required": true,
                    "options": [{"id": "laptop", "label": "Dizüstü bilgisayar"}, {"id": "phone", "label": "Telefon"}]},
@@ -202,15 +202,15 @@ class SurveyIntegrationTest {
                 "subject", "Yeni talep: {{trigger.text.item}}",
                 "bodyHtml", "<p>{{trigger.respondent}} istedi: {{trigger.text.item}} (acil: {{trigger.text.urgent}})</p>")));
         assertThat(template).hasStatus(HttpStatus.CREATED);
-        long templateId = json(template).get("data").get("id").asLong();
+        String templateId = json(template).get("data").get("id").asString();
         MvcTestResult flow = post("/api/flows", CAROL, """
                 {"name": "Ekipman talebi akışı %d",
-                 "steps": [{"type": "mail", "key": "mail", "templateId": %d, "to": ["it@example.com"]}]}"""
+                 "steps": [{"type": "mail", "key": "mail", "templateId": "%s", "to": ["it@example.com"]}]}"""
                 .formatted(Instant.now().toEpochMilli(), templateId));
         assertThat(flow).hasStatus(HttpStatus.CREATED);
-        long flowId = json(flow).get("data").get("id").asLong();
+        String flowId = json(flow).get("data").get("id").asString();
         assertThat(post("/api/flows/" + flowId + "/triggers", CAROL, """
-                {"type": "event", "enabled": true, "topic": "survey:%d",
+                {"type": "event", "enabled": true, "topic": "survey:%s",
                  "filter": {"==": [{"var": "trigger.answers.urgent"}, true]}}""".formatted(id)))
                 .hasStatus(HttpStatus.CREATED);
         assertThat(post("/api/flows/" + flowId + "/triggers", CAROL, """
@@ -229,14 +229,14 @@ class SurveyIntegrationTest {
 
     @Test
     void theOwnerFollowsUpResponsesWithStatusPriorityFieldsAndNotes() throws Exception {
-        long id = create("""
+        String id = create("""
                 {"title": "Şikayet formu", "status": "published", "oneResponsePerUser": false,
                  "settings": {"tracking": {"status": true, "priority": true, "followUpDate": true, "assignee": true,
                    "fields": [{"id": "ticket", "label": "Kayıt no", "type": "text"},
                               {"id": "area", "label": "Alan", "type": "choice",
                                "options": [{"id": "it", "label": "BT"}, {"id": "hr", "label": "İK"}]}]}},
                  "definition": {"fields": [{"id": "topic", "type": "shortText", "label": "Konu", "required": true}]}}""");
-        long first = json(answer(id, ALICE, Map.of("topic", "Yazıcı bozuk"))).get("data").get("responseId").asLong();
+        String first = json(answer(id, ALICE, Map.of("topic", "Yazıcı bozuk"))).get("data").get("responseId").asString();
         answer(id, BOB, Map.of("topic", "Maaş bordrosu yanlış"));
 
         MvcTestResult patched = mvc.patch().uri("/api/surveys/" + id + "/responses/" + first).with(CAROL)
@@ -260,7 +260,7 @@ class SurveyIntegrationTest {
         assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses?q=bordro").with(CAROL).exchange()).get("data"))
                 .hasSize(1);
         JsonNode sorted = json(mvc.get().uri("/api/surveys/" + id + "/responses?sort=-priority").with(CAROL).exchange());
-        assertThat(sorted.get("data").get(0).get("id").asLong()).isEqualTo(first);
+        assertThat(sorted.get("data").get(0).get("id").asString()).isEqualTo(first);
         assertThat(mvc.get().uri("/api/surveys/" + id + "/responses?sort=answersJson").with(CAROL).exchange())
                 .hasStatus(HttpStatus.BAD_REQUEST);
         assertThat(json(mvc.get().uri("/api/surveys/" + id).with(CAROL).exchange()).get("data")
@@ -269,7 +269,7 @@ class SurveyIntegrationTest {
         MvcTestResult note = post("/api/surveys/" + id + "/responses/" + first + "/notes", CAROL,
                 "{\"text\": \"Teknisyen yönlendirildi.\"}");
         assertThat(note).hasStatus(HttpStatus.CREATED);
-        long noteId = json(note).get("data").get("id").asLong();
+        String noteId = json(note).get("data").get("id").asString();
         assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses/" + first + "/notes").with(CAROL).exchange())
                 .get("data").get(0).get("author").asString()).isEqualTo("carol");
         assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses?status=in_progress").with(CAROL).exchange())
@@ -287,7 +287,7 @@ class SurveyIntegrationTest {
                    {"id": "place", "type": "singleChoice", "label": "Nerede?", "showInResults": true,
                     "options": [{"id": "a", "label": "Kebapçı"}, {"id": "b", "label": "Balıkçı"}]},
                    {"id": "why", "type": "shortText", "label": "Neden?"}]}}""";
-        long id = create(poll);
+        String id = create(poll);
         assertThat(mvc.get().uri("/api/surveys/" + id + "/results").with(ALICE).exchange()).hasStatus(HttpStatus.FORBIDDEN);
         answer(id, ALICE, Map.of("place", "b", "why", "Deniz kenarı"));
         JsonNode results = json(mvc.get().uri("/api/surveys/" + id + "/results").with(ALICE).exchange()).get("data");
@@ -303,19 +303,19 @@ class SurveyIntegrationTest {
 
     @Test
     void aSurveyStepMailsALinkAndWaitsForTheAnswer() throws Exception {
-        long id = create(survey("Ekipman listesi", "published", """
+        String id = create(survey("Ekipman listesi", "published", """
                 {"fields": [{"id": "items", "type": "multipleChoice", "label": "Neler lazım?", "required": true,
                   "options": [{"id": "laptop", "label": "Dizüstü"}, {"id": "phone", "label": "Telefon"}]}]}""", true));
         MvcTestResult template = post("/api/mail-templates", CAROL, JSON.writeValueAsString(Map.of(
                 "name", "Ekipman siparişi " + Instant.now().toEpochMilli(), "subject", "Sipariş: {{steps.ask.text.items}}",
                 "bodyHtml", "<p>{{steps.ask.respondent}}: {{steps.ask.text.items}}</p>")));
-        long templateId = json(template).get("data").get("id").asLong();
-        long flowId = json(post("/api/flows", CAROL, """
+        String templateId = json(template).get("data").get("id").asString();
+        String flowId = json(post("/api/flows", CAROL, """
                 {"name": "Yeni çalışan ekipmanı %d",
-                 "steps": [{"type": "survey", "key": "ask", "surveyId": %d, "to": ["yonetici@example.com"],
+                 "steps": [{"type": "survey", "key": "ask", "surveyId": "%s", "to": ["yonetici@example.com"],
                             "message": "Yeni çalışan için ekipmanları seçin."},
-                           {"type": "mail", "key": "order", "templateId": %d, "to": ["it@example.com"]}]}"""
-                .formatted(Instant.now().toEpochMilli(), id, templateId))).get("data").get("id").asLong();
+                           {"type": "mail", "key": "order", "templateId": "%s", "to": ["it@example.com"]}]}"""
+                .formatted(Instant.now().toEpochMilli(), id, templateId))).get("data").get("id").asString();
         assertThat(mvc.post().uri("/api/flows/" + flowId + "/runs").with(CAROL).exchange()).hasStatus(HttpStatus.ACCEPTED);
 
         await(() -> RecordingMailSender.SENT.size() == 1, Duration.ofSeconds(20));

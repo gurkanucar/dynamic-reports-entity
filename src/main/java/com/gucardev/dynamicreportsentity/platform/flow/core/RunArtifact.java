@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -28,14 +28,14 @@ import java.time.Instant;
 public class RunArtifact {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "run_id", nullable = false)
-    private Long runId;
+    private UUID runId;
 
     @Column(name = "step_run_id", nullable = false)
-    private Long stepRunId;
+    private UUID stepRunId;
 
     @Column(name = "file_name", nullable = false, length = 120)
     private String fileName;
@@ -58,7 +58,7 @@ public class RunArtifact {
     @Column(name = "deleted_at")
     private Instant deletedAt;
 
-    RunArtifact(Long runId, Long stepRunId, String fileName, String contentType, long sizeBytes, String storageKey,
+    RunArtifact(UUID runId, UUID stepRunId, String fileName, String contentType, long sizeBytes, String storageKey,
                 Instant now, Instant expiresAt) {
         this.runId = runId;
         this.stepRunId = stepRunId;

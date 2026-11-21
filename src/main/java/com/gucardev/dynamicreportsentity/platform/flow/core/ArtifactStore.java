@@ -40,7 +40,7 @@ public class ArtifactStore {
         this.clock = clock;
     }
 
-    RunArtifact save(long runId, long stepRunId, String fileName, String contentType, Path file) {
+    RunArtifact save(UUID runId, UUID stepRunId, String fileName, String contentType, Path file) {
         long size;
         try {
             size = Files.size(file);
@@ -61,18 +61,18 @@ public class ArtifactStore {
     }
 
     /** Files of earlier attempts of a step (each attempt writes its own). */
-    void deleteForStep(long stepRunId) {
+    void deleteForStep(UUID stepRunId) {
         for (RunArtifact artifact : artifacts.findByStepRunIdAndDeletedAtIsNull(stepRunId)) {
             files.delete(artifact.getStorageKey());
             artifacts.delete(artifact);
         }
     }
 
-    public Optional<RunArtifact> find(long id) {
+    public Optional<RunArtifact> find(UUID id) {
         return artifacts.findById(id);
     }
 
-    public List<RunArtifact> forRun(long runId) {
+    public List<RunArtifact> forRun(UUID runId) {
         return artifacts.findByRunIdOrderById(runId);
     }
 
@@ -85,7 +85,7 @@ public class ArtifactStore {
         return files.temporaryDownloadUrl(artifact.getStorageKey(), artifact.getFileName(), artifact.getContentType());
     }
 
-    byte[] load(long id) {
+    byte[] load(UUID id) {
         RunArtifact artifact = artifacts.findById(id).orElse(null);
         if (artifact == null || !artifact.isAvailable(clock.instant())) {
             return null;

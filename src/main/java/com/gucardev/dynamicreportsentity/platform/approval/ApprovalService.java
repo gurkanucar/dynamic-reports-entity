@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.approval;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
 
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
@@ -59,8 +60,8 @@ public class ApprovalService {
 
     // ---- for other modules ----------------------------------------------------------------------------
 
-    public boolean groupExists(long id) {
-        return groups.existsById(id);
+    public boolean groupExists(UUID id) {
+        return id != null && groups.existsById(id);
     }
 
     /**
@@ -102,8 +103,8 @@ public class ApprovalService {
     @Transactional
     public int timeOutOverdue(int limit) {
         Instant now = clock.instant();
-        List<Long> overdue = requests.lockOverdue(now, limit);
-        for (Long id : overdue) {
+        List<UUID> overdue = requests.lockOverdue(now, limit);
+        for (UUID id : overdue) {
             ApprovalRequest request = requests.findById(id).orElseThrow();
             request.timedOut(now);
             events.publishEvent(decided(request, ApprovalDecided.Outcome.TIMED_OUT));
@@ -117,7 +118,7 @@ public class ApprovalService {
         return groups.findAllByOrderByNameAsc();
     }
 
-    public ApprovalGroup group(long id) {
+    public ApprovalGroup group(UUID id) {
         return groups.findById(id).orElseThrow(() -> groupNotFound(id));
     }
 
@@ -136,7 +137,7 @@ public class ApprovalService {
     }
 
     @Transactional
-    public ApprovalGroup updateGroup(long id, long expectedVersion, GroupInput input, Actor admin) {
+    public ApprovalGroup updateGroup(UUID id, long expectedVersion, GroupInput input, Actor admin) {
         requireAdmin(admin);
         ApprovalGroup group = group(id);
         if (group.getVersion() != expectedVersion) {
@@ -155,7 +156,7 @@ public class ApprovalService {
     }
 
     @Transactional
-    public void deleteGroup(long id, Actor admin) {
+    public void deleteGroup(UUID id, Actor admin) {
         requireAdmin(admin);
         ApprovalGroup group = group(id);
         if (usages.stream().anyMatch(usage -> usage.usesGroup(id))
@@ -166,7 +167,7 @@ public class ApprovalService {
         groups.delete(group);
     }
 
-    private void check(GroupInput input, Long id) {
+    private void check(GroupInput input, UUID id) {
         List<FieldProblem> problems = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         List<ApprovalGroup.Member> members = input.members() == null ? List.of() : input.members();
@@ -215,20 +216,20 @@ public class ApprovalService {
      * @param sort     e.g. {@code -createdAt}, {@code dueAt}; default newest first
      */
     public Page<ApprovalRequest> requests(Actor user, String scope, Collection<ApprovalRequest.Status> statuses,
-                                          Collection<Long> groupIds, String q, String sort, int page, int size) {
+                                          Collection<UUID> groupIds, String q, String sort, int page, int size) {
         boolean all = "all".equals(scope);
         if (all) {
             requireAdmin(user);
         }
-        Set<Long> memberOf = groups.findIdsByMember(user.username());
-        Collection<Long> onlyGroups = groupIds;
-        Collection<Long> memberGroups = memberOf.isEmpty() ? List.of(-1L) : memberOf;   // "in ()" is not valid SQL
+        Set<UUID> memberOf = groups.findIdsByMember(user.username());
+        Collection<UUID> onlyGroups = groupIds;
+        Collection<UUID> memberGroups = memberOf.isEmpty() ? List.of(new UUID(0, 0)) : memberOf;   // "in ()" is not valid SQL
         return requests.search(all, memberGroups, statuses.isEmpty() ? List.of(ApprovalRequest.Status.values()) : statuses,
-                onlyGroups.isEmpty(), onlyGroups.isEmpty() ? List.of(-1L) : onlyGroups, ListQuery.like(q),
+                onlyGroups.isEmpty(), onlyGroups.isEmpty() ? List.of(new UUID(0, 0)) : onlyGroups, ListQuery.like(q),
                 ListQuery.page(page, size, ListQuery.sort(sort, REQUEST_SORTS, "-createdAt")));
     }
 
-    public ApprovalRequest request(long id, Actor user) {
+    public ApprovalRequest request(UUID id, Actor user) {
         ApprovalRequest request = requests.findById(id).orElseThrow(() -> requestNotFound(id));
         if (!isVisible(request, user)) {
             throw requestNotFound(id);
@@ -267,7 +268,7 @@ public class ApprovalService {
      * {@code APPROVAL_ALREADY_DECIDED}. Whoever waits learns it from {@link ApprovalDecided}.
      */
     @Transactional
-    public ApprovalRequest decide(long id, boolean approve, String comment, Actor user) {
+    public ApprovalRequest decide(UUID id, boolean approve, String comment, Actor user) {
         // locked before it is read at all: a request read earlier in this transaction would not be refreshed
         ApprovalRequest request = requests.lock(id).orElseThrow(() -> requestNotFound(id));
         if (!isVisible(request, user)) {
@@ -306,11 +307,11 @@ public class ApprovalService {
         }
     }
 
-    private static ApprovalException groupNotFound(long id) {
+    private static ApprovalException groupNotFound(UUID id) {
         return ApprovalException.notFound("APPROVAL_GROUP_NOT_FOUND", "Approval group " + id + " does not exist.");
     }
 
-    private static ApprovalException requestNotFound(long id) {
+    private static ApprovalException requestNotFound(UUID id) {
         return ApprovalException.notFound("APPROVAL_NOT_FOUND", "Approval request " + id + " does not exist.");
     }
 

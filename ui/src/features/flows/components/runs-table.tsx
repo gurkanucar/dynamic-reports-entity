@@ -29,7 +29,7 @@ export function TriggerBadge({ run }: { run: RunSummaryResponse }) {
 export function RunsTable({ runs, showFlow, onSelect, sort, onSort, filtered }: {
   runs: RunSummaryResponse[]
   showFlow?: boolean
-  onSelect: (runId: number) => void
+  onSelect: (runId: string) => void
   sort?: string
   onSort?: (sort: string) => void
   filtered?: boolean

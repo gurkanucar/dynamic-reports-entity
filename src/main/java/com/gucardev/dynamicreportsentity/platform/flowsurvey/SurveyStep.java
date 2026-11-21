@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowsurvey;
 
+import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
@@ -25,7 +26,7 @@ import java.util.Set;
  */
 public record SurveyStep(
         @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
-        @NotNull Long surveyId,
+        @NotNull UUID surveyId,
         @NotEmpty @Size(max = 20) List<@NotBlank @Size(max = 254) String> to,
         @Size(max = 300) String subject,
         @Size(max = 4000) String message,

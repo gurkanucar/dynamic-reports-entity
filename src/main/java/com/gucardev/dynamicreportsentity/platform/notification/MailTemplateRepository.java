@@ -1,12 +1,13 @@
 package com.gucardev.dynamicreportsentity.platform.notification;
 
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface MailTemplateRepository extends JpaRepository<MailTemplate, Long> {
+public interface MailTemplateRepository extends JpaRepository<MailTemplate, UUID> {
 
     boolean existsByNameIgnoreCase(String name);
 
@@ -17,5 +18,5 @@ public interface MailTemplateRepository extends JpaRepository<MailTemplate, Long
                 or lower(t.description) like :q escape '\\'""")
     Page<MailTemplate> search(@Param("q") String q, Pageable pageable);
 
-    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+    boolean existsByNameIgnoreCaseAndIdNot(String name, UUID id);
 }

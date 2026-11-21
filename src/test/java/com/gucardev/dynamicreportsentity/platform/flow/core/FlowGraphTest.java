@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flowapproval.TestSteps;
 import org.junit.jupiter.api.Test;
@@ -12,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FlowGraphTest {
 
     private static FlowStep mail(String key) {
-        return new MailStep(key, 1L, List.of("a@example.com"), null, null, null, null);
+        return new MailStep(key, UUID.randomUUID(), List.of("a@example.com"), null, null, null, null);
     }
 
     private static FlowStep condition(String key) {

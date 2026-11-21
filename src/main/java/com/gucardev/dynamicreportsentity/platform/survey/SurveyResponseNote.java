@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -21,14 +21,14 @@ import java.time.Instant;
 public class SurveyResponseNote {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "survey_id", nullable = false)
-    private Long surveyId;
+    private UUID surveyId;
 
     @Column(name = "response_id", nullable = false)
-    private Long responseId;
+    private UUID responseId;
 
     @Column(nullable = false, length = 100)
     private String author;

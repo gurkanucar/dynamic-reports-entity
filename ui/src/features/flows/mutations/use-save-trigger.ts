@@ -4,7 +4,7 @@ import { flowKeys } from "../queries/flow.keys"
 import type { TriggerRequest, TriggerResponse } from "../types/flow.dto"
 
 /** Adds a trigger to a flow (the answer carries the webhook secret, once), or replaces `existing`. */
-export function useSaveTrigger(flowId: number) {
+export function useSaveTrigger(flowId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async ({ existing, request }: { existing?: TriggerResponse; request: TriggerRequest }) =>

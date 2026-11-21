@@ -46,7 +46,7 @@ export function SaveDatasetDialog({ definition, defaultLabel, saved, disabled, o
   }
 
   const submit = () => save.mutate({
-    existing: saved?.name,
+    existing: saved?.id,
     request: {
       name, label: label.trim() || null, description: description.trim() || null, definition,
     },

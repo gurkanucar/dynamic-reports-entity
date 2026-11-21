@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion;
 import com.gucardev.dynamicreportsentity.platform.assistant.SuggestionResult;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -15,7 +16,7 @@ import java.util.Map;
  * A suggestion as the API shows it. {@code reply} is set once {@code status} is {@code completed}: either a dataset
  * ({@code definition} not null) or only a {@code message} (a question back to the user).
  */
-record SuggestionView(long id, String status, String createdAt, String finishedAt, String model, Reply reply,
+record SuggestionView(UUID id, String status, String createdAt, String finishedAt, String model, Reply reply,
                       Error error) {
 
     /** @param definition the dataset definition without empty (null) properties, ready to edit and run */

@@ -5,7 +5,7 @@ import { templateKeys } from "../queries/template.keys"
 export function useDeleteTemplate() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: number) => templatesApi.remove(id),
+    mutationFn: (id: string) => templatesApi.remove(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: templateKeys.all }),
   })
 }

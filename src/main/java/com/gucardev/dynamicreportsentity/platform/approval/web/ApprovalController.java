@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.approval.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 import com.gucardev.dynamicreportsentity.platform.api.HttpSupport;
@@ -58,13 +59,13 @@ class ApprovalController {
     }
 
     @GetMapping("/api/approval-groups/{id}")
-    ResponseEntity<ApiResponse<ApprovalApi.GroupView>> group(@PathVariable long id) {
+    ResponseEntity<ApiResponse<ApprovalApi.GroupView>> group(@PathVariable UUID id) {
         ApprovalGroup group = approvals.group(id);
         return ResponseEntity.ok().eTag(etag(group.getVersion())).body(ApiResponse.of(ApprovalApi.group(group)));
     }
 
     @PutMapping("/api/approval-groups/{id}")
-    ResponseEntity<ApiResponse<ApprovalApi.GroupView>> updateGroup(@PathVariable long id,
+    ResponseEntity<ApiResponse<ApprovalApi.GroupView>> updateGroup(@PathVariable UUID id,
                                                                  @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
                                                                  @Valid @RequestBody ApprovalApi.GroupRequest request,
                                                                  Authentication authentication) {
@@ -75,7 +76,7 @@ class ApprovalController {
 
     @DeleteMapping("/api/approval-groups/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    void deleteGroup(@PathVariable long id, Authentication authentication) {
+    void deleteGroup(@PathVariable UUID id, Authentication authentication) {
         approvals.deleteGroup(id, Actor.of(authentication));
     }
 
@@ -89,7 +90,7 @@ class ApprovalController {
     @GetMapping("/api/approval-requests")
     ApiResponse<List<ApprovalApi.ApprovalView>> requests(@RequestParam(defaultValue = "mine") String scope,
                                                       @RequestParam(required = false) List<String> status,
-                                                      @RequestParam(required = false) List<Long> groupId,
+                                                      @RequestParam(required = false) List<UUID> groupId,
                                                       @RequestParam(required = false) String q,
                                                       @RequestParam(required = false) String sort,
                                                       @RequestParam(required = false) Integer page,
@@ -108,27 +109,27 @@ class ApprovalController {
     }
 
     @GetMapping("/api/approval-requests/{id}")
-    ApiResponse<ApprovalApi.ApprovalView> request(@PathVariable long id, Authentication authentication) {
+    ApiResponse<ApprovalApi.ApprovalView> request(@PathVariable UUID id, Authentication authentication) {
         Actor user = Actor.of(authentication);
         ApprovalRequest request = approvals.request(id, user);
         return ApiResponse.of(ApprovalApi.approval(request, approvals.decisionBlocker(request, user)));
     }
 
     @PostMapping("/api/approval-requests/{id}/approve")
-    ApiResponse<ApprovalApi.ApprovalView> approve(@PathVariable long id,
+    ApiResponse<ApprovalApi.ApprovalView> approve(@PathVariable UUID id,
                                                 @Valid @RequestBody(required = false) ApprovalApi.DecisionRequest body,
                                                 Authentication authentication) {
         return decide(id, true, body, authentication);
     }
 
     @PostMapping("/api/approval-requests/{id}/reject")
-    ApiResponse<ApprovalApi.ApprovalView> reject(@PathVariable long id,
+    ApiResponse<ApprovalApi.ApprovalView> reject(@PathVariable UUID id,
                                                @Valid @RequestBody(required = false) ApprovalApi.DecisionRequest body,
                                                Authentication authentication) {
         return decide(id, false, body, authentication);
     }
 
-    private ApiResponse<ApprovalApi.ApprovalView> decide(long id, boolean approve, ApprovalApi.DecisionRequest body,
+    private ApiResponse<ApprovalApi.ApprovalView> decide(UUID id, boolean approve, ApprovalApi.DecisionRequest body,
                                                        Authentication authentication) {
         Actor user = Actor.of(authentication);
         ApprovalRequest request = approvals.decide(id, approve, body == null ? null : body.comment(), user);

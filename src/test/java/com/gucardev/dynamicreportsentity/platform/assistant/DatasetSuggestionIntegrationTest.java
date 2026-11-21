@@ -225,7 +225,7 @@ class DatasetSuggestionIntegrationTest {
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
 
         ANSWERS.add(Map.entry(200, text("Which department?")));
-        long id = ask(ALICE, "People").get("id").asLong();
+        String id = ask(ALICE, "People").get("id").asString();
         assertThat(mvc.get().uri("/api/dataset-suggestions/" + id).with(as("carol", "PLATFORM_USER")).exchange())
                 .hasStatus(HttpStatus.NOT_FOUND).bodyJson().extractingPath("$.code").isEqualTo("SUGGESTION_NOT_FOUND");
 
@@ -249,7 +249,7 @@ class DatasetSuggestionIntegrationTest {
         assertThat(draft.get("bodyHtml").asString()).contains("<style>");
         assertThat(REQUESTS.get(1).getValue().toString()).contains("\\\"valid\\\":false");
         // a suggestion of one kind is not found under another
-        long id = suggestion.get("id").asLong();
+        String id = suggestion.get("id").asString();
         assertThat(mvc.get().uri("/api/flow-suggestions/" + id).with(ALICE).exchange()).hasStatus(HttpStatus.NOT_FOUND);
     }
 

@@ -73,7 +73,7 @@ export function SavedDatasetsPage() {
               </TableHeader>
               <TableBody>
                 {rows.map((dataset) => (
-                  <TableRow key={dataset.name} className="cursor-pointer" onClick={() => navigate(`/datasets/${dataset.name}`)}>
+                  <TableRow key={dataset.id} className="cursor-pointer" onClick={() => navigate(`/datasets/${dataset.id}`)}>
                     <TableCell className="max-w-[36rem] whitespace-normal">
                       <div className="truncate font-medium">{dataset.label ?? dataset.name}</div>
                       {dataset.description && (
@@ -97,7 +97,7 @@ export function SavedDatasetsPage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Vazgeç</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => remove.mutate(dataset.name, {
+                              <AlertDialogAction onClick={() => remove.mutate(dataset.id, {
                                 onSuccess: () => toast.success("Veri seti silindi"),
                                 onError: (error) => toast.error("Silinemedi", { description: errorMessage(error) }),
                               })}>Sil</AlertDialogAction>

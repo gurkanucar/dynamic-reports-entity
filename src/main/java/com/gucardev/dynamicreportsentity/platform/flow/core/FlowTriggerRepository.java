@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -10,11 +11,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-interface FlowTriggerRepository extends JpaRepository<FlowTrigger, Long> {
+interface FlowTriggerRepository extends JpaRepository<FlowTrigger, UUID> {
 
-    List<FlowTrigger> findByFlowIdOrderById(Long flowId);
+    List<FlowTrigger> findByFlowIdOrderById(UUID flowId);
 
-    long countByFlowId(Long flowId);
+    long countByFlowId(UUID flowId);
 
     Optional<FlowTrigger> findByWebhookToken(String token);
 
@@ -26,9 +27,9 @@ interface FlowTriggerRepository extends JpaRepository<FlowTrigger, Long> {
     /** Bookkeeping without touching the version (an editor's ETag stays valid when events arrive). */
     @Modifying
     @Query("update FlowTrigger t set t.lastFiredAt = :at, t.lastRunId = :runId where t.id = :id")
-    void markFired(@Param("id") Long id, @Param("at") Instant at, @Param("runId") Long runId);
+    void markFired(@Param("id") UUID id, @Param("at") Instant at, @Param("runId") UUID runId);
 
     @Modifying
     @Query("delete from FlowTrigger t where t.flowId = :flowId")
-    void deleteByFlowId(@Param("flowId") Long flowId);
+    void deleteByFlowId(@Param("flowId") UUID flowId);
 }

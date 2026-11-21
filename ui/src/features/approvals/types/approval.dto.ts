@@ -14,7 +14,7 @@ export interface ApprovalGroupRequest {
 }
 
 export interface ApprovalGroupResponse {
-  id: number
+  id: string
   name: string
   description: string | null
   members: GroupMemberDto[]
@@ -36,9 +36,9 @@ export interface ApprovalSourceDto {
 }
 
 export interface ApprovalRequestResponse {
-  id: number
+  id: string
   source: ApprovalSourceDto
-  group: { id: number; name: string }
+  group: { id: string; name: string }
   title: string
   description: string | null
   status: ApprovalStatus

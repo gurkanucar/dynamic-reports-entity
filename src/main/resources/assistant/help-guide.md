@@ -1,7 +1,8 @@
 # Platform guide (what exists; answer only from this)
 
 "Veri & Akış" is the company's in-house platform for datasets (reports), flows (automations), approvals, surveys
-and mail templates. The UI is Turkish. Paths below are the only pages that exist.
+and mail templates. The UI is Turkish. Paths below are the only pages that exist. Record ids in paths are UUIDs (e.g. /flows/0195f3a2-…); never
+make one up: link a list page (/flows, /surveys, /datasets) instead of a record you were not given.
 
 ## Pages
 
@@ -11,7 +12,7 @@ and mail templates. The UI is Turkish. Paths below are the only pages that exist
   request (four-eyes rule): the row then says "Sizin talebiniz"; "Grubunuz değil" = the user is not a member.
   Admins can switch to "Tüm gruplar". Mail links open a request directly.
 - `/datasets` **Veri setleri**: saved datasets (name, root entity, owner). Search and paging. Click to open.
-- `/datasets/new` and `/datasets/<name>` **Veri seti tasarımı**: choose the root record type, add columns (fields,
+- `/datasets/new` and `/datasets/<id>` **Veri seti tasarımı**: choose the root record type, add columns (fields,
   related fields via dots like department.name, aggregates COUNT/SUM/AVG/MIN/MAX/LIST, date groups YEAR/QUARTER/
   MONTH), filters (AND/OR groups, relative dates "son N gün"/"önümüzdeki N gün", exists/not exists), group filters
   (HAVING) and sorting. The preview runs on the server with paging. "Kaydet" gives it a name so flows can use it.

@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.survey;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 
 /** An {@link ApiException} of the survey API (codes in {@code api/errors.yaml}). */
@@ -9,7 +10,7 @@ public class SurveyException extends ApiException {
         super(kind, code, message);
     }
 
-    static SurveyException notFound(long id) {
+    static SurveyException notFound(UUID id) {
         return new SurveyException(Kind.NOT_FOUND, "SURVEY_NOT_FOUND", "There is no survey " + id + ".");
     }
 }

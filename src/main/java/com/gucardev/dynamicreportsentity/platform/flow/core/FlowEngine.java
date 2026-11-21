@@ -77,7 +77,7 @@ public class FlowEngine implements SmartLifecycle {
     private final AtomicLong claims = new AtomicLong();
 
     private final Map<Lane, Semaphore> slots = new EnumMap<>(Lane.class);
-    private final Map<Long, Execution> executions = new ConcurrentHashMap<>();
+    private final Map<UUID, Execution> executions = new ConcurrentHashMap<>();
     private final ReentrantLock pollLock = new ReentrantLock();
     private final AtomicBoolean pollAgain = new AtomicBoolean();
 
@@ -318,9 +318,9 @@ public class FlowEngine implements SmartLifecycle {
                         e.getMessage());
             }
         }
-        Set<Long> runIds = executions.values().stream().map(execution -> execution.claimed.runId())
+        Set<UUID> runIds = executions.values().stream().map(execution -> execution.claimed.runId())
                 .collect(Collectors.toSet());
-        Set<Long> cancelled = runIds.isEmpty() ? Set.of() : runs.findCancelRequested(runIds);
+        Set<UUID> cancelled = runIds.isEmpty() ? Set.of() : runs.findCancelRequested(runIds);
         for (Execution execution : executions.values()) {
             if (cancelled.contains(execution.claimed.runId())) {
                 execution.stop(StopReason.CANCELLED);
@@ -331,9 +331,9 @@ public class FlowEngine implements SmartLifecycle {
     }
 
     /** A cancel on this instance stops its local steps right away (other instances: next heartbeat). */
-    void cancelLocal(long runId) {
+    void cancelLocal(UUID runId) {
         executions.values().stream()
-                .filter(execution -> execution.claimed.runId() == runId)
+                .filter(execution -> runId.equals(execution.claimed.runId()))
                 .forEach(execution -> execution.stop(StopReason.CANCELLED));
     }
 
@@ -343,7 +343,7 @@ public class FlowEngine implements SmartLifecycle {
     public void fireDueSchedules() {
         Instant now = clock.instant();
         boolean started = false;
-        for (Long scheduleId : schedules.findDueIds(now, Limit.of(100))) {
+        for (UUID scheduleId : schedules.findDueIds(now, Limit.of(100))) {
             try {
                 started |= store.fireSchedule(scheduleId, now).isPresent();
             } catch (RuntimeException e) {
@@ -414,7 +414,7 @@ public class FlowEngine implements SmartLifecycle {
         }
 
         @Override
-        public byte[] loadFile(long fileId) {
+        public byte[] loadFile(UUID fileId) {
             return artifacts.load(fileId);
         }
     }

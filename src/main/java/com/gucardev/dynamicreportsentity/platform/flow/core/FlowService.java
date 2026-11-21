@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
 
 import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
@@ -81,7 +82,7 @@ public class FlowService {
                 ListQuery.page(page, size, ListQuery.sort(sort, SORTS, "-updatedAt")));
     }
 
-    public Flow get(long id, Actor viewer) {
+    public Flow get(UUID id, Actor viewer) {
         Flow flow = flows.findById(id).orElseThrow(() -> notFound(id));
         if (!canSee(flow, viewer)) {
             throw notFound(id);
@@ -99,7 +100,7 @@ public class FlowService {
     }
 
     @Transactional
-    public Flow update(long id, long expectedVersion, FlowInput input, Actor editor) {
+    public Flow update(UUID id, long expectedVersion, FlowInput input, Actor editor) {
         Flow flow = get(id, editor);
         if (flow.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -118,7 +119,7 @@ public class FlowService {
 
     /** Deletes the flow and its schedules; its finished runs stay as history. */
     @Transactional
-    public void delete(long id, Actor editor) {
+    public void delete(UUID id, Actor editor) {
         Flow flow = get(id, editor);
         if (runs.existsByFlowIdAndStatusIn(id, RunStatus.ACTIVE)) {
             throw new FlowException(Kind.CONFLICT, "FLOW_HAS_ACTIVE_RUNS",
@@ -237,7 +238,7 @@ public class FlowService {
         }
     }
 
-    private static FlowException notFound(long id) {
+    private static FlowException notFound(UUID id) {
         return FlowException.notFound("FLOW_NOT_FOUND", "Flow " + id + " does not exist.");
     }
 

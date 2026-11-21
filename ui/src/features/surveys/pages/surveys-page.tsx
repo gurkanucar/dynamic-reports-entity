@@ -33,7 +33,7 @@ import { useDeleteSurvey } from "../mutations/use-survey-mutations"
 import { useSurveys } from "../queries/use-surveys"
 import type { SurveyListItem, SurveyStatus } from "../types/survey.dto"
 
-const link = (id: number) => `${window.location.origin}/s/${id}`
+const link = (id: string) => `${window.location.origin}/s/${id}`
 
 /** `/surveys`: the surveys I design, and the ones waiting for my answer. */
 export function SurveysPage() {

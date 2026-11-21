@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -7,11 +8,11 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.List;
 
-interface RunArtifactRepository extends JpaRepository<RunArtifact, Long> {
+interface RunArtifactRepository extends JpaRepository<RunArtifact, UUID> {
 
-    List<RunArtifact> findByRunIdOrderById(Long runId);
+    List<RunArtifact> findByRunIdOrderById(UUID runId);
 
-    List<RunArtifact> findByStepRunIdAndDeletedAtIsNull(Long stepRunId);
+    List<RunArtifact> findByStepRunIdAndDeletedAtIsNull(UUID stepRunId);
 
     /**
      * Expired files not deleted yet, locked for this transaction; rows another instance is deleting right now are

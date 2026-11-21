@@ -370,12 +370,12 @@ def main():
     existing = {d["name"]: d for d in must(call("GET", "/api/saved-datasets", ADMIN), "list datasets")["data"]}
     for name in OBSOLETE_DATASETS:
         if name in existing:
-            status, _ = call("DELETE", f"/api/saved-datasets/{name}", existing[name]["createdBy"])
+            status, _ = call("DELETE", f"/api/saved-datasets/{existing[name]['id']}", existing[name]["createdBy"])
             print(f"  − {name} (removed: too similar to another example) HTTP {status}")
     for owner, name, label, description, definition in DATASETS:
         if name in existing:
             if existing[name].get("description") != description or existing[name].get("definition") != definition:
-                status, _ = call("PUT", f"/api/saved-datasets/{name}", existing[name]["createdBy"], {
+                status, _ = call("PUT", f"/api/saved-datasets/{existing[name]['id']}", existing[name]["createdBy"], {
                     "name": name, "label": label, "description": description, "definition": definition})
                 print(f"  ~ {name} (updated) HTTP {status}")
             else:
@@ -1306,7 +1306,7 @@ def compliance_flow(groups):
              "description": "Yazılım ekibinde {{steps.yazilim.count}} gecikme var.\nListeler rapor mailinde Excel olarak ekte.",
              "timeoutHours": 72},
             {"type": "kafka", "key": "lms", "topic": "flows.lms.bulk-enroll", "messageKey": "{{run.id}}",
-             "payload": '{"run": {{run.id}}, "overdue": {{steps.geciken.rowCount}}, "upcoming": {{steps.yaklasan.rowCount}}, '
+             "payload": '{"run": "{{run.id}}", "overdue": {{steps.geciken.rowCount}}, "upcoming": {{steps.yaklasan.rowCount}}, '
                         '"approvedBy": "{{steps.toplu_kayit.decidedBy}}"}'},
             mail_step("rapor", report, ["ik@example.com"], ["geciken", "yaklasan"]),
         ], [{"from": "geciken", "to": "yaklasan"}, {"from": "yaklasan", "to": "yazilim"}, {"from": "yazilim", "to": "aksiyon"},

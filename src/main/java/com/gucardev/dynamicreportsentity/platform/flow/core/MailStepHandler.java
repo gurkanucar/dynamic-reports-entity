@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.api.Ids;
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.ClaimedStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepResult;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepException;
@@ -68,7 +70,7 @@ class MailStepHandler implements StepHandler {
         for (String key : step.attachments()) {
             Map<String, Object> dataset = claimed.previousOutputs().get(key);
             Object artifactId = dataset == null ? null : dataset.get("artifactId");
-            byte[] content = artifactId == null ? null : artifacts.load(((Number) artifactId).longValue());
+            byte[] content = artifactId == null ? null : artifacts.load(Ids.parse(artifactId));
             if (content == null) {
                 throw new StepException("ATTACHMENT_NOT_AVAILABLE", "Step '" + key + "' has no file to attach",
                         false);
@@ -80,7 +82,7 @@ class MailStepHandler implements StepHandler {
         if (Thread.currentThread().isInterrupted()) {
             throw new StepException("STEP_INTERRUPTED", "Stopped before sending", true);
         }
-        Long bodyFileId = keepBody(context, step.key(), rendered.html());
+        UUID bodyFileId = keepBody(context, step.key(), rendered.html());
         try {
             mailer.send(new OutgoingMail(step.to(), step.cc(), List.of(), rendered.subject(), rendered.html(),
                     attachments));
@@ -96,7 +98,7 @@ class MailStepHandler implements StepHandler {
      * Keeps the HTML as it is sent, so the run shows what recipients got; kept as long as other run files
      * ({@code flows.file-retention}). Not keeping it never stops the mail.
      */
-    private static Long keepBody(StepContext context, String stepKey, String html) {
+    private static UUID keepBody(StepContext context, String stepKey, String html) {
         Path file = null;
         try {
             file = Files.createTempFile("mail-", ".html");
@@ -116,7 +118,7 @@ class MailStepHandler implements StepHandler {
         }
     }
 
-    private static Map<String, Object> output(MailStep step, String subject, String sentAt, Long bodyFileId,
+    private static Map<String, Object> output(MailStep step, String subject, String sentAt, UUID bodyFileId,
                                               boolean alreadySent) {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("to", step.to());

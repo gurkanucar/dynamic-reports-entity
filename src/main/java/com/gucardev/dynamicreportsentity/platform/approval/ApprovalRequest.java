@@ -1,11 +1,11 @@
 package com.gucardev.dynamicreportsentity.platform.approval;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
@@ -35,8 +35,8 @@ public class ApprovalRequest {
     public enum Status { PENDING, APPROVED, REJECTED, TIMED_OUT, CANCELLED }
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "source_type", nullable = false, length = 40)
     private String sourceType;
@@ -51,7 +51,7 @@ public class ApprovalRequest {
     private String link;
 
     @Column(name = "group_id", nullable = false)
-    private Long groupId;
+    private UUID groupId;
 
     @Column(nullable = false, length = 100)
     private String groupName;

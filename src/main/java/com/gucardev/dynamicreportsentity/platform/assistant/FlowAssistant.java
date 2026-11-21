@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
+import java.util.UUID;
+import com.gucardev.dynamicreportsentity.platform.api.Ids;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalService;
@@ -45,7 +47,7 @@ class FlowAssistant implements Drafter {
 
     private static final List<Map<String, Object>> TOOLS = tools();
     /** Stands in for a template still to be created while the flow is checked. */
-    private static final long NEW_TEMPLATE = -1;
+    private static final String NEW_TEMPLATE = "00000000-0000-0000-0000-000000000000";
 
     private final ChatClient chat;
     private final FlowDraftChecker checker;
@@ -163,10 +165,10 @@ class FlowAssistant implements Drafter {
                 problems.add("schedules: unknown timeZone '" + schedule.path("timeZone").asString() + "'.");
             }
         }
-        Set<Long> ownSurveys = surveys.list("mine", viewer, 1, 100).getContent().stream()
+        Set<UUID> ownSurveys = surveys.list("mine", viewer, 1, 100).getContent().stream()
                 .map(listed -> listed.survey().getId()).collect(Collectors.toSet());
         for (JsonNode trigger : arguments.path("surveyTriggers")) {
-            long surveyId = trigger.path("surveyId").asLong(-1);
+            UUID surveyId = Ids.parse(trigger.path("surveyId").asString(""));
             if (!ownSurveys.contains(surveyId)) {
                 problems.add("surveyTriggers: surveyId " + trigger.path("surveyId") + " is not one of the listed surveys.");
             }
@@ -278,7 +280,7 @@ class FlowAssistant implements Drafter {
                         "subject", Map.of("type", "string"), "bodyHtml", Map.of("type", "string")),
                 "required", List.of("ref", "name", "subject", "bodyHtml")));
         Map<String, Object> surveyTriggers = Map.of("type", "array", "items", Map.of("type", "object", "properties",
-                Map.of("surveyId", Map.of("type", "integer"), "filter", Map.of("type", "object",
+                Map.of("surveyId", Map.of("type", "string", "description", "Survey id (UUID)"), "filter", Map.of("type", "object",
                         "description", "optional JSON Logic over {trigger}; only matching responses start the flow")),
                 "required", List.of("surveyId")));
         Map<String, Object> draft = Map.of("flow", flow, "schedules", schedules, "surveyTriggers", surveyTriggers,

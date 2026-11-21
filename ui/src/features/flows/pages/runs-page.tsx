@@ -24,7 +24,7 @@ export function RunsPage() {
   const [triggers, setTriggers] = useState<string[]>([])
   const list = useListState("-createdAt")
   const runs = useRuns(statuses, list.page, { q: list.query || undefined, trigger: triggers, sort: list.sort, size: list.size })
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selected, setSelected] = useState<string | null>(null)
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <PageHeader title="Çalışmalar" description="Görebildiğiniz tüm akışların çalışmaları; 5 saniyede bir yenilenir." />

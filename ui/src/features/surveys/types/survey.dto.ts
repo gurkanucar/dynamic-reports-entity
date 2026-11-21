@@ -85,7 +85,7 @@ export interface SurveyRequest {
 }
 
 export interface SurveyResponse extends SurveyRequest {
-  id: number
+  id: string
   version: number
   owner: string
   createdAt: string
@@ -98,7 +98,7 @@ export interface SurveyResponse extends SurveyRequest {
 }
 
 export interface SurveyListItem {
-  id: number
+  id: string
   title: string
   description: string | null
   status: SurveyStatus
@@ -115,7 +115,7 @@ export type ClosedReason = "draft" | "closed" | "deadline_passed" | "answered" |
   | "invitation_used" | "invitation_expired"
 
 export interface SurveyFormResponse {
-  id: number
+  id: string
   title: string
   description: string | null
   status: SurveyStatus
@@ -134,13 +134,13 @@ export interface SurveyFormResponse {
 }
 
 export interface SubmittedResponse {
-  responseId: number
+  responseId: string
   submittedAt: string
   successMessage: string | null
 }
 
 export interface ResponseRow {
-  id: number
+  id: string
   surveyVersion: number
   respondent: string | null
   submittedAt: string
@@ -160,7 +160,7 @@ export interface ResponseRow {
 }
 
 export interface ResponseNote {
-  id: number
+  id: string
   author: string
   text: string
   createdAt: string

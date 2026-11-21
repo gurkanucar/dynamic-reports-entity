@@ -113,14 +113,14 @@ class FlowGraphIntegrationTest {
                 .content(body instanceof String text ? text : JSON.writeValueAsString(body)).exchange();
     }
 
-    private long template() {
+    private String template() {
         MvcTestResult created = post("/api/mail-templates", ADMIN, Map.of("name", "Graph " + NAMES.incrementAndGet(),
                 "subject", "{{flow.name}}", "bodyHtml", "<p>{{run.id}}</p>"));
         assertThat(created).hasStatus(HttpStatus.CREATED);
-        return json(created).get("data").get("id").asLong();
+        return json(created).get("data").get("id").asString();
     }
 
-    private long group(String... members) {
+    private String group(String... members) {
         List<Map<String, String>> list = new ArrayList<>();
         for (String member : members) {
             list.add(Map.of("username", member, "email", member + "@example.com"));
@@ -128,42 +128,42 @@ class FlowGraphIntegrationTest {
         MvcTestResult created = post("/api/approval-groups", ADMIN,
                 Map.of("name", "Approvers " + NAMES.incrementAndGet(), "members", list));
         assertThat(created).hasStatus(HttpStatus.CREATED);
-        return json(created).get("data").get("id").asLong();
+        return json(created).get("data").get("id").asString();
     }
 
-    private Map<String, Object> mail(String key, long template, String to) {
+    private Map<String, Object> mail(String key, String template, String to) {
         return Map.of("type", "mail", "key", key, "templateId", template, "to", List.of(to));
     }
 
     /** Without notifications: they are sent after the commit and could land in the next test's mailbox. */
-    private Map<String, Object> approval(String key, long group) {
+    private Map<String, Object> approval(String key, String group) {
         return approval(key, group, false);
     }
 
-    private Map<String, Object> approval(String key, long group, boolean notify) {
+    private Map<String, Object> approval(String key, String group, boolean notify) {
         return Map.of("type", "approval", "key", key, "groupId", group, "notifyMembers", notify,
                 "title", "Approve {{flow.name}}", "description", "Run {{run.id}} needs a decision");
     }
 
-    private long flow(List<?> steps, List<?> edges) {
+    private String flow(List<?> steps, List<?> edges) {
         MvcTestResult created = post("/api/flows", ADMIN, Map.of("name", "Graph flow " + NAMES.incrementAndGet(),
                 "steps", steps, "edges", edges));
         assertThat(created).as(new String(created.getResponse().getContentAsByteArray(), UTF_8))
                 .hasStatus(HttpStatus.CREATED);
-        return json(created).get("data").get("id").asLong();
+        return json(created).get("data").get("id").asString();
     }
 
-    private long start(long flowId) {
+    private String start(String flowId) {
         MvcTestResult result = mvc.post().uri("/api/flows/" + flowId + "/runs").with(ADMIN).exchange();
         assertThat(result).hasStatus(HttpStatus.ACCEPTED);
-        return json(result).get("data").get("id").asLong();
+        return json(result).get("data").get("id").asString();
     }
 
-    private JsonNode run(long runId) {
+    private JsonNode run(String runId) {
         return json(mvc.get().uri("/api/flow-runs/" + runId).with(ADMIN).exchange()).get("data");
     }
 
-    private JsonNode await(long runId, String... statuses) {
+    private JsonNode await(String runId, String... statuses) {
         Set<String> wanted = Set.of(statuses);
         JsonNode[] last = new JsonNode[1];
         await(() -> wanted.contains((last[0] = run(runId)).get("status").asString()), () -> "run " + runId
@@ -171,7 +171,7 @@ class FlowGraphIntegrationTest {
         return last[0];
     }
 
-    private JsonNode awaitWaiting(long runId) {
+    private JsonNode awaitWaiting(String runId) {
         JsonNode[] last = new JsonNode[1];
         await(() -> {
             last[0] = run(runId);
@@ -217,14 +217,14 @@ class FlowGraphIntegrationTest {
         }).toList();
     }
 
-    private long pendingRequest(RequestPostProcessor user) {
+    private String pendingRequest(RequestPostProcessor user) {
         JsonNode list = json(mvc.get().uri("/api/approval-requests?status=pending&size=100").with(user).exchange());
         assertThat(list.get("data").size()).isGreaterThan(0);
-        return list.get("data").get(0).get("id").asLong();
+        return list.get("data").get(0).get("id").asString();
     }
 
     /** Status of the approval request the run's step {@code ask} opened (the approval module knows it by step run). */
-    private String requestStatus(long runId) {
+    private String requestStatus(String runId) {
         return jdbc.queryForObject("SELECT r.status FROM approval_request r WHERE r.source_type = 'flow-step'"
                 + " AND r.source_id = (SELECT CAST(s.id AS VARCHAR(100)) FROM flow_step_run s"
                 + " WHERE s.run_id = ? AND s.step_key = 'ask')", String.class, runId);
@@ -255,10 +255,11 @@ class FlowGraphIntegrationTest {
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson().extractingPath("$.errors[0].code")
                 .isEqualTo("SAVED_DATASET_NOT_FOUND");
 
-        long flow = flow(List.of(Map.of("type", "dataset", "key", "data", "datasetName", "g_headcount")), List.of());
+        String flow = flow(List.of(Map.of("type", "dataset", "key", "data", "datasetName", "g_headcount")), List.of());
         JsonNode run = await(start(flow), "completed");
         assertThat(run.get("steps").get(0).get("output").get("rowCount").asInt()).isPositive();
-        assertThat(mvc.delete().uri("/api/saved-datasets/g_headcount").with(ADMIN).exchange()).hasStatus(HttpStatus.CONFLICT)
+        assertThat(mvc.delete().uri("/api/saved-datasets/" + jdbc.queryForObject(
+                "SELECT CAST(id AS VARCHAR(36)) FROM saved_dataset WHERE name = ?", String.class, "g_headcount")).with(ADMIN).exchange()).hasStatus(HttpStatus.CONFLICT)
                 .bodyJson().extractingPath("$.code").isEqualTo("SAVED_DATASET_IN_USE");
     }
 
@@ -266,11 +267,11 @@ class FlowGraphIntegrationTest {
 
     @Test
     void aConditionPicksTheBranch() {
-        long template = template();
+        String template = template();
         Map<String, Object> dataset = Map.of("type", "dataset", "key", "dataset", "definition", Map.of(
                 "root", "Personnel", "columns", List.of(Map.of("field", "fullName")),
                 "where", Map.of("field", "fullName", "operator", "EQ", "value", "Nobody Here")));
-        long flow = flow(List.of(dataset,
+        String flow = flow(List.of(dataset,
                         Map.of("type", "condition", "key", "check",
                                 "expression", Map.of(">", List.of(Map.of("var", "steps.dataset.rowCount"), 0))),
                         mail("has_rows", template, "rows@example.com"),
@@ -289,13 +290,13 @@ class FlowGraphIntegrationTest {
 
     @Test
     void aGroupMemberApprovesAndTheRunGoesOn() throws Exception {
-        long template = template();
-        long group = group("bob", "admin");
-        long flow = flow(List.of(approval("ask", group, true), mail("ok", template, "ok@example.com"),
+        String template = template();
+        String group = group("bob", "admin");
+        String flow = flow(List.of(approval("ask", group, true), mail("ok", template, "ok@example.com"),
                         mail("no", template, "no@example.com")),
                 List.of(Map.of("from", "ask", "to", "ok", "when", "approved"),
                         Map.of("from", "ask", "to", "no", "when", "rejected")));
-        long runId = start(flow);
+        String runId = start(flow);
         JsonNode waiting = awaitWaiting(runId);
         assertThat(waiting.get("status").asString()).isEqualTo("running");
         assertThat(waiting.get("steps").get(0).get("waitingUntil").isNull()).isFalse();
@@ -303,7 +304,7 @@ class FlowGraphIntegrationTest {
         await(() -> recipients().contains("bob@example.com"), () -> "the notification");
         assertThat(RecordingMailSender.SENT.getFirst().getSubject()).startsWith("Onay bekliyor: Approve Graph flow");
 
-        long requestId = pendingRequest(BOB);
+        String requestId = pendingRequest(BOB);
         // a card with "Onayla" / "Reddet" buttons that open the request with that decision (styles inlined)
         assertThat(RecordingMailSender.html(RecordingMailSender.SENT.getFirst())).contains(
                 "/approvals?request=" + requestId + "&amp;decision=approve",
@@ -333,18 +334,18 @@ class FlowGraphIntegrationTest {
 
     @Test
     void withoutEdgesARejectionOrATimeoutEndsTheRun() {
-        long template = template();
-        long group = group("bob");
-        long flow = flow(List.of(approval("ask", group), mail("after", template, "after@example.com")), List.of());
+        String template = template();
+        String group = group("bob");
+        String flow = flow(List.of(approval("ask", group), mail("after", template, "after@example.com")), List.of());
 
-        long rejected = start(flow);
+        String rejected = start(flow);
         awaitWaiting(rejected);
         assertThat(post("/api/approval-requests/" + pendingRequest(BOB) + "/reject", BOB, Map.of("comment", "No")))
                 .hasStatusOk();
         assertThat(keys(await(rejected, "completed"))).containsExactly("ask:completed:rejected");
 
         // the approval module owns the deadline: it times the request out and the step takes its timeout way
-        long timedOut = start(flow);
+        String timedOut = start(flow);
         awaitWaiting(timedOut);
         jdbc.update("UPDATE approval_request SET due_at = ? WHERE status = 'PENDING'",
                 Timestamp.from(Instant.now().minusSeconds(1)));
@@ -354,10 +355,10 @@ class FlowGraphIntegrationTest {
         assertThat(run.get("events").toString()).contains("approval_timed_out");
 
         // the engine's own deadline is only a safety net; when it fires, the request is withdrawn
-        long safetyNet = start(flow);
+        String safetyNet = start(flow);
         awaitWaiting(safetyNet);
         jdbc.update("UPDATE flow_step_run SET available_at = ? WHERE run_id = ? AND status = 'WAITING'",
-                Timestamp.from(Instant.now().minusSeconds(1)), safetyNet);
+                Timestamp.from(Instant.now().minusSeconds(1)), java.util.UUID.fromString(safetyNet));
         assertThat(keys(await(safetyNet, "completed"))).containsExactly("ask:completed:timeout");
         await(() -> "CANCELLED".equals(requestStatus(safetyNet)), () -> "the withdrawn request");
         assertThat(recipients()).doesNotContain("after@example.com");
@@ -365,8 +366,8 @@ class FlowGraphIntegrationTest {
 
     @Test
     void cancellingAWaitingRunCancelsItsRequest() {
-        long flow = flow(List.of(approval("ask", group("bob"))), List.of());
-        long runId = start(flow);
+        String flow = flow(List.of(approval("ask", group("bob"))), List.of());
+        String runId = start(flow);
         awaitWaiting(runId);
 
         assertThat(mvc.post().uri("/api/flow-runs/" + runId + "/cancel").with(ADMIN).exchange()).hasStatusOk()
@@ -382,7 +383,7 @@ class FlowGraphIntegrationTest {
                 "members", List.of(Map.of("username", "nobody")))))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson().extractingPath("$.errors[0].code")
                 .isEqualTo("UNKNOWN_USER");
-        long group = group("bob");
+        String group = group("bob");
         flow(List.of(approval("ask", group)), List.of());
         assertThat(mvc.delete().uri("/api/approval-groups/" + group).with(ADMIN).exchange())
                 .hasStatus(HttpStatus.CONFLICT).bodyJson().extractingPath("$.code").isEqualTo("GROUP_IN_USE");
@@ -393,7 +394,7 @@ class FlowGraphIntegrationTest {
     @Test
     void aSignedWebhookStartsARunThatFiltersAndCallsAnotherSystem() throws Exception {
         String target = "http://localhost:" + TARGET.getAddress().getPort() + "/hook";
-        long flow = flow(List.of(
+        String flow = flow(List.of(
                         Map.of("type", "filter", "key", "big", "source", "trigger.orders",
                                 "expression", Map.of(">", List.of(Map.of("var", "item.amount"), 100))),
                         Map.of("type", "webhook", "key", "notify", "url", target, "maxAttempts", 3,
@@ -413,7 +414,7 @@ class FlowGraphIntegrationTest {
         MvcTestResult delivered = mvc.post().uri(url).header("X-Signature", sign(secret, body)).header("X-Event-Id", "e-1")
                 .contentType(MediaType.APPLICATION_JSON).content(body).exchange();
         assertThat(delivered).hasStatus(HttpStatus.ACCEPTED).bodyJson().extractingPath("$.data.status").isEqualTo("started");
-        long runId = json(delivered).get("data").get("runId").asLong();
+        String runId = json(delivered).get("data").get("runId").asString();
 
         // the same event again, a forged one, one the filter rejects
         assertThat(mvc.post().uri(url).header("X-Signature", sign(secret, body)).header("X-Event-Id", "e-1")

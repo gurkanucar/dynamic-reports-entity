@@ -40,10 +40,10 @@ export function ApprovalsPage() {
   const list = useListState("-createdAt")
   const groups = useApprovalGroups()
   const requests = useApprovalRequests(scope, FILTERS[filter], list.page, {
-    q: list.query || undefined, sort: list.sort, size: list.size, groupId: group === ALL_GROUPS ? [] : [Number(group)],
+    q: list.query || undefined, sort: list.sort, size: list.size, groupId: group === ALL_GROUPS ? [] : [group],
   })
-  const selected = params.get("request") ? Number(params.get("request")) : null
-  const open = (id: number | null) => setParams(id === null ? {} : { request: String(id) })
+  const selected = params.get("request")
+  const open = (id: string | null) => setParams(id === null ? {} : { request: String(id) })
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

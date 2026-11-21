@@ -75,7 +75,7 @@ export function ScheduleDatasetDialog({ definition, savedName, defaultName, disa
             <Field>
               <FieldLabel>Mail şablonu</FieldLabel>
               {templates.data && templates.data.length > 0 ? (
-                <Select value={form.templateId?.toString()} onValueChange={(value) => set({ templateId: Number(value) })}>
+                <Select value={form.templateId?.toString()} onValueChange={(value) => set({ templateId: value })}>
                   <SelectTrigger className="w-full"><SelectValue placeholder="Şablon seçin" /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>

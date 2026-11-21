@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant.web;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 import com.gucardev.dynamicreportsentity.platform.assistant.ChatMessage;
 import com.gucardev.dynamicreportsentity.platform.assistant.DatasetSuggestion;
@@ -75,7 +76,7 @@ abstract class SuggestionEndpoints {
     }
 
     @GetMapping("/{id}")
-    ResponseEntity<ApiResponse<SuggestionView>> get(@PathVariable long id, Authentication authentication) {
+    ResponseEntity<ApiResponse<SuggestionView>> get(@PathVariable UUID id, Authentication authentication) {
         DatasetSuggestion suggestion = suggestions.get(kind, id, viewer(authentication));
         ResponseEntity.BodyBuilder response = ResponseEntity.ok();
         if (suggestion.isActive()) {

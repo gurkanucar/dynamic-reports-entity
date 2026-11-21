@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.RecordingMailSender;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepHandler;
 import org.junit.jupiter.api.AfterEach;
@@ -69,7 +70,7 @@ class FlowPostgresClusterTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.flyway.locations", () -> "classpath:db/migration/{vendor}");   // no demo data
+        registry.add("spring.flyway.locations", () -> "classpath:db/migration/{vendor},classpath:db/migration/common");   // no demo data
         registry.add("storage.type", () -> "s3");
         registry.add("storage.s3.endpoint", () -> "http://" + S3.getHost() + ":" + S3.getMappedPort(9090));
         registry.add("storage.s3.bucket", () -> "cluster-test");
@@ -115,18 +116,18 @@ class FlowPostgresClusterTest {
         return JSON.readTree(result.getResponse().getContentAsByteArray()).get("data");
     }
 
-    private long mailOnlyFlow(String name) {
-        long template = post("/api/mail-templates", """
-                {"name": "%s", "subject": "Hi", "bodyHtml": "<p>Hi</p>"}""".formatted(name)).get("id").asLong();
-        return post("/api/flows", """
-                {"name": "%s", "steps": [{"type": "mail", "key": "mail", "templateId": %d, "to": ["a@example.com"]}]}"""
-                .formatted(name, template)).get("id").asLong();
+    private UUID mailOnlyFlow(String name) {
+        UUID template = UUID.fromString(post("/api/mail-templates", """
+                {"name": "%s", "subject": "Hi", "bodyHtml": "<p>Hi</p>"}""".formatted(name)).get("id").asString());
+        return UUID.fromString(post("/api/flows", """
+                {"name": "%s", "steps": [{"type": "mail", "key": "mail", "templateId": "%s", "to": ["a@example.com"]}]}"""
+                .formatted(name, template)).get("id").asString());
     }
 
-    private long startRun(long flowId) {
+    private UUID startRun(UUID flowId) {
         String location = mvc.post().uri("/api/flows/" + flowId + "/runs").with(ADMIN).exchange().getResponse()
                 .getHeader(HttpHeaders.LOCATION);
-        return Long.parseLong(location.substring(location.lastIndexOf('/') + 1));
+        return UUID.fromString(location.substring(location.lastIndexOf('/') + 1));
     }
 
     private static void await(BooleanSupplier condition, String what) throws InterruptedException {
@@ -141,9 +142,9 @@ class FlowPostgresClusterTest {
 
     @Test
     void twoInstancesShareTheQueueAndRunEveryStepExactlyOnce() throws InterruptedException {
-        long flow = mailOnlyFlow("Shared queue");
+        UUID flow = mailOnlyFlow("Shared queue");
         RecordingMailSender.delayMillis = 100;   // keeps both instances' slots busy
-        List<Long> started = new ArrayList<>();
+        List<UUID> started = new ArrayList<>();
         for (int i = 0; i < 30; i++) {
             started.add(startRun(flow));
         }
@@ -165,9 +166,9 @@ class FlowPostgresClusterTest {
 
     @Test
     void aDueScheduleStartsOneRunWhenBothInstancesFireAtOnce() throws Exception {
-        long flow = mailOnlyFlow("Fired once");
-        long schedule = post("/api/flows/" + flow + "/schedules", """
-                {"cron": "0 7 * * *", "timeZone": "Europe/Istanbul", "enabled": true}""").get("id").asLong();
+        UUID flow = mailOnlyFlow("Fired once");
+        UUID schedule = UUID.fromString(post("/api/flows/" + flow + "/schedules", """
+                {"cron": "0 7 * * *", "timeZone": "Europe/Istanbul", "enabled": true}""").get("id").asString());
         for (int round = 0; round < 5; round++) {
             jdbc.update("UPDATE flow_schedule SET next_fire_at = ? WHERE id = ?",
                     Timestamp.from(Instant.now().minusSeconds(1)), schedule);
@@ -182,11 +183,11 @@ class FlowPostgresClusterTest {
 
     @Test
     void reportFilesGoToS3AreDownloadedThroughPresignedUrlsAndExpire() throws Exception {
-        long flow = post("/api/flows", """
+        UUID flow = UUID.fromString(post("/api/flows", """
                 {"name": "To S3", "steps": [{"type": "dataset", "key": "dataset", "fileName": "people.csv",
                   "definition": {"root": "Personnel", "columns": [{"field": "fullName", "label": "Name"}]}}]}""")
-                .get("id").asLong();
-        long runId = startRun(flow);
+                .get("id").asString());
+        UUID runId = startRun(flow);
         await(() -> runs.findById(runId).orElseThrow().getStatus() == RunStatus.COMPLETED, "the run");
         RunArtifact file = artifacts.forRun(runId).getFirst();
 

@@ -10,6 +10,7 @@ export interface SavedDatasetRequest {
 }
 
 export interface SavedDatasetResponse {
+  id: string
   name: string
   label: string | null
   description: string | null

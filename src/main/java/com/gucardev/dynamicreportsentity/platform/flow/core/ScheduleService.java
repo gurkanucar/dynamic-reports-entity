@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
@@ -38,12 +39,12 @@ public class ScheduleService {
         this.clock = clock;
     }
 
-    public List<FlowSchedule> list(long flowId, Actor viewer) {
+    public List<FlowSchedule> list(UUID flowId, Actor viewer) {
         flows.get(flowId, viewer);
         return schedules.findByFlowIdOrderById(flowId);
     }
 
-    public FlowSchedule get(long id, Actor viewer) {
+    public FlowSchedule get(UUID id, Actor viewer) {
         FlowSchedule schedule = schedules.findById(id).orElseThrow(() -> notFound(id));
         try {
             flows.get(schedule.getFlowId(), viewer);
@@ -54,7 +55,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public FlowSchedule create(long flowId, ScheduleInput input, Actor viewer) {
+    public FlowSchedule create(UUID flowId, ScheduleInput input, Actor viewer) {
         flows.get(flowId, viewer);
         if (schedules.countByFlowId(flowId) >= properties.maxSchedulesPerFlow()) {
             throw new FlowException(Kind.CONFLICT, "SCHEDULE_LIMIT_REACHED",
@@ -67,7 +68,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public FlowSchedule update(long id, long expectedVersion, ScheduleInput input, Actor viewer) {
+    public FlowSchedule update(UUID id, long expectedVersion, ScheduleInput input, Actor viewer) {
         FlowSchedule schedule = get(id, viewer);
         if (schedule.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -82,7 +83,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public void delete(long id, Actor viewer) {
+    public void delete(UUID id, Actor viewer) {
         schedules.delete(get(id, viewer));
     }
 
@@ -124,7 +125,7 @@ public class ScheduleService {
         return first;
     }
 
-    private static FlowException notFound(long id) {
+    private static FlowException notFound(UUID id) {
         return FlowException.notFound("SCHEDULE_NOT_FOUND", "Schedule " + id + " does not exist.");
     }
 

@@ -38,7 +38,7 @@ const BLOCKERS: Record<"not_member" | "own_request", { title: string; text: stri
  * links on their own. When the user may not decide, the buttons stay visible and say why.
  */
 export function DecisionDialog({ requestId, intent, onClose }: {
-  requestId: number | null
+  requestId: string | null
   intent?: "approve" | "reject" | null
   onClose: () => void
 }) {

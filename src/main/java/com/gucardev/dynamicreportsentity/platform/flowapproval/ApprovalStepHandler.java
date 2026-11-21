@@ -68,7 +68,7 @@ class ApprovalStepHandler implements StepHandler {
         Instant now = clock.instant();
         ApprovalRequest request;
         try {
-            request = approvals.open(new NewApproval(SOURCE_TYPE, Long.toString(claimed.stepRunId()),
+            request = approvals.open(new NewApproval(SOURCE_TYPE, claimed.stepRunId().toString(),
                     claimed.flowName() + " · çalışma #" + claimed.runId(), "/flows/" + claimed.flowId(),
                     step.groupId(), renderer.renderText(step.title(), data),
                     step.description() == null ? null : renderer.renderPlain(step.description(), data),

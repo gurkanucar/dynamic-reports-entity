@@ -4,7 +4,7 @@ import { flowKeys } from "../queries/flow.keys"
 import type { ScheduleRequest, ScheduleResponse } from "../types/flow.dto"
 
 /** Adds a schedule to a flow, or replaces `existing` (its version is sent as If-Match). */
-export function useSaveSchedule(flowId: number) {
+export function useSaveSchedule(flowId: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: ({ existing, request }: { existing?: ScheduleResponse; request: ScheduleRequest }) =>

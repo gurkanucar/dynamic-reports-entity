@@ -29,7 +29,7 @@ function fullUrl(path: string) {
 }
 
 /** Webhook and Kafka triggers of a flow (cron schedules have their own card). */
-export function TriggersCard({ flowId }: { flowId: number }) {
+export function TriggersCard({ flowId }: { flowId: string }) {
   const triggers = useTriggers(flowId)
   const save = useSaveTrigger(flowId)
   const remove = useDeleteTrigger(flowId)

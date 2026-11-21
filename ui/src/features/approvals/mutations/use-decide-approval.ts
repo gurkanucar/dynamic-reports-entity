@@ -6,7 +6,7 @@ import { approvalKeys } from "../queries/approval.keys"
 export function useDecideApproval() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({ id, approve, comment }: { id: number; approve: boolean; comment: string }) =>
+    mutationFn: ({ id, approve, comment }: { id: string; approve: boolean; comment: string }) =>
       approvalsApi.decide(id, approve, { comment: comment.trim() || null }),
     onSuccess: () => Promise.all([
       queryClient.invalidateQueries({ queryKey: approvalKeys.all }),

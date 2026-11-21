@@ -1,9 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.util.UUID;
+import org.hibernate.annotations.UuidGenerator;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -22,14 +22,14 @@ import java.time.Instant;
 public class MailDelivery {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.VERSION_7)
+    private UUID id;
 
     @Column(name = "step_run_id", nullable = false)
-    private Long stepRunId;
+    private UUID stepRunId;
 
     @Column(nullable = false)
-    private Long runId;
+    private UUID runId;
 
     @Column(nullable = false, length = 4000)
     private String recipients;
@@ -42,10 +42,10 @@ public class MailDelivery {
 
     /** The sent HTML as a run file ({@link RunArtifact}); null if it was not kept. */
     @Column(name = "body_file_id")
-    private Long bodyFileId;
+    private UUID bodyFileId;
 
-    public MailDelivery(Long stepRunId, Long runId, String recipients, String subject, Instant sentAt,
-                        Long bodyFileId) {
+    public MailDelivery(UUID stepRunId, UUID runId, String recipients, String subject, Instant sentAt,
+                        UUID bodyFileId) {
         this.bodyFileId = bodyFileId;
         this.stepRunId = stepRunId;
         this.runId = runId;

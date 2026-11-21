@@ -15,7 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { errorMessage } from "@/shared/api/http-client"
 import { DatePicker } from "@/shared/components/date-picker"
 import { ErrorAlert } from "@/shared/components/error-alert"
-import { formatDateTime } from "@/shared/lib/format"
+import { formatDateTime, shortId } from "@/shared/lib/format"
 import { useFollowUp, useResponseNote } from "../mutations/use-survey-mutations"
 import { useResponseNotes, useSurveyResponse } from "../queries/use-surveys"
 import type { FollowStatus, FollowUpChange, Priority, ResponseRow, SurveyResponse } from "../types/survey.dto"
@@ -29,7 +29,7 @@ const NONE = "__none__"
  */
 export function ResponseSheet({ survey, responseId, onClose }: {
   survey: SurveyResponse
-  responseId: number | null
+  responseId: string | null
   onClose: () => void
 }) {
   const response = useSurveyResponse(survey.id, responseId)
@@ -39,7 +39,7 @@ export function ResponseSheet({ survey, responseId, onClose }: {
     <Sheet open={responseId !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto data-[side=right]:sm:max-w-2xl">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">Yanıt #{responseId} {data && <FollowStatusBadge status={data.status} />}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2"><span title={responseId ?? undefined}>Yanıt #{shortId(responseId)}</span> {data && <FollowStatusBadge status={data.status} />}</SheetTitle>
           <SheetDescription>
             {data ? <>
               {formatDateTime(data.submittedAt)} · {data.respondent ?? (survey.anonymous ? "anonim" : "—")}
@@ -186,7 +186,7 @@ function FollowUpEditor({ survey, row }: { survey: SurveyResponse; row: Response
 const clean = (values: Record<string, string>) =>
   Object.fromEntries(Object.entries(values).filter(([, value]) => value.trim() !== ""))
 
-function Notes({ surveyId, responseId }: { surveyId: number; responseId: number }) {
+function Notes({ surveyId, responseId }: { surveyId: string; responseId: string }) {
   const notes = useResponseNotes(surveyId, responseId)
   const { add, remove } = useResponseNote(surveyId, responseId)
   const [text, setText] = useState("")

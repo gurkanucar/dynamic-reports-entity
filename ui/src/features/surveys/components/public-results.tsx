@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useSurveyResults } from "../queries/use-surveys"
 
 /** The counted answers respondents may see (questions marked "show in results"); nothing when not allowed. */
-export function PublicResults({ surveyId, enabled }: { surveyId: number; enabled: boolean }) {
+export function PublicResults({ surveyId, enabled }: { surveyId: string; enabled: boolean }) {
   const results = useSurveyResults(surveyId, enabled)
   if (!enabled || results.isError) return null
   if (results.isPending) return <Skeleton className="h-40 w-full" />

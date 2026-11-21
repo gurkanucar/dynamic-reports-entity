@@ -5,7 +5,7 @@ import { flowKeys } from "../queries/flow.keys"
 export function useStartRun() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (flowId: number) => flowsApi.start(flowId),
+    mutationFn: (flowId: string) => flowsApi.start(flowId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: flowKeys.all }),
   })
 }

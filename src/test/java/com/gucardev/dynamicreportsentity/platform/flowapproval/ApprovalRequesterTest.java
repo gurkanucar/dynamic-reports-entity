@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flowapproval;
 
+import java.util.UUID;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.ClaimedStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApprovalRequesterTest {
 
     private static ClaimedStep run(TriggerType trigger, String triggeredBy, Object payload) {
-        return new ClaimedStep(1, "t", 1, 1, 1, "Flow", "owner", trigger, triggeredBy, Instant.now(),
+        return new ClaimedStep(UUID.randomUUID(), "t", 1, UUID.randomUUID(), UUID.randomUUID(), "Flow", "owner", trigger, triggeredBy, Instant.now(),
                 TestSteps.approval("approval"), Duration.ofSeconds(30), Map.of(), payload);
     }
 
