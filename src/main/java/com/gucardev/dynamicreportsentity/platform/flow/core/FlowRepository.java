@@ -9,4 +9,6 @@ public interface FlowRepository extends JpaRepository<Flow, Long> {
     Page<Flow> findByOwner(String owner, Pageable pageable);
 
     boolean existsByTemplateIdsContaining(Long templateId);
+
+    boolean existsByApprovalGroupIdsContaining(Long groupId);
 }

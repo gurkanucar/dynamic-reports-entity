@@ -46,6 +46,7 @@ public final class Problems {
         return switch (status) {
             case UNPROCESSABLE_CONTENT -> "Validation failed";
             case NOT_FOUND -> "Not found";
+            case UNAUTHORIZED -> "Not authenticated";
             case CONFLICT -> "Conflict with the current state";
             case FORBIDDEN -> "Forbidden";
             case PRECONDITION_FAILED -> "The record has changed";

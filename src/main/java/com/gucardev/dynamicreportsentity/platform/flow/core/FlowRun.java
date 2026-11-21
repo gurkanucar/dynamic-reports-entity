@@ -54,6 +54,10 @@ public class FlowRun {
 
     private Long scheduleId;
 
+    /** Webhook body or Kafka message that started the run (JSON); null for manual and scheduled runs. */
+    @Column(name = "trigger_payload_json", length = 300_000)
+    private String triggerPayloadJson;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private RunStatus status;
@@ -75,7 +79,9 @@ public class FlowRun {
     @Column(length = 1000)
     private String errorMessage;
 
-    FlowRun(Flow flow, TriggerType triggerType, String triggeredBy, Long scheduleId, int priority, Instant now) {
+    FlowRun(Flow flow, TriggerType triggerType, String triggeredBy, Long scheduleId, int priority, Instant now,
+            String triggerPayloadJson) {
+        this.triggerPayloadJson = triggerPayloadJson;
         this.flowId = flow.getId();
         this.flowName = flow.getName();
         this.definitionJson = flow.getDefinitionJson();

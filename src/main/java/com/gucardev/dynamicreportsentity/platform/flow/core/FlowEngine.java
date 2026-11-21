@@ -201,6 +201,7 @@ public class FlowEngine implements SmartLifecycle {
     private void pollOnce() {
         Instant now = clock.instant();
         store.recoverExpiredLeases(now, RECOVER_BATCH);
+        store.timeOutWaitingSteps(now, RECOVER_BATCH);
         for (Lane lane : Lane.values()) {
             Semaphore laneSlots = slots.get(lane);
             int free = laneSlots.availablePermits();   // only this (locked) poll takes permits; finishing steps add
@@ -218,6 +219,12 @@ public class FlowEngine implements SmartLifecycle {
 
     private void launch(ClaimedStep claimed, Semaphore laneSlots) {
         StepHandler handler = handlers.get(claimed.step().typeName());
+        if (handler == null) {   // e.g. a Kafka step while Kafka is switched off on this installation
+            laneSlots.release();
+            store.fail(claimed.stepRunId(), claimed.token(), StepFailure.permanent("STEP_TYPE_UNAVAILABLE",
+                    "Steps of type '" + claimed.step().typeName() + "' cannot run here (switched off)"));
+            return;
+        }
         Execution execution = new Execution(claimed, handler.interruptible(), clock.instant().plus(claimed.timeout()));
         executions.put(claimed.stepRunId(), execution);
         try {
@@ -241,10 +248,10 @@ public class FlowEngine implements SmartLifecycle {
         ClaimedStep claimed = execution.claimed;
         execution.begin();
         try {
-            Map<String, Object> output = handler.execute(
+            StepResult result = handler.execute(
                     new StepHandler.StepContext(claimed, execution.queryHandle, execution.deadline));
             execution.end();
-            if (!store.complete(claimed.stepRunId(), claimed.token(), output)) {
+            if (!store.complete(claimed.stepRunId(), claimed.token(), result)) {
                 log.warn("Flow run {} step '{}' finished after its lease was taken over; result dropped",
                         claimed.runId(), claimed.step().key());
             }

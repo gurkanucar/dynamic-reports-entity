@@ -1,6 +1,12 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalGroup;
+import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequest;
 import com.gucardev.dynamicreportsentity.platform.flow.core.Flow;
+import com.gucardev.dynamicreportsentity.platform.flow.core.FlowDefinition;
+import com.gucardev.dynamicreportsentity.platform.flow.core.FlowEdge;
+import com.gucardev.dynamicreportsentity.platform.flow.core.FlowTrigger;
+import com.gucardev.dynamicreportsentity.platform.flow.core.StepStatus;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowRun;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowSchedule;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowStep;
@@ -46,7 +52,8 @@ final class FlowViews {
                        String createdAt, String updatedAt) {
     }
 
-    record FlowDetail(long id, String name, String description, UserRef owner, List<FlowStep> steps, long version,
+    record FlowDetail(long id, String name, String description, UserRef owner, List<FlowStep> steps,
+                      List<FlowEdge> edges, Map<String, FlowDefinition.Position> layout, long version,
                       String createdAt, String updatedAt, UserRef updatedBy) {
     }
 
@@ -57,9 +64,56 @@ final class FlowViews {
     }
 
     static FlowDetail detail(Flow flow) {
+        FlowDefinition definition = flow.definition();
         return new FlowDetail(flow.getId(), flow.getName(), flow.getDescription(), new UserRef(flow.getOwner()),
-                flow.definition().steps(), flow.getVersion(), time(flow.getCreatedAt()), time(flow.getUpdatedAt()),
-                new UserRef(flow.getUpdatedBy()));
+                definition.steps(), definition.edges(), definition.layout(), flow.getVersion(),
+                time(flow.getCreatedAt()), time(flow.getUpdatedAt()), new UserRef(flow.getUpdatedBy()));
+    }
+
+    // ---- triggers -------------------------------------------------------------------------------------
+
+    /** @param webhookUrl path to call (WEBHOOK); the secret is only shown when created or rotated */
+    record TriggerView(long id, long flowId, String type, boolean enabled, String topic, Object filter,
+                       String webhookUrl, String lastFiredAt, Long lastRunId, long version, UserRef createdBy,
+                       String createdAt, String updatedAt) {
+    }
+
+    record TriggerWithSecret(TriggerView trigger, String secret) {
+    }
+
+    static TriggerView trigger(FlowTrigger trigger) {
+        return new TriggerView(trigger.getId(), trigger.getFlowId(), value(trigger.getType()), trigger.isEnabled(),
+                trigger.getTopic(), trigger.getFilterJson() == null ? null : JSON.readValue(trigger.getFilterJson(), Object.class),
+                trigger.getWebhookToken() == null ? null : "/api/flow-hooks/" + trigger.getWebhookToken(),
+                time(trigger.getLastFiredAt()), trigger.getLastRunId(), trigger.getVersion(),
+                new UserRef(trigger.getCreatedBy()), time(trigger.getCreatedAt()), time(trigger.getUpdatedAt()));
+    }
+
+    // ---- approvals ------------------------------------------------------------------------------------
+
+    record GroupView(long id, String name, String description, List<ApprovalGroup.Member> members, long version,
+                     String updatedAt, UserRef updatedBy) {
+    }
+
+    static GroupView group(ApprovalGroup group) {
+        return new GroupView(group.getId(), group.getName(), group.getDescription(), List.copyOf(group.getMembers()),
+                group.getVersion(), time(group.getUpdatedAt()), new UserRef(group.getUpdatedBy()));
+    }
+
+    record GroupRef(long id, String name) {
+    }
+
+    record ApprovalView(long id, long runId, FlowRef flow, String stepKey, GroupRef group, String title,
+                        String description, String status, String requestedBy, UserRef runAs, String createdAt,
+                        String dueAt, String decidedBy, String decidedAt, String comment, boolean canDecide) {
+    }
+
+    static ApprovalView approval(ApprovalRequest request, boolean canDecide) {
+        return new ApprovalView(request.getId(), request.getRunId(), new FlowRef(request.getFlowId(), request.getFlowName()),
+                request.getStepKey(), new GroupRef(request.getGroupId(), request.getGroupName()), request.getTitle(),
+                request.getDescription(), value(request.getStatus()), request.getRequestedBy(),
+                new UserRef(request.getRunAs()), time(request.getCreatedAt()), time(request.getDueAt()),
+                request.getDecidedBy(), time(request.getDecidedAt()), request.getComment(), canDecide);
     }
 
     // ---- schedules ------------------------------------------------------------------------------------
@@ -88,9 +142,13 @@ final class FlowViews {
                     String downloadUrl) {
     }
 
-    record StepView(String key, String type, String status, int attempt, int maxAttempts, int timeoutSeconds,
-                    String startedAt, String finishedAt, String nextAttemptAt, ErrorInfo error,
-                    Map<String, Object> output) {
+    /**
+     * @param outcome     which way the step went ({@code true}, {@code approved} ...), null for single-exit steps
+     * @param waitingUntil set while the step waits (an approval): the deadline
+     */
+    record StepView(String key, String type, String status, String outcome, int attempt, int maxAttempts,
+                    int timeoutSeconds, String startedAt, String finishedAt, String nextAttemptAt, String waitingUntil,
+                    ErrorInfo error, Map<String, Object> output) {
     }
 
     record EventView(long id, String type, String stepKey, String message, String occurredAt) {
@@ -99,7 +157,11 @@ final class FlowViews {
     record RunDetail(long id, FlowRef flow, String status, boolean cancelRequested, String trigger,
                      String triggeredBy, UserRef runAs, Long scheduleId, String createdAt, String startedAt,
                      String finishedAt, ErrorInfo error, List<StepView> steps, List<FileView> files,
-                     List<EventView> events) {
+                     List<EventView> events, Object triggerPayload, GraphView definition) {
+    }
+
+    /** The flow as this run executes it (a run keeps its own copy; the flow may have changed since). */
+    record GraphView(List<FlowStep> steps, List<FlowEdge> edges, Map<String, FlowDefinition.Position> layout) {
     }
 
     static RunSummary summary(FlowRun run) {
@@ -117,9 +179,10 @@ final class FlowViews {
             stepKeys.put(step.getId(), step.getStepKey());
             Map<String, Object> output = output(step.getOutputJson());
             stepViews.add(new StepView(step.getStepKey(), step.getStepType(), value(step.getStatus()),
-                    step.getAttempt(), step.getMaxAttempts(), step.getTimeoutSeconds(), time(step.getStartedAt()),
-                    time(step.getFinishedAt()),
-                    step.getStatus().name().equals("READY") ? time(step.getAvailableAt()) : null,
+                    step.getOutcome(), step.getAttempt(), step.getMaxAttempts(), step.getTimeoutSeconds(),
+                    time(step.getStartedAt()), time(step.getFinishedAt()),
+                    step.getStatus() == StepStatus.READY ? time(step.getAvailableAt()) : null,
+                    step.getStatus() == StepStatus.WAITING ? time(step.getAvailableAt()) : null,
                     ErrorInfo.of(step.getErrorCode(), step.getErrorMessage()), output));
         }
         List<FileView> files = artifacts.stream().map(file -> {
@@ -133,7 +196,13 @@ final class FlowViews {
                 new UserRef(run.getRunAs()), run.getScheduleId(), time(run.getCreatedAt()), time(run.getStartedAt()),
                 time(run.getFinishedAt()), ErrorInfo.of(run.getErrorCode(), run.getErrorMessage()), stepViews, files,
                 events.stream().map(event -> new EventView(event.getId(), event.getType(), event.getStepKey(),
-                        event.getMessage(), time(event.getOccurredAt()))).toList());
+                        event.getMessage(), time(event.getOccurredAt()))).toList(),
+                run.getTriggerPayloadJson() == null ? null : JSON.readValue(run.getTriggerPayloadJson(), Object.class),
+                graph(run.definition()));
+    }
+
+    private static GraphView graph(FlowDefinition definition) {
+        return new GraphView(definition.steps(), definition.edges(), definition.layout());
     }
 
     @SuppressWarnings("unchecked")

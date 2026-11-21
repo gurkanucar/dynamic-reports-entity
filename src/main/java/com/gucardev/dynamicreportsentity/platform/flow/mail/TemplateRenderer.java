@@ -32,6 +32,8 @@ public class TemplateRenderer {
     private static final Mustache.Compiler HTML = Mustache.compiler()
             .withCollector(MAPS_AND_LISTS_ONLY).escapeHTML(true).defaultValue("");
     private static final Mustache.Compiler TEXT = HTML.escapeHTML(false);
+    /** For JSON bodies: values are escaped for use inside JSON strings ({@code "name": "{{flow.name}}"}). */
+    private static final Mustache.Compiler JSON = HTML.withEscaper(TemplateRenderer::escapeJson);
 
     /** A template that does not compile (e.g. an unclosed section); the message names the line. */
     public static class TemplateSyntaxException extends RuntimeException {
@@ -46,6 +48,36 @@ public class TemplateRenderer {
 
     public String renderText(String template, Map<String, ?> model) {
         return compile(TEXT, template).execute(model).replaceAll("[\\r\\n]+", " ").strip();
+    }
+
+    public String renderJson(String template, Map<String, ?> model) {
+        return compile(JSON, template).execute(model);
+    }
+
+    /** Plain text with line breaks kept (approval descriptions, webhook bodies that are not JSON). */
+    public String renderPlain(String template, Map<String, ?> model) {
+        return compile(TEXT, template).execute(model);
+    }
+
+    private static String escapeJson(String text) {
+        StringBuilder escaped = new StringBuilder(text.length() + 8);
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (c < 0x20 || c == '<' || c == '>' || c == '&') {
+                        escaped.append(String.format("\\u%04x", (int) c));
+                    } else {
+                        escaped.append(c);
+                    }
+                }
+            }
+        }
+        return escaped.toString();
     }
 
     /** Throws {@link TemplateSyntaxException} if the template does not compile. */

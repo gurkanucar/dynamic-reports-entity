@@ -30,6 +30,9 @@ import java.util.List;
  * @param minScheduleInterval  schedules may not fire more often than this
  * @param shutdownGrace        on shutdown, running steps are stopped and handed back after at most this long
  * @param mail                e-mail settings
+ * @param webhook             outgoing and incoming webhooks
+ * @param kafka               Kafka triggers and publishing
+ * @param uiBaseUrl           where the UI runs, for links in e-mails (approval requests)
  */
 @ConfigurationProperties("flows")
 public record FlowProperties(
@@ -50,7 +53,49 @@ public record FlowProperties(
         @DefaultValue("10") int maxSchedulesPerFlow,
         @DefaultValue("5m") Duration minScheduleInterval,
         @DefaultValue("10s") Duration shutdownGrace,
-        @DefaultValue Mail mail) {
+        @DefaultValue Mail mail,
+        @DefaultValue Webhook webhook,
+        @DefaultValue Kafka kafka,
+        @DefaultValue("http://localhost:5173") String uiBaseUrl) {
+
+    /**
+     * @param allowedHosts     hosts webhook steps may call: exact names, or {@code *.example.com} for subdomains.
+     *                         Empty = none (a flow cannot reach into the company network by accident)
+     * @param maxPayloadSize   largest body an incoming webhook may send
+     * @param maxResponseChars a webhook step keeps at most this much of the answer in its output
+     */
+    public record Webhook(@DefaultValue List<String> allowedHosts,
+                          @DefaultValue("256KB") DataSize maxPayloadSize,
+                          @DefaultValue("4000") int maxResponseChars) {
+
+        public boolean allows(String host) {
+            if (host == null || allowedHosts == null) {
+                return false;
+            }
+            String name = host.toLowerCase(java.util.Locale.ROOT);
+            return allowedHosts.stream().map(pattern -> pattern.strip().toLowerCase(java.util.Locale.ROOT))
+                    .anyMatch(pattern -> pattern.startsWith("*.") ? name.endsWith(pattern.substring(1))
+                            : name.equals(pattern));
+        }
+    }
+
+    /**
+     * @param enabled           Kafka triggers and publish steps are available
+     * @param allowedTopics     topics flows may publish to and listen on: exact names or prefixes ending in {@code *}
+     * @param triggerGroupId    consumer group of the trigger listeners (all instances share it)
+     * @param reconcileInterval how often each instance aligns its listeners with the triggers in the database
+     */
+    public record Kafka(@DefaultValue("false") boolean enabled,
+                        @DefaultValue List<String> allowedTopics,
+                        @DefaultValue("flow-triggers") String triggerGroupId,
+                        @DefaultValue("30s") Duration reconcileInterval) {
+
+        public boolean allows(String topic) {
+            return topic != null && allowedTopics != null && allowedTopics.stream().map(String::strip)
+                    .anyMatch(pattern -> pattern.endsWith("*") ? topic.startsWith(pattern.substring(0, pattern.length() - 1))
+                            : topic.equals(pattern));
+        }
+    }
 
     /**
      * @param from                    sender address of flow e-mails

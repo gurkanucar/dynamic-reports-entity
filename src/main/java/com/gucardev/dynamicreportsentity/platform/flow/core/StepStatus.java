@@ -5,6 +5,8 @@ public enum StepStatus {
     READY,
     /** Claimed by an instance under a lease. */
     RUNNING,
+    /** Waits for something outside the engine (an approval) until {@code availableAt}; no lease, no thread. */
+    WAITING,
     COMPLETED,
     FAILED,
     CANCELLED

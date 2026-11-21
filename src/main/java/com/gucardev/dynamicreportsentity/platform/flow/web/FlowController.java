@@ -8,7 +8,9 @@ import com.gucardev.dynamicreportsentity.platform.flow.core.FlowSchedule;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowService;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunService;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunStatus;
+import com.gucardev.dynamicreportsentity.platform.flow.core.FlowTrigger;
 import com.gucardev.dynamicreportsentity.platform.flow.core.ScheduleService;
+import com.gucardev.dynamicreportsentity.platform.flow.core.TriggerService;
 import com.gucardev.dynamicreportsentity.platform.flow.web.FlowRequests.FlowRequest;
 import com.gucardev.dynamicreportsentity.platform.flow.web.FlowRequests.ScheduleRequest;
 import com.gucardev.dynamicreportsentity.platform.flow.web.FlowViews.FlowDetail;
@@ -52,8 +54,10 @@ class FlowController {
     private final FlowService flows;
     private final RunService runs;
     private final ScheduleService schedules;
+    private final TriggerService triggers;
 
-    FlowController(FlowService flows, RunService runs, ScheduleService schedules) {
+    FlowController(FlowService flows, RunService runs, ScheduleService schedules, TriggerService triggers) {
+        this.triggers = triggers;
         this.flows = flows;
         this.runs = runs;
         this.schedules = schedules;
@@ -120,6 +124,25 @@ class FlowController {
                 : status.stream().map(value -> WebSupport.parse(RunStatus.class, value, "status")).toList();
         return ApiResponse.page(runs.list(id, statuses, viewer(authentication), paging[0], paging[1]),
                 FlowViews::summary);
+    }
+
+    // ---- event triggers of a flow ---------------------------------------------------------------------
+
+    /** At most 10 per flow, so not paged. */
+    @GetMapping("/{id}/triggers")
+    ApiResponse<List<FlowViews.TriggerView>> triggers(@PathVariable long id, Authentication authentication) {
+        return ApiResponse.of(triggers.list(id, viewer(authentication)).stream().map(FlowViews::trigger).toList());
+    }
+
+    /** The webhook secret is in this answer only (and after a rotation); store it on the calling side. */
+    @PostMapping("/{id}/triggers")
+    ResponseEntity<ApiResponse<FlowViews.TriggerWithSecret>> createTrigger(@PathVariable long id,
+                                                                           @Valid @RequestBody FlowRequests.TriggerRequest request,
+                                                                           Authentication authentication) {
+        FlowTrigger trigger = triggers.create(id, request.input(), viewer(authentication));
+        return ResponseEntity.created(URI.create("/api/flow-triggers/" + trigger.getId()))
+                .eTag(etag(trigger.getVersion()))
+                .body(ApiResponse.of(new FlowViews.TriggerWithSecret(FlowViews.trigger(trigger), trigger.getWebhookSecret())));
     }
 
     // ---- schedules of a flow --------------------------------------------------------------------------

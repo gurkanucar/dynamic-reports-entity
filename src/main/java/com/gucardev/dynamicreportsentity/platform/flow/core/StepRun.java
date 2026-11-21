@@ -81,6 +81,10 @@ public class StepRun {
     @Column(length = 1000)
     private String errorMessage;
 
+    /** Which way the step went ({@code true}, {@code approved} ...), null for steps with a single way out. */
+    @Column(length = 20)
+    private String outcome;
+
     /** Output for later steps (JSON object). */
     @Column(name = "output_json", length = 1_000_000)
     private String outputJson;
@@ -111,9 +115,19 @@ public class StepRun {
         this.finishedAt = null;
     }
 
-    void completed(Instant now, String outputJson) {
+    void completed(Instant now, String outputJson, String outcome) {
         finish(StepStatus.COMPLETED, now, null, null);
         this.outputJson = outputJson;
+        this.outcome = outcome;
+    }
+
+    /** The attempt is done but the step waits (an approval) until {@code until} at most; it holds no lease. */
+    void waiting(String outputJson, Instant until) {
+        this.status = StepStatus.WAITING;
+        this.outputJson = outputJson;
+        this.availableAt = until;
+        this.owner = null;
+        this.leaseUntil = null;
     }
 
     void failed(Instant now, String code, String message) {

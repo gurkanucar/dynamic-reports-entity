@@ -36,6 +36,21 @@ http:
   NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a report admin may change the template." }
   TEMPLATE_NAME_TAKEN:     { status: 409, message: "Another template already has this name." }
   TEMPLATE_IN_USE:         { status: 409, message: "The template is used by a flow." }
+  # ---- triggers ------------------------------------------------------------------------------------
+  TRIGGER_NOT_FOUND:       { status: 404, message: "The trigger does not exist, or no active webhook has this address." }
+  TRIGGER_LIMIT_REACHED:   { status: 409, message: "The flow already has the maximum number of triggers." }
+  NOT_A_WEBHOOK:           { status: 409, message: "Only webhook triggers have a secret." }
+  INVALID_SIGNATURE:       { status: 401, message: "X-Signature is missing or not the HMAC-SHA256 of the body." }
+  PAYLOAD_TOO_LARGE:       { status: 400, message: "The webhook body is larger than flows.webhook.max-payload-size." }
+  # ---- approvals -----------------------------------------------------------------------------------
+  APPROVAL_GROUP_NOT_FOUND: { status: 404, message: "The approval group does not exist." }
+  GROUP_NAME_TAKEN:        { status: 409, message: "Another approval group already has this name." }
+  GROUP_IN_USE:            { status: 409, message: "A flow's approval step uses the group." }
+  APPROVAL_NOT_FOUND:      { status: 404, message: "The approval request does not exist or is not visible to you." }
+  NOT_APPROVER:            { status: 403, message: "You are not a member of the request's group." }
+  SELF_APPROVAL_FORBIDDEN: { status: 403, message: "The person who started the run may not decide." }
+  APPROVAL_ALREADY_DECIDED: { status: 409, message: "The request was already decided, timed out or cancelled." }
+  APPROVAL_NOT_READY:      { status: 409, message: "The step is not waiting yet; try again." }
 
 # Codes inside errors[] of a 422 VALIDATION_FAILED (field is a JSON path, e.g. steps[1].to[0])
 field:
@@ -55,6 +70,22 @@ field:
   INVALID_TIME_ZONE: "Not an IANA time zone."
   CRON_NEVER_FIRES: "The expression has no future fire time."
   SCHEDULE_TOO_FREQUENT: "Fires more often than flows.min-schedule-interval."
+  INVALID_EXPRESSION: "Not a JSON Logic rule with supported operators."
+  APPROVAL_GROUP_NOT_FOUND: "The approval group does not exist."
+  INVALID_URL: "Not an absolute http(s) URL."
+  WEBHOOK_HOST_NOT_ALLOWED: "The host is outside flows.webhook.allowed-hosts."
+  KAFKA_DISABLED: "Kafka is not enabled (flows.kafka.enabled)."
+  TOPIC_NOT_ALLOWED: "The topic is outside flows.kafka.allowed-topics."
+  TRIGGER_TYPE_FIXED: "The type of a trigger cannot change."
+  UNKNOWN_USER: "No such user."
+  DUPLICATE_MEMBER: "The user is already a member."
+  EDGE_UNKNOWN_STEP: "The edge refers to a step that does not exist."
+  CYCLE: "The edges form a loop."
+  DUPLICATE_EDGE: "The step already has an edge for this outcome."
+  INVALID_EDGE_OUTCOME: "The step has no such outcome."
+  NO_START_STEP: "Every step has an incoming edge."
+  MULTIPLE_START_STEPS: "More than one step has no incoming edge."
+  UNREACHABLE_STEP: "No path from the start step reaches this step."
 
 # Codes on failed or retried steps (retry: whether another attempt is made while attempts are left)
 step:
@@ -75,3 +106,14 @@ step:
   DATABASE_ERROR:            { retry: true,  message: "Database error; details in the server log." }
   INTERNAL_ERROR:            { retry: true,  message: "Unexpected error; details in the server log." }
   RUN_CANCELLED:             { retry: false, message: "The run was cancelled." }
+  STEP_TYPE_UNAVAILABLE:     { retry: false, message: "This instance cannot run the step type (e.g. Kafka disabled)." }
+  EXPRESSION_FAILED:         { retry: false, message: "The rule could not be evaluated on this data." }
+  FILTER_SOURCE_NOT_A_LIST:  { retry: false, message: "The filter's source is not a list." }
+  FILTER_SOURCE_TOO_LARGE:   { retry: false, message: "The filter's source has more than 10000 items." }
+  APPROVAL_GROUP_NOT_FOUND:  { retry: false, message: "The approval group was deleted." }
+  APPROVAL_GROUP_EMPTY:      { retry: false, message: "The approval group has no members." }
+  WEBHOOK_FAILED:            { retry: false, message: "The endpoint answered an error (408, 429 and 5xx are retried)." }
+  WEBHOOK_TIMEOUT:           { retry: true,  message: "The endpoint did not answer in time." }
+  WEBHOOK_UNREACHABLE:       { retry: true,  message: "The endpoint could not be reached." }
+  WEBHOOK_HOST_NOT_ALLOWED:  { retry: false, message: "The rendered URL's host is not allowed." }
+  KAFKA_UNAVAILABLE:         { retry: true,  message: "The broker did not acknowledge the message." }

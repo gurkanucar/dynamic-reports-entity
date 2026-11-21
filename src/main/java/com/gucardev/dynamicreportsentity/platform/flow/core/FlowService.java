@@ -2,7 +2,9 @@ package com.gucardev.dynamicreportsentity.platform.flow.core;
 
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
+import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalGroupRepository;
 import com.gucardev.dynamicreportsentity.platform.flow.mail.MailTemplateRepository;
+import com.gucardev.dynamicreportsentity.platform.flow.mail.TemplateRenderer;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.InvalidReportException;
@@ -18,6 +20,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -33,25 +36,38 @@ public class FlowService {
     public static final String ADMIN_AUTHORITY = "REPORT_ADMIN";
 
     /** A flow as entered by the user. */
-    public record FlowInput(String name, String description, List<FlowStep> steps) {
+    public record FlowInput(String name, String description, List<FlowStep> steps, List<FlowEdge> edges,
+                            Map<String, FlowDefinition.Position> layout) {
+
+        public FlowInput(String name, String description, List<FlowStep> steps) {
+            this(name, description, steps, List.of(), Map.of());
+        }
     }
 
     private final FlowRepository flows;
     private final FlowScheduleRepository schedules;
+    private final FlowTriggerRepository triggers;
     private final FlowRunRepository runs;
     private final MailTemplateRepository templates;
+    private final ApprovalGroupRepository approvalGroups;
+    private final TemplateRenderer renderer;
     private final ReportExecutor reports;
     private final RunAsResolver runAs;
     private final FlowProperties properties;
     private final Clock clock;
 
-    FlowService(FlowRepository flows, FlowScheduleRepository schedules, FlowRunRepository runs,
-                MailTemplateRepository templates, ReportExecutor reports, RunAsResolver runAs,
+    FlowService(FlowRepository flows, FlowScheduleRepository schedules, FlowTriggerRepository triggers,
+                FlowRunRepository runs,
+                MailTemplateRepository templates, ApprovalGroupRepository approvalGroups,
+                TemplateRenderer renderer, ReportExecutor reports, RunAsResolver runAs,
                 FlowProperties properties, Clock clock) {
         this.flows = flows;
         this.schedules = schedules;
+        this.triggers = triggers;
         this.runs = runs;
         this.templates = templates;
+        this.approvalGroups = approvalGroups;
+        this.renderer = renderer;
         this.reports = reports;
         this.runAs = runAs;
         this.properties = properties;
@@ -106,6 +122,7 @@ public class FlowService {
                     "The flow has queued or running runs; cancel them first.");
         }
         schedules.deleteByFlowId(id);
+        triggers.deleteByFlowId(id);
         flows.delete(flow);
     }
 
@@ -119,27 +136,95 @@ public class FlowService {
     private FlowDefinition check(FlowInput input, ReportViewer editor, ReportViewer owner) {
         List<FieldProblem> problems = new ArrayList<>();
         List<FlowStep> steps = input.steps();
+        FlowDefinition definition = new FlowDefinition(steps, input.edges(), input.layout());
+        FlowGraph graph = new FlowGraph(definition);
         Set<String> keys = new HashSet<>();
-        Set<String> reportKeys = new HashSet<>();
+        boolean uniqueKeys = true;
+        // every problem at once, so the user can fix them in one go
         for (int i = 0; i < steps.size(); i++) {
             FlowStep step = steps.get(i);
             String path = "steps[" + i + "]";
             if (!keys.add(step.key())) {
+                uniqueKeys = false;
                 problems.add(new FieldProblem(path + ".key", "DUPLICATE_STEP_KEY",
                         "Another step already uses the key '" + step.key() + "'."));
             }
             switch (step) {
-                case ReportStep report -> {
-                    checkReport(report, path, editor, owner, problems);
-                    reportKeys.add(report.key());
-                }
-                case MailStep mail -> checkMail(mail, path, reportKeys, problems);
+                case ReportStep report -> checkReport(report, path, editor, owner, problems);
+                case MailStep mail -> checkMail(mail, path, graph, problems);
+                case ConditionStep condition -> checkExpression(condition.expression(), path + ".expression", problems);
+                case FilterStep filter -> checkExpression(filter.expression(), path + ".expression", problems);
+                case ApprovalStep approval -> checkApproval(approval, path, problems);
+                case WebhookStep webhook -> checkWebhook(webhook, path, problems);
+                case KafkaPublishStep kafka -> checkKafka(kafka, path, problems);
             }
+        }
+        if (uniqueKeys) {   // edges refer to keys: only meaningful when they are unique
+            problems.addAll(graph.problems());
         }
         if (!problems.isEmpty()) {
             throw FlowException.invalid(problems);
         }
-        return new FlowDefinition(steps);
+        return definition;
+    }
+
+    private void checkExpression(Object expression, String path, List<FieldProblem> problems) {
+        try {
+            JsonLogic.check(expression);
+        } catch (JsonLogic.InvalidRuleException e) {
+            problems.add(new FieldProblem(path, "INVALID_EXPRESSION", e.getMessage()));
+        }
+    }
+
+    private void checkApproval(ApprovalStep step, String path, List<FieldProblem> problems) {
+        if (!approvalGroups.existsById(step.groupId())) {
+            problems.add(new FieldProblem(path + ".groupId", "APPROVAL_GROUP_NOT_FOUND",
+                    "Approval group " + step.groupId() + " does not exist."));
+        }
+        checkTemplate(step.title(), path + ".title", problems);
+        if (step.description() != null) {
+            checkTemplate(step.description(), path + ".description", problems);
+        }
+    }
+
+    private void checkWebhook(WebhookStep step, String path, List<FieldProblem> problems) {
+        java.net.URI url;
+        try {
+            url = java.net.URI.create(step.url().strip());
+        } catch (IllegalArgumentException e) {
+            problems.add(new FieldProblem(path + ".url", "INVALID_URL", "Not a valid URL."));
+            return;
+        }
+        if (!"http".equalsIgnoreCase(url.getScheme()) && !"https".equalsIgnoreCase(url.getScheme())) {
+            problems.add(new FieldProblem(path + ".url", "INVALID_URL", "Only http and https URLs can be called."));
+        } else if (!properties.webhook().allows(url.getHost())) {
+            problems.add(new FieldProblem(path + ".url", "WEBHOOK_HOST_NOT_ALLOWED", "Calls to " + url.getHost()
+                    + " are not allowed (flows.webhook.allowed-hosts)."));
+        }
+        if (step.body() != null) {
+            checkTemplate(step.body(), path + ".body", problems);
+        }
+    }
+
+    private void checkKafka(KafkaPublishStep step, String path, List<FieldProblem> problems) {
+        if (!properties.kafka().enabled()) {
+            problems.add(new FieldProblem(path, "KAFKA_DISABLED", "Kafka is not enabled (flows.kafka.enabled)."));
+        } else if (!properties.kafka().allows(step.topic())) {
+            problems.add(new FieldProblem(path + ".topic", "TOPIC_NOT_ALLOWED", "Publishing to " + step.topic()
+                    + " is not allowed (flows.kafka.allowed-topics)."));
+        }
+        checkTemplate(step.payload(), path + ".payload", problems);
+        if (step.messageKey() != null) {
+            checkTemplate(step.messageKey(), path + ".messageKey", problems);
+        }
+    }
+
+    private void checkTemplate(String template, String path, List<FieldProblem> problems) {
+        try {
+            renderer.check(template);
+        } catch (TemplateRenderer.TemplateSyntaxException e) {
+            problems.add(new FieldProblem(path, "TEMPLATE_SYNTAX_ERROR", e.getMessage()));
+        }
     }
 
     private void checkReport(ReportStep step, String path, ReportViewer editor, ReportViewer owner,
@@ -161,7 +246,8 @@ public class FlowService {
         }
     }
 
-    private void checkMail(MailStep step, String path, Set<String> earlierReports, List<FieldProblem> problems) {
+    private void checkMail(MailStep step, String path, FlowGraph graph, List<FieldProblem> problems) {
+        Set<String> before = graph.before(step.key());
         if (!templates.existsById(step.templateId())) {
             problems.add(new FieldProblem(path + ".templateId", "TEMPLATE_NOT_FOUND",
                     "Mail template " + step.templateId() + " does not exist."));
@@ -170,9 +256,9 @@ public class FlowService {
         checkRecipients(step.cc(), path + ".cc", problems);
         for (int i = 0; i < step.attachments().size(); i++) {
             String key = step.attachments().get(i);
-            if (!earlierReports.contains(key)) {
+            if (!before.contains(key) || !(graph.step(key) instanceof ReportStep)) {
                 problems.add(new FieldProblem(path + ".attachments[" + i + "]", "UNKNOWN_ATTACHMENT",
-                        "'" + key + "' is not a report step before this one."));
+                        "'" + key + "' is not a report step that runs before this one."));
             }
         }
     }

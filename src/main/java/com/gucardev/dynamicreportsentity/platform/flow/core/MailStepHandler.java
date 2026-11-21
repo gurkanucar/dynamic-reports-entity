@@ -13,8 +13,6 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,12 +52,12 @@ class MailStepHandler implements StepHandler {
     }
 
     @Override
-    public Map<String, Object> execute(StepContext context) throws MessagingException {
+    public StepResult execute(StepContext context) throws MessagingException {
         ClaimedStep claimed = context.step();
         MailStep step = (MailStep) claimed.step();
         MailDelivery earlier = deliveries.findByStepRunId(claimed.stepRunId()).orElse(null);
         if (earlier != null) {
-            return output(step, earlier.getSubject(), earlier.getSentAt().toString(), true);
+            return StepResult.done(output(step, earlier.getSubject(), earlier.getSentAt().toString(), true));
         }
         for (String address : concat(step.to(), step.cc())) {
             if (!properties.mail().allows(address)) {
@@ -100,21 +98,12 @@ class MailStepHandler implements StepHandler {
 
         MailDelivery delivery = deliveries.save(new MailDelivery(claimed.stepRunId(), claimed.runId(),
                 String.join(", ", concat(step.to(), step.cc())), subject, clock.instant()));
-        return output(step, subject, delivery.getSentAt().toString(), false);
+        return StepResult.done(output(step, subject, delivery.getSentAt().toString(), false));
     }
 
-    /** What templates see; see {@code MailTemplateService#sampleModel} for an example. */
+    /** What templates see; see {@link RunData}. */
     private Map<String, Object> model(ClaimedStep claimed) {
-        Map<String, Object> run = new LinkedHashMap<>();
-        run.put("id", claimed.runId());
-        run.put("trigger", claimed.trigger().name().toLowerCase());
-        run.put("triggeredBy", claimed.triggeredBy());
-        run.put("startedAt", claimed.runStartedAt() == null ? "" : claimed.runStartedAt().toString());
-        run.put("date", LocalDate.ofInstant(clock.instant(), ZoneId.systemDefault()).toString());
-        return Map.of(
-                "flow", Map.of("id", claimed.flowId(), "name", claimed.flowName()),
-                "run", run,
-                "steps", claimed.previousOutputs());
+        return RunData.of(claimed, clock);
     }
 
     private static Map<String, Object> output(MailStep step, String subject, String sentAt, boolean alreadySent) {

@@ -34,10 +34,19 @@ interface StepRunRepository extends JpaRepository<StepRun, Long> {
              FOR UPDATE OF s, r SKIP LOCKED""", nativeQuery = true)
     List<Long> lockExpiredLeases(@Param("now") Instant now, @Param("limit") int limit);
 
+    /** WAITING steps (approvals) whose deadline passed, locked like {@link #lockReady}. */
+    @Query(value = """
+            SELECT s.id FROM flow_step_run s JOIN flow_run r ON r.id = s.run_id
+             WHERE s.status = 'WAITING' AND s.available_at <= :now
+             ORDER BY s.available_at
+             LIMIT :limit
+             FOR UPDATE OF s, r SKIP LOCKED""", nativeQuery = true)
+    List<Long> lockDueWaiting(@Param("now") Instant now, @Param("limit") int limit);
+
+    List<StepRun> findByRunIdOrderById(Long runId);
+
     @Query("select s.runId from StepRun s where s.id = :id")
     Optional<Long> findRunId(@Param("id") Long id);
-
-    List<StepRun> findByRunIdOrderByStepIndex(Long runId);
 
     List<StepRun> findByRunIdAndStatus(Long runId, StepStatus status);
 

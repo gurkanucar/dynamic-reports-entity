@@ -39,6 +39,7 @@ class FlowApiExceptionHandler {
     ProblemDetail flow(FlowException exception, HttpServletRequest request) {
         HttpStatus status = switch (exception.kind()) {
             case BAD_REQUEST -> HttpStatus.BAD_REQUEST;
+            case UNAUTHORIZED -> HttpStatus.UNAUTHORIZED;
             case FORBIDDEN -> HttpStatus.FORBIDDEN;
             case NOT_FOUND -> HttpStatus.NOT_FOUND;
             case CONFLICT -> HttpStatus.CONFLICT;

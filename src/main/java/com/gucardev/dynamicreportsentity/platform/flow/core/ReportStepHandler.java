@@ -56,7 +56,7 @@ class ReportStepHandler implements StepHandler {
     }
 
     @Override
-    public Map<String, Object> execute(StepContext context) throws IOException {
+    public StepResult execute(StepContext context) throws IOException {
         ClaimedStep claimed = context.step();
         ReportStep step = (ReportStep) claimed.step();
         ReportViewer viewer = runAs.resolve(claimed.runAs());
@@ -95,7 +95,7 @@ class ReportStepHandler implements StepHandler {
             output.put("rows", preview);
             output.put("previewTruncated", rows > preview.size());
             output.put("generatedAt", Instant.now(clock).toString());
-            return output;
+            return StepResult.done(output);
         } finally {
             Files.deleteIfExists(file);
         }

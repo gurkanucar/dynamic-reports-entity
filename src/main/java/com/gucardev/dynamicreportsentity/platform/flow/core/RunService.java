@@ -67,7 +67,7 @@ public class RunService {
     }
 
     public List<StepRun> steps(long runId) {
-        return steps.findByRunIdOrderByStepIndex(runId);
+        return steps.findByRunIdOrderById(runId);
     }
 
     public List<RunEvent> events(long runId) {

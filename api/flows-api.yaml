@@ -243,6 +243,334 @@ paths:
         '204': { description: Deleted. }
         '404': { $ref: '#/components/responses/NotFound' }
 
+  /api/flows/{id}/triggers:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [triggers]
+      operationId: listTriggers
+      summary: List the webhook and Kafka triggers of a flow
+      description: At most 10 per flow, so not paged. Secrets are never listed.
+      responses:
+        '200':
+          description: The triggers.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Trigger' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    post:
+      tags: [triggers]
+      operationId: createTrigger
+      summary: Add a trigger
+      description: |
+        A webhook trigger gets a random URL and an HMAC secret, returned only in this answer (and on rotate-secret).
+        422 codes: REQUIRED (topic), TOPIC_NOT_ALLOWED, KAFKA_DISABLED, INVALID_EXPRESSION. 409 TRIGGER_LIMIT_REACHED.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TriggerRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { schema: { type: string }, example: /api/flow-triggers/4 }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/TriggerWithSecret' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/flow-triggers/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [triggers]
+      operationId: getTrigger
+      summary: Get a trigger
+      responses:
+        '200':
+          description: The trigger.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TriggerEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [triggers]
+      operationId: replaceTrigger
+      summary: Replace a trigger (enable/disable, topic, filter)
+      description: The type cannot change (422 TRIGGER_TYPE_FIXED). Firing does not change the version.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TriggerRequest' }
+      responses:
+        '200':
+          description: Saved.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TriggerEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [triggers]
+      operationId: deleteTrigger
+      summary: Delete a trigger
+      responses:
+        '204': { description: Deleted. }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/flow-triggers/{id}/rotate-secret:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [triggers]
+      operationId: rotateTriggerSecret
+      summary: Issue a new webhook secret
+      description: The old secret stops working at once. 409 NOT_A_WEBHOOK for Kafka triggers.
+      responses:
+        '200':
+          description: The new secret (shown only now).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties: { data: { $ref: '#/components/schemas/TriggerWithSecret' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/flow-hooks/{token}:
+    parameters:
+      - { name: token, in: path, required: true, schema: { type: string }, description: From the trigger's webhookUrl. }
+    post:
+      tags: [triggers]
+      operationId: receiveWebhook
+      summary: Start a flow from another system
+      description: |
+        No session or Basic auth: the caller proves itself with `X-Signature: sha256=<hex HMAC-SHA256 of the raw body
+        with the trigger secret>`. The JSON body becomes `trigger` in rules and templates. With `X-Event-Id`, a repeated
+        event starts nothing (answer `duplicate`). A trigger filter that does not match answers `filtered`.
+      security: []
+      parameters:
+        - { name: X-Signature, in: header, required: true, schema: { type: string, example: 'sha256=9f86d0...' } }
+        - { name: X-Event-Id, in: header, required: false, schema: { type: string, minLength: 1, maxLength: 200 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, additionalProperties: true }
+      responses:
+        '202':
+          description: A run was started.
+          headers:
+            Location: { schema: { type: string }, example: /api/flow-runs/12 }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryEnvelope' }
+        '200':
+          description: Accepted without a run (filtered or duplicate).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeliveryEnvelope' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { description: 'INVALID_SIGNATURE.', content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/approval-groups:
+    get:
+      tags: [approvals]
+      operationId: listApprovalGroups
+      summary: List approval groups
+      description: Everyone may read them (to pick one for an approval step). Not paged.
+      responses:
+        '200':
+          description: The groups.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ApprovalGroup' } }
+    post:
+      tags: [approvals]
+      operationId: createApprovalGroup
+      summary: Create an approval group (REPORT_ADMIN)
+      description: 422 codes UNKNOWN_USER, DUPLICATE_MEMBER, INVALID_EMAIL. 409 GROUP_NAME_TAKEN.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalGroupRequest' }
+      responses:
+        '201':
+          description: Created.
+          headers:
+            Location: { schema: { type: string }, example: /api/approval-groups/2 }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalGroupEnvelope' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/approval-groups/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [approvals]
+      operationId: getApprovalGroup
+      summary: Get an approval group
+      responses:
+        '200':
+          description: The group.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalGroupEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [approvals]
+      operationId: replaceApprovalGroup
+      summary: Replace an approval group (REPORT_ADMIN)
+      description: Pending requests are decided by the members at decision time.
+      parameters: [{ $ref: '#/components/parameters/IfMatch' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalGroupRequest' }
+      responses:
+        '200':
+          description: Saved.
+          headers: { ETag: { $ref: '#/components/headers/ETag' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalGroupEnvelope' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '428': { $ref: '#/components/responses/PreconditionRequired' }
+    delete:
+      tags: [approvals]
+      operationId: deleteApprovalGroup
+      summary: Delete an approval group (REPORT_ADMIN)
+      description: 409 GROUP_IN_USE while a flow's approval step refers to it.
+      responses:
+        '204': { description: Deleted. }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /api/approval-requests:
+    get:
+      tags: [approvals]
+      operationId: listApprovalRequests
+      summary: List approval requests
+      description: Newest first. `scope=mine` (default) lists the requests of my groups; `all` is for REPORT_ADMIN.
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [mine, all], default: mine } }
+        - name: status
+          in: query
+          description: Repeat for several (OR).
+          schema: { type: array, items: { $ref: '#/components/schemas/ApprovalStatus' } }
+          style: form
+          explode: true
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200':
+          description: A page of requests.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/ApprovalRequest' } }
+                  meta: { $ref: '#/components/schemas/PageMeta' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /api/approval-requests/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [approvals]
+      operationId: getApprovalRequest
+      summary: Get an approval request
+      description: Visible to group members, the requester and REPORT_ADMIN; 404 otherwise.
+      responses:
+        '200':
+          description: The request.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalRequestEnvelope' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /api/approval-requests/{id}/approve:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [approvals]
+      operationId: approveRequest
+      summary: Approve; the run continues on the step's `approved` edge
+      description: &decide |
+        403 NOT_APPROVER (not in the group), SELF_APPROVAL_FORBIDDEN (started the run). 409 APPROVAL_ALREADY_DECIDED,
+        APPROVAL_NOT_READY (the step is not waiting yet; retry). Decisions are serialised per run, so two
+        approvers clicking at once get one success and one 409.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200':
+          description: Decided.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalRequestEnvelope' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
+  /api/approval-requests/{id}/reject:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [approvals]
+      operationId: rejectRequest
+      summary: Reject; the run continues on the step's `rejected` edge (or ends)
+      description: *decide
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DecisionRequest' }
+      responses:
+        '200':
+          description: Decided.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApprovalRequestEnvelope' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+
   /api/flow-runs:
     get:
       tags: [runs]
@@ -601,15 +929,103 @@ components:
         timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 600 }
         maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10 }
 
+    ConditionStep:
+      type: object
+      description: Evaluates a JSON Logic rule over the run data; outcome `true` or `false`.
+      required: [type, key, expression]
+      properties:
+        type: { const: condition }
+        key: { $ref: '#/components/schemas/StepKey' }
+        expression: { $ref: '#/components/schemas/JsonLogic' }
+
+    FilterStep:
+      type: object
+      description: Keeps the items of a list (`source` path) matching the rule (each item as `item`). Output items, count.
+      required: [type, key, source, expression]
+      properties:
+        type: { const: filter }
+        key: { $ref: '#/components/schemas/StepKey' }
+        source: { type: string, maxLength: 200, examples: [trigger.orders, steps.fetch.body.items] }
+        expression: { $ref: '#/components/schemas/JsonLogic' }
+
+    ApprovalStep:
+      type: object
+      description: |
+        Waits (no worker is held) for one member of the group to decide. Outcomes approved, rejected, timeout.
+        Without an edge for its outcome, anything but `approved` ends the run.
+      required: [type, key, groupId, title]
+      properties:
+        type: { const: approval }
+        key: { $ref: '#/components/schemas/StepKey' }
+        groupId: { type: integer, format: int64 }
+        title: { type: string, maxLength: 200, description: Mustache over the run data. }
+        description: { type: [string, 'null'], maxLength: 4000, description: Mustache over the run data. }
+        timeoutHours: { type: [integer, 'null'], minimum: 1, maximum: 720, default: 72 }
+        allowSelfApproval: { type: [boolean, 'null'], default: false }
+        notifyMembers: { type: [boolean, 'null'], default: true, description: E-mail members with an e-mail address. }
+
+    WebhookStep:
+      type: object
+      description: |
+        Calls an HTTP endpoint on a host in flows.webhook.allowed-hosts; redirects are not followed. The body is a
+        Mustache template whose values are JSON-escaped. 408, 429 and 5xx are retried. Output status and body.
+      required: [type, key, url]
+      properties:
+        type: { const: webhook }
+        key: { $ref: '#/components/schemas/StepKey' }
+        url: { type: string, format: uri, maxLength: 2000 }
+        method: { type: [string, 'null'], enum: [GET, POST, PUT, PATCH, DELETE, null], default: POST }
+        headers: { type: object, additionalProperties: { type: string } }
+        body: { type: [string, 'null'], maxLength: 20000 }
+        contentType: { type: [string, 'null'], default: application/json }
+        timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 120 }
+        maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10 }
+
+    KafkaPublishStep:
+      type: object
+      description: |
+        Publishes a message (Mustache, JSON-escaped) to a topic in flows.kafka.allowed-topics, with headers flow-run-id
+        and flow-step. At least once: consumers should de-duplicate on those headers.
+      required: [type, key, topic, payload]
+      properties:
+        type: { const: kafka }
+        key: { $ref: '#/components/schemas/StepKey' }
+        topic: { type: string, maxLength: 249 }
+        messageKey: { type: [string, 'null'], maxLength: 500 }
+        payload: { type: string, maxLength: 100000 }
+
+    JsonLogic:
+      description: 'A JSON Logic rule (jsonlogic.com), e.g. {">": [{"var": "trigger.amount"}, 100]}. Supported operators only.'
+
+    FlowEdge:
+      type: object
+      required: [from, to]
+      properties:
+        from: { $ref: '#/components/schemas/StepKey' }
+        to: { $ref: '#/components/schemas/StepKey' }
+        when:
+          type: [string, 'null']
+          description: The outcome of `from` this edge is taken on (true/false, approved/rejected/timeout); null = otherwise.
+
     FlowStep:
       oneOf:
         - { $ref: '#/components/schemas/ReportStep' }
         - { $ref: '#/components/schemas/MailStep' }
+        - { $ref: '#/components/schemas/ConditionStep' }
+        - { $ref: '#/components/schemas/FilterStep' }
+        - { $ref: '#/components/schemas/ApprovalStep' }
+        - { $ref: '#/components/schemas/WebhookStep' }
+        - { $ref: '#/components/schemas/KafkaPublishStep' }
       discriminator:
         propertyName: type
         mapping:
           report: '#/components/schemas/ReportStep'
           mail: '#/components/schemas/MailStep'
+          condition: '#/components/schemas/ConditionStep'
+          filter: '#/components/schemas/FilterStep'
+          approval: '#/components/schemas/ApprovalStep'
+          webhook: '#/components/schemas/WebhookStep'
+          kafka: '#/components/schemas/KafkaPublishStep'
 
     FlowRequest:
       type: object
@@ -618,6 +1034,18 @@ components:
         name: { type: string, minLength: 1, maxLength: 100 }
         description: { type: [string, 'null'], maxLength: 1000 }
         steps: { type: array, minItems: 1, maxItems: 20, items: { $ref: '#/components/schemas/FlowStep' } }
+        edges:
+          type: array
+          maxItems: 60
+          items: { $ref: '#/components/schemas/FlowEdge' }
+          description: |
+            Empty: steps run in list order. Otherwise a DAG with one start step; each step continues on the edge for
+            its outcome, else on its edge with `when: null`, else the run ends. 422 codes: EDGE_UNKNOWN_STEP, CYCLE,
+            DUPLICATE_EDGE, INVALID_EDGE_OUTCOME, NO_START_STEP, MULTIPLE_START_STEPS, UNREACHABLE_STEP.
+        layout:
+          type: object
+          description: Canvas positions by step key (UI only).
+          additionalProperties: { $ref: '#/components/schemas/Position' }
 
     FlowSummary:
       type: object
@@ -645,6 +1073,8 @@ components:
             description: { type: [string, 'null'] }
             owner: { $ref: '#/components/schemas/UserRef' }
             steps: { type: array, items: { $ref: '#/components/schemas/FlowStep' } }
+            edges: { type: array, items: { $ref: '#/components/schemas/FlowEdge' } }
+            layout: { type: object, additionalProperties: { $ref: '#/components/schemas/Position' } }
             version: { type: integer, format: int64 }
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
@@ -701,8 +1131,8 @@ components:
           properties: { id: { type: integer, format: int64 }, name: { type: string } }
         status: { $ref: '#/components/schemas/RunStatus' }
         cancelRequested: { type: boolean }
-        trigger: { type: string, enum: [manual, schedule] }
-        triggeredBy: { type: string, description: 'Username or schedule:<id>.' }
+        trigger: { type: string, enum: [manual, schedule, webhook, kafka] }
+        triggeredBy: { type: string, description: 'Username, schedule:<id>, webhook:<id> or kafka:<id>.' }
         runAs: { $ref: '#/components/schemas/UserRef' }
         scheduleId: { type: [integer, 'null'], format: int64 }
         createdAt: { type: string, format: date-time }
@@ -714,23 +1144,34 @@ components:
       allOf:
         - { $ref: '#/components/schemas/RunSummary' }
         - type: object
-          required: [steps, files, events]
+          required: [steps, files, events, triggerPayload, definition]
           properties:
+            triggerPayload: { description: 'The webhook body or Kafka message ({key, value, headers, topic, ...}); null otherwise.' }
+            definition:
+              type: object
+              description: The flow as this run executes it (a copy taken when the run started).
+              required: [steps, edges, layout]
+              properties:
+                steps: { type: array, items: { $ref: '#/components/schemas/FlowStep' } }
+                edges: { type: array, items: { $ref: '#/components/schemas/FlowEdge' } }
+                layout: { type: object, additionalProperties: { $ref: '#/components/schemas/Position' } }
             steps:
               type: array
               items:
                 type: object
-                required: [key, type, status, attempt, maxAttempts, timeoutSeconds, startedAt, finishedAt, nextAttemptAt, error, output]
+                required: [key, type, status, outcome, attempt, maxAttempts, timeoutSeconds, startedAt, finishedAt, nextAttemptAt, waitingUntil, error, output]
                 properties:
                   key: { type: string }
-                  type: { type: string, enum: [report, mail] }
-                  status: { type: string, enum: [ready, running, completed, failed, cancelled] }
+                  type: { type: string, enum: [report, mail, condition, filter, approval, webhook, kafka] }
+                  status: { type: string, enum: [ready, running, waiting, completed, failed, cancelled] }
+                  outcome: { type: [string, 'null'], description: 'Which edge was taken: true/false, approved/rejected/timeout.' }
                   attempt: { type: integer }
                   maxAttempts: { type: integer }
                   timeoutSeconds: { type: integer }
                   startedAt: { type: [string, 'null'], format: date-time }
                   finishedAt: { type: [string, 'null'], format: date-time }
                   nextAttemptAt: { type: [string, 'null'], format: date-time, description: Set while waiting for a retry. }
+                  waitingUntil: { type: [string, 'null'], format: date-time, description: Set while an approval waits. }
                   error: { $ref: '#/components/schemas/ErrorInfo' }
                   output: { type: [object, 'null'], additionalProperties: true }
             files:
@@ -758,10 +1199,138 @@ components:
                     type: string
                     description: >-
                       run_queued, step_started, step_completed, step_retry_scheduled, step_released, step_failed,
-                      step_cancelled, cancel_requested, run_completed, run_failed, run_cancelled
+                      step_cancelled, step_waiting, approval_approved, approval_rejected, approval_timed_out,
+                      cancel_requested, run_completed, run_failed, run_cancelled
                   stepKey: { type: [string, 'null'] }
                   message: { type: [string, 'null'] }
                   occurredAt: { type: string, format: date-time }
+
+    Position:
+      type: object
+      required: [x, y]
+      properties: { x: { type: number }, y: { type: number } }
+
+    TriggerRequest:
+      type: object
+      required: [type, enabled]
+      properties:
+        type: { type: string, enum: [webhook, kafka] }
+        enabled: { type: boolean }
+        topic: { type: [string, 'null'], maxLength: 249, description: Required for kafka. }
+        filter:
+          description: Optional JSON Logic rule over the message (as `trigger`); messages that do not match start nothing.
+
+    Trigger:
+      type: object
+      required: [id, flowId, type, enabled, topic, filter, webhookUrl, lastFiredAt, lastRunId, version, createdBy, createdAt, updatedAt]
+      properties:
+        id: { type: integer, format: int64 }
+        flowId: { type: integer, format: int64 }
+        type: { type: string, enum: [webhook, kafka] }
+        enabled: { type: boolean }
+        topic: { type: [string, 'null'] }
+        filter: { description: JSON Logic or null. }
+        webhookUrl: { type: [string, 'null'], example: /api/flow-hooks/vetBFMiz..., description: Path to POST to (webhook). }
+        lastFiredAt: { type: [string, 'null'], format: date-time }
+        lastRunId: { type: [integer, 'null'], format: int64 }
+        version: { type: integer, format: int64 }
+        createdBy: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    TriggerEnvelope:
+      type: object
+      required: [data]
+      properties: { data: { $ref: '#/components/schemas/Trigger' } }
+
+    TriggerWithSecret:
+      type: object
+      required: [trigger, secret]
+      properties:
+        trigger: { $ref: '#/components/schemas/Trigger' }
+        secret: { type: [string, 'null'], description: HMAC key for X-Signature; shown only once. }
+
+    DeliveryEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [status, runId]
+          properties:
+            status: { type: string, enum: [started, filtered, duplicate] }
+            runId: { type: [integer, 'null'], format: int64 }
+
+    GroupMember:
+      type: object
+      required: [username]
+      properties:
+        username: { type: string, maxLength: 100 }
+        email: { type: [string, 'null'], format: email }
+
+    ApprovalGroupRequest:
+      type: object
+      required: [name, members]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        description: { type: [string, 'null'], maxLength: 500 }
+        members: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/GroupMember' } }
+
+    ApprovalGroup:
+      type: object
+      required: [id, name, description, members, version, updatedAt, updatedBy]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        description: { type: [string, 'null'] }
+        members: { type: array, items: { $ref: '#/components/schemas/GroupMember' } }
+        version: { type: integer, format: int64 }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { $ref: '#/components/schemas/UserRef' }
+
+    ApprovalGroupEnvelope:
+      type: object
+      required: [data]
+      properties: { data: { $ref: '#/components/schemas/ApprovalGroup' } }
+
+    ApprovalStatus: { type: string, enum: [pending, approved, rejected, timed_out, cancelled] }
+
+    DecisionRequest:
+      type: object
+      properties:
+        comment: { type: [string, 'null'], maxLength: 1000 }
+
+    ApprovalRequest:
+      type: object
+      required: [id, runId, flow, stepKey, group, title, description, status, requestedBy, runAs, createdAt, dueAt, decidedBy, decidedAt, comment, canDecide]
+      properties:
+        id: { type: integer, format: int64 }
+        runId: { type: integer, format: int64 }
+        flow:
+          type: object
+          required: [id, name]
+          properties: { id: { type: integer, format: int64 }, name: { type: string } }
+        stepKey: { type: string }
+        group:
+          type: object
+          required: [id, name]
+          properties: { id: { type: integer, format: int64 }, name: { type: string } }
+        title: { type: string }
+        description: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/ApprovalStatus' }
+        requestedBy: { type: string, description: 'Who started the run (username, webhook:<id>, ...).' }
+        runAs: { $ref: '#/components/schemas/UserRef' }
+        createdAt: { type: string, format: date-time }
+        dueAt: { type: string, format: date-time }
+        decidedBy: { type: [string, 'null'] }
+        decidedAt: { type: [string, 'null'], format: date-time }
+        comment: { type: [string, 'null'] }
+        canDecide: { type: boolean, description: The current user may approve or reject it now. }
+
+    ApprovalRequestEnvelope:
+      type: object
+      required: [data]
+      properties: { data: { $ref: '#/components/schemas/ApprovalRequest' } }
 
     TemplateRequest:
       type: object

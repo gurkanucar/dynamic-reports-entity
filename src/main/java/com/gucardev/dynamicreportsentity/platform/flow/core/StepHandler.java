@@ -3,7 +3,6 @@ package com.gucardev.dynamicreportsentity.platform.flow.core;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.QueryHandle;
 
 import java.time.Instant;
-import java.util.Map;
 
 /**
  * Executes one kind of step. Runs on a virtual thread, outside any transaction; may be stopped through
@@ -19,8 +18,8 @@ interface StepHandler {
         return true;
     }
 
-    /** @return the step's output for later steps (JSON-compatible maps, lists and scalars) */
-    Map<String, Object> execute(StepContext context) throws Exception;
+    /** @return the step's output for later steps (JSON-compatible values), its outcome, or that it waits */
+    StepResult execute(StepContext context) throws Exception;
 
     record StepContext(ClaimedStep step, QueryHandle queryHandle, Instant deadline) {
     }

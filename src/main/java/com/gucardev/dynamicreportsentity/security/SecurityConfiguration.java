@@ -43,6 +43,8 @@ class SecurityConfiguration {
         return http
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers(HttpMethod.POST, "/api/session").permitAll()
+                        // incoming webhooks: authenticated by their unguessable URL and HMAC signature
+                        .requestMatchers(HttpMethod.POST, "/api/flow-hooks/*").permitAll()
                         .anyRequest().authenticated())
                 .httpBasic(Customizer.withDefaults())
                 .securityContext(context -> context.securityContextRepository(securityContextRepository()))

@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequest;
+import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequestRepository;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -37,11 +40,19 @@ class RunStore {
     private final RunEventRepository events;
     private final FlowScheduleRepository schedules;
     private final FlowRepository flows;
+    private final ApprovalRequestRepository approvals;
+    private final FlowTriggerRepository triggers;
+    private final TriggerEventRepository triggerEvents;
     private final FlowProperties properties;
     private final Clock clock;
 
     RunStore(FlowRunRepository runs, StepRunRepository steps, RunEventRepository events,
-             FlowScheduleRepository schedules, FlowRepository flows, FlowProperties properties, Clock clock) {
+             FlowScheduleRepository schedules, FlowRepository flows, ApprovalRequestRepository approvals,
+             FlowTriggerRepository triggers, TriggerEventRepository triggerEvents, FlowProperties properties,
+             Clock clock) {
+        this.approvals = approvals;
+        this.triggers = triggers;
+        this.triggerEvents = triggerEvents;
         this.runs = runs;
         this.steps = steps;
         this.events = events;
@@ -55,7 +66,14 @@ class RunStore {
 
     @Transactional
     FlowRun createRun(Flow flow, TriggerType trigger, String triggeredBy, Long scheduleId, int priority) {
-        return newRun(flow, trigger, triggeredBy, scheduleId, priority, clock.instant());
+        return newRun(flow, trigger, triggeredBy, scheduleId, priority, clock.instant(), null);
+    }
+
+    /** A run started by an event (webhook, Kafka); {@code payload} becomes {@code trigger} for its steps. */
+    @Transactional
+    FlowRun createRun(Flow flow, TriggerType trigger, String triggeredBy, Object payload) {
+        return newRun(flow, trigger, triggeredBy, null, PRIORITY_SCHEDULE, clock.instant(),
+                payload == null ? null : FlowDefinition.toJson(payload));
     }
 
     /**
@@ -81,8 +99,35 @@ class RunStore {
             return Optional.empty();
         }
         FlowRun run = newRun(flow, TriggerType.SCHEDULE, "schedule:" + schedule.getId(), schedule.getId(),
-                PRIORITY_SCHEDULE, now);
+                PRIORITY_SCHEDULE, now, null);
         schedule.fired(fireTime, next, run.getId(), null);
+        return Optional.of(run);
+    }
+
+    /**
+     * Starts a run for an event, unless the same event (same {@code eventKey}) already started one: the inbox row is
+     * written in this transaction, so a concurrent second delivery fails on the unique key and starts nothing.
+     *
+     * @param eventKey null = the sender gave no id; every delivery then starts a run
+     * @return empty if the event was a duplicate or the flow is gone
+     */
+    @Transactional
+    Optional<FlowRun> fireTrigger(FlowTrigger trigger, String eventKey, Object payload) {
+        if (eventKey != null && triggerEvents.existsByTriggerIdAndEventKey(trigger.getId(), eventKey)) {
+            return Optional.empty();
+        }
+        Flow flow = flows.findById(trigger.getFlowId()).orElse(null);
+        if (flow == null) {
+            return Optional.empty();
+        }
+        Instant now = clock.instant();
+        TriggerType type = trigger.getType() == FlowTrigger.Type.KAFKA ? TriggerType.KAFKA : TriggerType.WEBHOOK;
+        FlowRun run = newRun(flow, type, type.name().toLowerCase() + ":" + trigger.getId(), null, PRIORITY_SCHEDULE,
+                now, payload == null ? null : FlowDefinition.toJson(payload));
+        if (eventKey != null) {
+            triggerEvents.saveAndFlush(new TriggerEvent(trigger.getId(), eventKey, now, run.getId()));
+        }
+        triggers.markFired(trigger.getId(), now, run.getId());
         return Optional.of(run);
     }
 
@@ -103,11 +148,16 @@ class RunStore {
     }
 
     private FlowRun newRun(Flow flow, TriggerType trigger, String triggeredBy, Long scheduleId, int priority,
-                           Instant now) {
-        FlowRun run = runs.save(new FlowRun(flow, trigger, triggeredBy, scheduleId, priority, now));
-        steps.save(newStep(run, 0, run.definition().steps().getFirst(), now));
-        event(run.getId(), now, "run_queued", null, trigger == TriggerType.MANUAL
-                ? "Started by " + triggeredBy : "Started by schedule " + scheduleId);
+                           Instant now, String payloadJson) {
+        FlowRun run = runs.save(new FlowRun(flow, trigger, triggeredBy, scheduleId, priority, now, payloadJson));
+        FlowGraph graph = new FlowGraph(run.definition());
+        FlowStep first = graph.start();
+        steps.save(newStep(run, graph.indexOf(first.key()), first, now));
+        event(run.getId(), now, "run_queued", null, switch (trigger) {
+            case MANUAL -> "Started by " + triggeredBy;
+            case SCHEDULE -> "Started by schedule " + scheduleId;
+            case WEBHOOK, KAFKA -> "Started by " + triggeredBy;
+        });
         return run;
     }
 
@@ -148,15 +198,17 @@ class RunStore {
             }
             event(run.getId(), now, "step_started", step.getStepKey(),
                     "Attempt " + step.getAttempt() + " of " + step.getMaxAttempts() + " on " + instanceId);
+            // outputs of the steps that ran before this one on the path the run took
             Map<String, Map<String, Object>> outputs = new LinkedHashMap<>();
-            for (StepRun earlier : steps.findByRunIdOrderByStepIndex(run.getId())) {
-                if (earlier.getStepIndex() < step.getStepIndex() && earlier.getStatus() == StepStatus.COMPLETED) {
+            for (StepRun earlier : steps.findByRunIdOrderById(run.getId())) {
+                if (earlier.getStatus() == StepStatus.COMPLETED && !earlier.getId().equals(step.getId())) {
                     outputs.put(earlier.getStepKey(), FlowDefinition.outputFromJson(earlier.getOutputJson()));
                 }
             }
             claimed.add(new ClaimedStep(step.getId(), token, step.getAttempt(), run.getId(), run.getFlowId(),
                     run.getFlowName(), run.getRunAs(), run.getTriggerType(), run.getTriggeredBy(), run.getStartedAt(),
-                    definition, Duration.ofSeconds(step.getTimeoutSeconds()), outputs));
+                    definition, Duration.ofSeconds(step.getTimeoutSeconds()), outputs,
+                    FlowDefinition.valueFromJson(run.getTriggerPayloadJson())));
         }
         return claimed;
     }
@@ -172,7 +224,7 @@ class RunStore {
      * @return false if this attempt no longer owned the step (its lease expired and it was taken over)
      */
     @Transactional
-    boolean complete(long stepId, String token, Map<String, Object> output) {
+    boolean complete(long stepId, String token, StepResult result) {
         Locked locked = lockStep(stepId);
         if (locked == null || !locked.step().isClaimedBy(token)) {
             return false;
@@ -180,23 +232,92 @@ class RunStore {
         Instant now = clock.instant();
         FlowRun run = locked.run();
         StepRun step = locked.step();
-        step.completed(now, FlowDefinition.toJson(output));
-        event(run.getId(), now, "step_completed", step.getStepKey(), null);
+        if (result.waitUntil() != null && !run.isCancelRequested()) {
+            step.waiting(FlowDefinition.toJson(result.output()), result.waitUntil());
+            event(run.getId(), now, "step_waiting", step.getStepKey(), "Waiting until " + result.waitUntil());
+            return true;
+        }
+        advance(run, step, result.output(), result.outcome(), now);
+        return true;
+    }
 
+    /** Completes {@code step} with its outcome and queues the step the graph leads to, or finishes the run. */
+    private void advance(FlowRun run, StepRun step, Map<String, Object> output, String outcome, Instant now) {
+        step.completed(now, FlowDefinition.toJson(output), outcome);
+        event(run.getId(), now, "step_completed", step.getStepKey(), outcome == null ? null : "Outcome: " + outcome);
         if (run.isCancelRequested()) {
             run.cancelled(now);
             event(run.getId(), now, "run_cancelled", null, null);
-            return true;
+            return;
         }
-        List<FlowStep> definitions = run.definition().steps();
-        int next = step.getStepIndex() + 1;
-        if (next < definitions.size()) {
-            steps.save(newStep(run, next, definitions.get(next), now));
+        FlowGraph graph = new FlowGraph(run.definition());
+        Optional<FlowStep> next = graph.next(step.getStepKey(), outcome);
+        if (next.isPresent()) {
+            steps.save(newStep(run, graph.indexOf(next.get().key()), next.get(), now));
         } else {
             run.completed(now);
-            event(run.getId(), now, "run_completed", null, null);
+            event(run.getId(), now, "run_completed", null, outcome == null ? null
+                    : "Ended after '" + step.getStepKey() + "' (" + outcome + ")");
         }
-        return true;
+    }
+
+    // ---- approvals ------------------------------------------------------------------------------------
+
+    /**
+     * Records a decision on an approval request and lets the run go on. Only members of the request's group may
+     * decide, and not the person who started the run or owns the flow unless the step allows it.
+     *
+     * @param memberOf the groups the deciding user belongs to
+     */
+    @Transactional
+    ApprovalRequest decide(long requestId, boolean approve, String comment, String user, Set<Long> memberOf) {
+        Long runId = approvals.findRunId(requestId).orElseThrow(() -> FlowException.notFound(
+                "APPROVAL_NOT_FOUND", "Approval request " + requestId + " does not exist."));
+        FlowRun run = runs.lock(runId).orElseThrow();
+        ApprovalRequest request = approvals.findById(requestId).orElseThrow();   // read after the lock: current
+        if (!memberOf.contains(request.getGroupId())) {
+            throw new FlowException(Kind.FORBIDDEN, "NOT_APPROVER",
+                    "Only members of '" + request.getGroupName() + "' may decide this request.");
+        }
+        if (request.getStatus() != ApprovalRequest.Status.PENDING) {
+            throw new FlowException(Kind.CONFLICT, "APPROVAL_ALREADY_DECIDED",
+                    "The request is already " + request.getStatus().name().toLowerCase() + ".");
+        }
+        if (!request.isAllowSelfApproval() && request.isRequestedBy(user)) {
+            throw new FlowException(Kind.FORBIDDEN, "SELF_APPROVAL_FORBIDDEN",
+                    "You started this run or own the flow; someone else from the group has to decide.");
+        }
+        StepRun step = steps.findById(request.getStepRunId()).orElseThrow();
+        if (step.getStatus() != StepStatus.WAITING) {
+            throw new FlowException(Kind.CONFLICT, "APPROVAL_NOT_READY", "The step is not waiting yet; try again.");
+        }
+        Instant now = clock.instant();
+        request.decide(approve, user, comment, now);
+        Map<String, Object> output = new LinkedHashMap<>(FlowDefinition.outputFromJson(step.getOutputJson()));
+        output.put("decision", approve ? "approved" : "rejected");
+        output.put("decidedBy", user);
+        output.put("comment", comment);
+        output.put("decidedAt", now.toString());
+        event(run.getId(), now, approve ? "approval_approved" : "approval_rejected", step.getStepKey(),
+                user + (comment == null || comment.isBlank() ? "" : ": " + comment));
+        advance(run, step, output, approve ? "approved" : "rejected", now);
+        return request;
+    }
+
+    /** Approvals nobody decided in time take their {@code timeout} way; instances share the work (SKIP LOCKED). */
+    @Transactional
+    int timeOutWaitingSteps(Instant now, int limit) {
+        List<Long> due = steps.lockDueWaiting(now, limit);
+        for (Long stepId : due) {
+            StepRun step = steps.findById(stepId).orElseThrow();
+            FlowRun run = runs.findById(step.getRunId()).orElseThrow();
+            approvals.findByStepRunId(stepId).ifPresent(request -> request.timedOut(now));
+            Map<String, Object> output = new LinkedHashMap<>(FlowDefinition.outputFromJson(step.getOutputJson()));
+            output.put("decision", "timeout");
+            event(run.getId(), now, "approval_timed_out", step.getStepKey(), null);
+            advance(run, step, output, "timeout", now);
+        }
+        return due.size();
     }
 
     @Transactional
@@ -276,10 +397,13 @@ class RunStore {
             run.requestCancel();
             event(runId, now, "cancel_requested", null, "Cancelled by " + by);
         }
-        for (StepRun waiting : steps.findByRunIdAndStatus(runId, StepStatus.READY)) {
-            waiting.cancelled(now);
-            event(runId, now, "step_cancelled", waiting.getStepKey(), null);
+        for (StepStatus idle : List.of(StepStatus.READY, StepStatus.WAITING)) {
+            for (StepRun waiting : steps.findByRunIdAndStatus(runId, idle)) {
+                waiting.cancelled(now);
+                event(runId, now, "step_cancelled", waiting.getStepKey(), null);
+            }
         }
+        approvals.findByRunIdAndStatus(runId, ApprovalRequest.Status.PENDING).forEach(request -> request.cancelled(now));
         if (steps.findByRunIdAndStatus(runId, StepStatus.RUNNING).isEmpty()) {
             run.cancelled(now);
             event(runId, now, "run_cancelled", null, null);

@@ -9,7 +9,7 @@ import java.util.List;
 public class FlowException extends RuntimeException {
 
     public enum Kind {
-        BAD_REQUEST, FORBIDDEN, NOT_FOUND, CONFLICT, GONE, PRECONDITION_FAILED, UNPROCESSABLE, PRECONDITION_REQUIRED
+        BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, GONE, PRECONDITION_FAILED, UNPROCESSABLE, PRECONDITION_REQUIRED
     }
 
     /** A problem with one field of the request; {@code field} is a JSON path such as {@code steps[1].to[0]}. */

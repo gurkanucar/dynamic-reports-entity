@@ -56,6 +56,12 @@ public class Flow {
     @Column(name = "template_id", nullable = false)
     private Set<Long> templateIds = new HashSet<>();
 
+    /** Approval groups used by the steps; a group in use cannot be deleted. */
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "flow_approval_group", joinColumns = @JoinColumn(name = "flow_id"))
+    @Column(name = "group_id", nullable = false)
+    private Set<Long> approvalGroupIds = new HashSet<>();
+
     @Column(nullable = false)
     private Instant createdAt;
 
@@ -79,6 +85,11 @@ public class Flow {
                 .filter(MailStep.class::isInstance)
                 .map(step -> ((MailStep) step).templateId())
                 .forEach(templateIds::add);
+        this.approvalGroupIds.clear();
+        definition.steps().stream()
+                .filter(ApprovalStep.class::isInstance)
+                .map(step -> ((ApprovalStep) step).groupId())
+                .forEach(approvalGroupIds::add);
         this.updatedBy = editor;
         this.updatedAt = now;
     }
