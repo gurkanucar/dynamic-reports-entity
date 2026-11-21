@@ -30,8 +30,8 @@ class HelpAssistant implements Drafter {
     /** Pages a link may point at. */
     private static final List<Pattern> PAGES = List.of(
             Pattern.compile("/"),
-            Pattern.compile("/(datasets|datasets/new|flows|flows/new|runs|approvals|approval-groups|templates|surveys|surveys/new)"),
-            Pattern.compile("/datasets/" + Ids.PATTERN),
+            Pattern.compile("/(datasets|datasets/new|flows|flows/new|runs|approvals|approval-groups|templates|templates/new|surveys|surveys/new)"),
+            Pattern.compile("/(datasets|templates)/" + Ids.PATTERN),
             Pattern.compile("/(flows|surveys)/" + Ids.PATTERN + "(/edit)?"));
     private static final Pattern ADMIN_PAGES =
             Pattern.compile("/admin/(personnel|departments|projects|trainings|training-records|skills)");
@@ -40,7 +40,7 @@ class HelpAssistant implements Drafter {
             "dataset", "/datasets/new",
             "flow", "/flows/new",
             "survey", "/surveys/new",
-            "mail-template", "/templates?new=1");
+            "mail-template", "/templates/new");
     private static final Set<String> ROLES = Set.of("PLATFORM_ADMIN");
     private static final String PROMPT = """
             You are the help desk of the platform described below. Answer the user's questions about its pages:

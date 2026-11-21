@@ -133,7 +133,7 @@ function DatasetBuilder({ saved }: { saved: SavedDatasetResponse | null }) {
               <CardTitle>Önizleme</CardTitle>
               <CardDescription>İlk {PAGE_SIZE} satır; tamamı için Excel olarak indirin.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+            <CardContent className="flex flex-col gap-4" data-agent-target="dataset-results">
               {run.isError && <ErrorAlert error={run.error} title="Veri seti oluşturulamadı" />}
               {run.isPending && <Skeleton className="h-32 w-full" />}
               {run.data && !run.isPending && <ResultsTable result={run.data} onPage={(page) => execute(definition, page)} />}

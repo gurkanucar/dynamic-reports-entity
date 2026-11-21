@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 
 /** A query string from parameters: lists repeat the name (`status=a&status=b`), empty values are left out. */
 export function queryString(params: Record<string, string | number | null | undefined | (string | number)[]>): string {
@@ -22,10 +23,17 @@ function useDebounced<T>(value: T, delay: number): T {
 
 /**
  * Search text, sort and page of a server-side list (docs/REST API Tasarım Rehberi.md, 7). Changing the search or the
- * sort goes back to page 1; `query` is what to send (debounced, at least 2 characters).
+ * sort goes back to page 1; `query` is what to send (debounced, at least 2 characters). A `?q=` in the address (links,
+ * the browser agent) fills the search box, also when the page is already open.
  */
 export function useListState(defaultSort: string, defaultSize = 20) {
-  const [search, setSearchText] = useState("")
+  const urlQuery = useSearchParams()[0].get("q") ?? ""
+  const [search, setSearchText] = useState(urlQuery)
+  const [fromUrl, setFromUrl] = useState(urlQuery)
+  if (fromUrl !== urlQuery) {
+    setFromUrl(urlQuery)
+    setSearchText(urlQuery)
+  }
   const [sort, setSortValue] = useState(defaultSort)
   const [page, setPage] = useState(1)
   const [size, setSizeValue] = useState(defaultSize)

@@ -60,7 +60,7 @@ export function DecisionDialog({ requestId, intent, onClose }: {
 
   return (
     <Dialog open={requestId !== null} onOpenChange={(open) => { if (!open) { decide.reset(); onClose() } }}>
-      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-2xl" data-agent-target="approval-dialog">
         <DialogHeader>
           <div className="flex flex-wrap items-center gap-2">
             {data && <ApprovalStatusBadge status={data.status} />}

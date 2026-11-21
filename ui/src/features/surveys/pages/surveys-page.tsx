@@ -103,7 +103,7 @@ function MySurveys() {
   return (
     <div className="flex flex-col gap-3">
       {toolbar}
-      <Card className="py-0">
+      <Card className="py-0" data-agent-target="surveys">
         <CardContent className="px-0">
           <Table>
             <TableHeader>
@@ -121,7 +121,7 @@ function MySurveys() {
             </TableHeader>
             <TableBody>
               {surveys.data.data.map((survey) => (
-                <TableRow key={survey.id} className="cursor-pointer" onClick={() => navigate(`/surveys/${survey.id}`)}>
+                <TableRow key={survey.id} data-agent-row={survey.id} className="cursor-pointer" onClick={() => navigate(`/surveys/${survey.id}`)}>
                   <TableCell className="max-w-80 pl-4">
                     <div className="flex flex-col">
                       <span className="truncate font-medium">{survey.title}</span>
@@ -209,9 +209,9 @@ function OpenSurveys() {
   }
   return (
     <div className="flex flex-col gap-3">
-    <ItemGroup className="gap-2">
+    <ItemGroup className="gap-2" data-agent-target="open-surveys">
       {surveys.data.data.map((survey) => (
-        <Item key={survey.id} variant="outline" asChild>
+        <Item key={survey.id} variant="outline" asChild data-agent-row={survey.id}>
           <Link to={`/s/${survey.id}`}>
             <ItemContent className="min-w-0">
               <ItemTitle className="w-full truncate">{survey.title}</ItemTitle>

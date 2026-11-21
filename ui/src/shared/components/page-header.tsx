@@ -7,7 +7,7 @@ export function PageHeader({ title, description, actions }: {
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1" data-agent-target="page">
         <h1 className="text-xl font-semibold">{title}</h1>
         {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </div>

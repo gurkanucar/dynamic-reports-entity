@@ -12,6 +12,7 @@ import { FlowsPage } from "@/features/flows/pages/flows-page"
 import { RunsPage } from "@/features/flows/pages/runs-page"
 import { DatasetBuilderPage } from "@/features/datasets/pages/dataset-builder-page"
 import { SavedDatasetsPage } from "@/features/datasets/pages/saved-datasets-page"
+import { TemplateEditorPage } from "@/features/templates/pages/template-editor-page"
 import { TemplatesPage } from "@/features/templates/pages/templates-page"
 import { DepartmentsPage } from "@/features/admin/pages/departments-page"
 import { PersonnelPage } from "@/features/admin/pages/personnel-page"
@@ -55,6 +56,8 @@ export const router = createBrowserRouter([
       { path: "approval-groups", element: <ApprovalGroupsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "templates", element: <TemplatesPage /> },
+      { path: "templates/new", element: <TemplateEditorPage /> },
+      { path: "templates/:templateId", element: <TemplateEditorPage /> },
       { path: "surveys", element: <SurveysPage /> },
       { path: "surveys/new", element: <SurveyBuilderPage /> },
       { path: "surveys/:surveyId", element: <SurveyResultsPage /> },

@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { useEffect, useRef } from "react"
 import { useLocation, useNavigate } from "react-router"
 import { approvalsApi } from "@/features/approvals/api/approvals.api"
@@ -11,6 +12,7 @@ import type { RunStatus } from "@/features/flows/types/flow.dto"
 import { currentPage } from "@/features/help/lib/current-page"
 import { surveysApi } from "@/features/surveys/api/surveys.api"
 import { errorMessage } from "@/shared/api/http-client"
+import { agentNotice, highlight, type AgentFocus } from "@/shared/lib/agent-highlight"
 
 /**
  * WebMCP (https://developer.chrome.com/docs/ai/webmcp): the page offers tools to an AI agent in the user's browser,
@@ -60,7 +62,8 @@ const PAGES: { path: string; label: string; admin?: boolean }[] = [
   { path: "/admin/skills", label: "Beceriler", admin: true },
 ]
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-const DETAIL_PAGES = [new RegExp(`^/datasets/${UUID}$`), new RegExp(`^/(flows|surveys)/${UUID}(/edit)?$`), new RegExp(`^/s/${UUID}$`)]
+const DETAIL_PAGES = [new RegExp(`^/(datasets|templates)/${UUID}$`), new RegExp(`^/(flows|surveys)/${UUID}(/edit)?$`),
+  new RegExp(`^/s/${UUID}$`), /^\/templates\/new$/]
 const RUN_STATUSES: RunStatus[] = ["queued", "running", "completed", "failed", "cancelled"]
 
 const text = (value: unknown, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "")
@@ -79,16 +82,35 @@ const safely = (run: (input: Record<string, unknown>) => Promise<unknown>) =>
     }
   }
 
-function tools(user: SessionUser, go: (path: string) => void, path: () => string): ModelContextTool[] {
+/** What the tools may do in the tab: move to a page, refresh what is cached, read where the user is. */
+interface Page {
+  go: (path: string) => void
+  refresh: () => Promise<void>
+  path: () => string
+}
+
+const SHOW = {
+  show: { type: "boolean", description: "Also show it to the user: open the page and highlight it (default true)." },
+}
+const TARGETS = ["page", "flows", "runs", "approvals", "datasets", "dataset-results", "surveys", "open-surveys", "templates"]
+
+function tools(user: SessionUser, page: Page): ModelContextTool[] {
   const admin = user.authorities.includes("PLATFORM_ADMIN")
-  const pages = PAGES.filter((page) => admin || !page.admin)
+  const pages = PAGES.filter((item) => admin || !item.admin)
+  /** Opens the page (when the agent did not say show: false), tells the user, and outlines the area or the row. */
+  const present = async (input: Record<string, unknown>, path: string, focus: AgentFocus, notice: string) => {
+    if (input.show === false) return { shown: false }
+    if (page.path() + window.location.search !== path) page.go(path)
+    agentNotice(notice)
+    return { shown: await highlight(focus) }
+  }
   return [
     {
       name: "get_current_page",
       description: "The page the user is looking at in the data & flow platform, and who is signed in.",
       inputSchema: schema(),
       annotations: { readOnlyHint: true },
-      execute: safely(async () => ({ ...currentPage(path()), user: user.username, admin })),
+      execute: safely(async () => ({ ...currentPage(page.path()), user: user.username, admin })),
     },
     {
       name: "list_pages",
@@ -99,16 +121,31 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
     },
     {
       name: "open_page",
-      description: "Opens a page of the platform in this tab: a path from list_pages or a detail page "
-        + "(/datasets/<id>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit; ids are UUIDs).",
-      inputSchema: schema({ path: { type: "string", description: "e.g. /runs or /flows/12" } }, ["path"]),
+      description: "Opens a page of the platform in this tab and points at it: a path from list_pages or a detail "
+        + "page (/datasets/<id>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit, /templates/<id>; "
+        + "ids are UUIDs).",
+      inputSchema: schema({ path: { type: "string", description: "e.g. /runs or /flows/<id>" } }, ["path"]),
       execute: safely(async (input) => {
         const target = text(input.path).split(/[?#]/)[0]
-        const known = pages.some((page) => page.path === target) || DETAIL_PAGES.some((page) => page.test(target))
+        const known = pages.some((item) => item.path === target) || DETAIL_PAGES.some((item) => item.test(target))
         if (!known) return { error: `Unknown page ${target}; use list_pages.` }
-        go(target)
-        return { opened: target }
+        page.go(target)
+        agentNotice("Asistan bir sayfa açtı", target)
+        return { opened: target, shown: await highlight({ target: "page", label: "Asistan burada" }) }
       }),
+    },
+    {
+      name: "point_at",
+      description: "Draws the user's attention to an area of the current page (outline and a short label for a few "
+        + `seconds), e.g. before explaining it. Areas: ${TARGETS.join(", ")}; or a row by record id.`,
+      inputSchema: schema({
+        target: { type: "string", enum: TARGETS },
+        rowId: { type: "string", description: "record id of a row in that area (optional)" },
+        label: { type: "string", description: "a few words, shown on the outline" },
+      }, ["target"]),
+      annotations: { readOnlyHint: true },
+      execute: safely(async (input) => ({ shown: await highlight({ target: text(input.target, 40),
+        row: text(input.rowId, 36) || undefined, label: text(input.label, 60) || "Asistan" }) })),
     },
     {
       name: "ask_platform_help",
@@ -120,7 +157,7 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
         const question = text(input.question, 2000)
         if (!question) return { error: "question is required" }
         const created = await assistantApi.create("help", {
-          messages: [{ role: "user", content: question }], current: currentPage(path()) })
+          messages: [{ role: "user", content: question }], current: currentPage(page.path()) })
         const done = await assistantApi.waitFor("help", created.id)
         if (done.status === "failed" || !done.reply) return { error: done.error?.message ?? "No answer" }
         const draft = done.reply.draft as HelpDraftDto
@@ -129,12 +166,18 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
     },
     {
       name: "search_flows",
-      description: "Lists the flows (automations) the user can see, newest first; optional text search.",
-      inputSchema: schema({ query: { type: "string" }, page: { type: "integer", minimum: 1 } }),
+      description: "Lists the flows (automations) the user can see, newest first; optional text search. Shows the "
+        + "list to the user with the search filled in.",
+      inputSchema: schema({ query: { type: "string" }, page: { type: "integer", minimum: 1 }, ...SHOW }),
       annotations: { readOnlyHint: true },
       execute: safely(async (input) => {
-        const result = await flowsApi.list(int(input.page, 1, 1000, 1), 20, { q: text(input.query) || undefined })
+        const query = text(input.query)
+        const result = await flowsApi.list(int(input.page, 1, 1000, 1), 20, { q: query || undefined })
+        const shown = await present(input, `/flows${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+          { target: "flows", row: result.data.length === 1 ? result.data[0].id : undefined, label: "Asistan: akışlar" },
+          query ? `Asistan “${query}” akışlarını arıyor` : "Asistan akışlara bakıyor")
         return {
+          ...shown,
           total: result.meta?.totalItems ?? null,
           flows: result.data.map((flow) => ({ id: flow.id, name: flow.name, description: flow.description,
             owner: flow.owner.username, steps: flow.stepCount, updatedAt: flow.updatedAt })),
@@ -143,12 +186,16 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
     },
     {
       name: "start_flow",
-      description: "Starts a run of a flow now, as the signed-in user. Returns the run id; see list_runs.",
-      inputSchema: schema({ flowId: { type: "string", description: "flow id (UUID) from search_flows" } }, ["flowId"]),
+      description: "Starts a run of a flow now, as the signed-in user, and shows the new run on the flow's page.",
+      inputSchema: schema({ flowId: { type: "string", description: "flow id (UUID) from search_flows" }, ...SHOW },
+        ["flowId"]),
       annotations: { consequentialHint: true },
       execute: safely(async (input) => {
         const run = await flowsApi.start(text(input.flowId, 36))
-        return { runId: run.id, status: run.status, flow: run.flow.name }
+        await page.refresh()
+        const shown = await present(input, `/flows/${run.flow.id}`,
+          { target: "runs", row: run.id, label: "Asistan: yeni çalışma" }, `Asistan “${run.flow.name}” akışını başlattı`)
+        return { ...shown, runId: run.id, status: run.status, flow: run.flow.name }
       }),
     },
     {
@@ -157,31 +204,45 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
       inputSchema: schema({
         status: { type: "array", items: { type: "string", enum: RUN_STATUSES } },
         query: { type: "string", description: "flow name" },
+        ...SHOW,
       }),
       annotations: { readOnlyHint: true },
       execute: safely(async (input) => {
         const statuses = (Array.isArray(input.status) ? input.status : [])
           .filter((status): status is RunStatus => RUN_STATUSES.includes(status as RunStatus))
-        const result = await flowsApi.runs(statuses, 1, 20, { q: text(input.query) || undefined })
-        return result.data.map((run) => ({ id: run.id, flow: run.flow.name, flowId: run.flow.id, status: run.status,
-          trigger: run.trigger, createdAt: run.createdAt, finishedAt: run.finishedAt, error: run.error?.message ?? null }))
+        const query = text(input.query)
+        const result = await flowsApi.runs(statuses, 1, 20, { q: query || undefined })
+        const shown = await present(input, `/runs${query ? `?q=${encodeURIComponent(query)}` : ""}`,
+          { target: "runs", label: "Asistan: çalışmalar" }, "Asistan çalışmalara bakıyor")
+        return {
+          ...shown,
+          runs: result.data.map((run) => ({ id: run.id, flow: run.flow.name, flowId: run.flow.id, status: run.status,
+            trigger: run.trigger, createdAt: run.createdAt, finishedAt: run.finishedAt, error: run.error?.message ?? null })),
+        }
       }),
     },
     {
       name: "list_saved_datasets",
       description: "Saved datasets (reports) the user can run: name, label, description and record type.",
-      inputSchema: schema(),
+      inputSchema: schema({ ...SHOW }),
       annotations: { readOnlyHint: true },
-      execute: safely(async () => (await savedDatasetsApi.list()).map((dataset) => ({ id: dataset.id, name: dataset.name,
-        label: dataset.label, description: dataset.description, root: dataset.definition.root }))),
+      execute: safely(async (input) => {
+        const datasets = (await savedDatasetsApi.list()).map((dataset) => ({ id: dataset.id, name: dataset.name,
+          label: dataset.label, description: dataset.description, root: dataset.definition.root }))
+        const shown = await present(input, "/datasets", { target: "datasets", label: "Asistan: veri setleri" },
+          "Asistan veri setlerine bakıyor")
+        return { ...shown, datasets }
+      }),
     },
     {
       name: "run_saved_dataset",
-      description: "Runs a saved dataset and returns one page of rows (only what the user may see).",
+      description: "Runs a saved dataset and returns one page of rows (only what the user may see); opens it so the "
+        + "user sees the same result.",
       inputSchema: schema({
         name: { type: "string" },
         page: { type: "integer", minimum: 1, description: "1 = first page" },
         size: { type: "integer", minimum: 1, maximum: 50 },
+        ...SHOW,
       }, ["name"]),
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: safely(async (input) => {
@@ -190,25 +251,46 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
         if (!saved) return { error: `No saved dataset ${name}; see list_saved_datasets.` }
         const result = await datasetsApi.run({ definition: saved.definition,
           page: int(input.page, 1, 100_000, 1) - 1, size: int(input.size, 1, 50, 20) })
-        return { columns: result.columns.map((column) => column.label), rows: result.rows, total: result.total,
-          hasNext: result.hasNext }
+        const shown = await present(input, `/datasets/${saved.id}`,
+          { target: "dataset-results", label: `Asistan: ${saved.label ?? saved.name}` },
+          `Asistan “${saved.label ?? saved.name}” veri setini çalıştırdı`)
+        return { ...shown, columns: result.columns.map((column) => column.label), rows: result.rows,
+          total: result.total, hasNext: result.hasNext }
       }),
     },
     {
       name: "list_my_approvals",
       description: "Approval requests of the user's groups; by default the ones waiting for a decision.",
-      inputSchema: schema({ pendingOnly: { type: "boolean" } }),
+      inputSchema: schema({ pendingOnly: { type: "boolean" }, ...SHOW }),
       annotations: { readOnlyHint: true, untrustedContentHint: true },
       execute: safely(async (input) => {
         const result = await approvalsApi.requests("mine", input.pendingOnly === false ? [] : ["pending"], 1, 20)
-        return result.data.map((request) => ({ id: request.id, title: request.title, description: request.description,
-          group: request.group.name, requestedBy: request.requestedBy, status: request.status, dueAt: request.dueAt,
-          canDecide: request.canDecide, whyNot: request.decisionBlocker }))
+        const shown = await present(input, "/approvals", { target: "approvals", label: "Asistan: onaylar" },
+          "Asistan onay taleplerine bakıyor")
+        return {
+          ...shown,
+          requests: result.data.map((request) => ({ id: request.id, title: request.title,
+            description: request.description, group: request.group.name, requestedBy: request.requestedBy,
+            status: request.status, dueAt: request.dueAt, canDecide: request.canDecide, whyNot: request.decisionBlocker })),
+        }
+      }),
+    },
+    {
+      name: "show_approval",
+      description: "Opens one approval request in the user's view (details, decision buttons) without deciding.",
+      inputSchema: schema({ requestId: { type: "string" } }, ["requestId"]),
+      annotations: { readOnlyHint: true },
+      execute: safely(async (input) => {
+        const id = text(input.requestId, 36)
+        page.go(`/approvals?request=${encodeURIComponent(id)}`)
+        agentNotice("Asistan bir onay talebini açtı")
+        return { shown: await highlight({ target: "approval-dialog", label: "Asistan: bu talep" }) }
       }),
     },
     {
       name: "decide_approval",
-      description: "Approves or rejects an approval request as the signed-in user (only when canDecide is true).",
+      description: "Approves or rejects an approval request as the signed-in user (only when canDecide is true). The "
+        + "request is shown to the user while it is decided.",
       inputSchema: schema({
         requestId: { type: "string", description: "request id (UUID) from list_my_approvals" },
         decision: { type: "string", enum: ["approve", "reject"] },
@@ -217,21 +299,32 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
       annotations: { consequentialHint: true },
       execute: safely(async (input) => {
         if (input.decision !== "approve" && input.decision !== "reject") return { error: "decision: approve or reject" }
-        const decided = await approvalsApi.decide(text(input.requestId, 36),
-          input.decision === "approve", { comment: text(input.comment, 1000) || null })
+        const id = text(input.requestId, 36)
+        page.go(`/approvals?request=${encodeURIComponent(id)}`)
+        const decided = await approvalsApi.decide(id, input.decision === "approve",
+          { comment: text(input.comment, 1000) || null })
+        await page.refresh()
+        agentNotice(input.decision === "approve" ? "Asistan talebi onayladı" : "Asistan talebi reddetti", decided.title)
+        await highlight({ target: "approval-dialog", label: input.decision === "approve" ? "Asistan: onaylandı" : "Asistan: reddedildi" })
         return { id: decided.id, status: decided.status }
       }),
     },
     {
       name: "list_surveys",
       description: "Surveys: 'mine' (that I own) or 'open' (that I can answer now), with response counts.",
-      inputSchema: schema({ scope: { type: "string", enum: ["mine", "open"] } }),
+      inputSchema: schema({ scope: { type: "string", enum: ["mine", "open"] }, ...SHOW }),
       annotations: { readOnlyHint: true },
       execute: safely(async (input) => {
-        const result = await surveysApi.list(input.scope === "open" ? "open" : "mine", 1, 50)
-        return result.data.map((survey) => ({ id: survey.id, title: survey.title, status: survey.status,
-          questions: survey.questionCount, responses: survey.responseCount, answered: survey.answered,
-          fillAt: `/s/${survey.id}`, resultsAt: `/surveys/${survey.id}` }))
+        const open = input.scope === "open"
+        const result = await surveysApi.list(open ? "open" : "mine", 1, 50)
+        const shown = await present(input, "/surveys", { target: open ? "open-surveys" : "surveys",
+          label: "Asistan: anketler" }, "Asistan anketlere bakıyor")
+        return {
+          ...shown,
+          surveys: result.data.map((survey) => ({ id: survey.id, title: survey.title, status: survey.status,
+            questions: survey.questionCount, responses: survey.responseCount, answered: survey.answered,
+            fillAt: `/s/${survey.id}`, resultsAt: `/surveys/${survey.id}` })),
+        }
       }),
     },
   ]
@@ -241,6 +334,7 @@ function tools(user: SessionUser, go: (path: string) => void, path: () => string
 export function useWebMcp(user: SessionUser | null | undefined) {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   // the tools read the latest location and navigate without being registered again
   const latest = useRef({ navigate, path: location.pathname })
   useEffect(() => { latest.current = { navigate, path: location.pathname } }, [navigate, location.pathname])
@@ -249,7 +343,11 @@ export function useWebMcp(user: SessionUser | null | undefined) {
     const context = modelContext()
     if (!context || !user) return
     const controller = new AbortController()
-    const registered = tools(user, (path) => latest.current.navigate(path), () => latest.current.path)
+    const registered = tools(user, {
+      go: (path) => latest.current.navigate(path),
+      refresh: () => queryClient.invalidateQueries(),
+      path: () => latest.current.path,
+    })
     for (const tool of registered) {
       Promise.resolve()
         .then(() => context.registerTool(tool, { signal: controller.signal }))
@@ -259,5 +357,5 @@ export function useWebMcp(user: SessionUser | null | undefined) {
       controller.abort()
       registered.forEach((tool) => { try { context.unregisterTool?.(tool.name) } catch { /* already gone */ } })
     }
-  }, [user])
+  }, [user, queryClient])
 }

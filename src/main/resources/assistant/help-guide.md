@@ -33,9 +33,10 @@ make one up: link a list page (/flows, /surveys, /datasets) instead of a record 
 - `/flows/<id>` **Akış detayı**: the flow's steps, triggers and its runs (paged); "Çalıştır" starts it manually.
 - `/runs` **Çalışmalar**: all runs: status (queued, running, completed, failed, cancelled; a run waiting for an approval or survey shows as running), trigger type,
   search, paging. A run shows each step's input/output and errors; running runs can be cancelled.
-- `/templates` **Mail şablonları**: HTML mail templates with Mustache placeholders ({{name}}, tables from dataset
-  steps like {{#steps.<key>.rows}}). "Yeni şablon" opens the editor with a live preview; the **Şablon asistanı**
-  in the editor writes or restyles a template from a description.
+- `/templates` **Mail şablonları**: the list of HTML mail templates (Mustache placeholders like {{name}}, tables from
+  dataset steps like {{#steps.<key>.rows}}), with search and paging. A template opens on its own page
+  (`/templates/<id>`); "Yeni şablon" opens `/templates/new`: the editor with a live preview, "Sil" and "Şablonlar"
+  (back) at the top. The **Şablon asistanı** in the editor writes or restyles a template from a description.
 - `/approval-groups` **Onay grupları**: groups whose members decide approval steps. Admins create/edit them.
 - `/surveys` **Anketler**: "Anketlerim" (own surveys; admins see all) and "Açık anketler" (ones the user can answer).
 - `/surveys/new`, `/surveys/<id>/edit` **Anket tasarımı**: question types (short/long text, e-mail, phone, number,

@@ -1,98 +1,65 @@
-import { MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
-import { useState } from "react"
-import { useSearchParams } from "react-router"
-import { toast } from "sonner"
+import { MailIcon, PlusIcon } from "lucide-react"
+import { Link, Navigate, useSearchParams } from "react-router"
 import { Button } from "@/components/ui/button"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item"
-import { cn } from "@/lib/utils"
-import { formatDateTime } from "@/shared/lib/format"
-import { errorMessage } from "@/shared/api/http-client"
+import { Skeleton } from "@/components/ui/skeleton"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
-import { SearchInput } from "@/shared/components/search-input"
-import { useListState } from "@/shared/lib/list-state"
-import { TemplateEditor } from "../components/template-editor"
-import { DEFAULT_DATASET_TEMPLATE } from "../lib/default-template"
-import { useDeleteTemplate } from "../mutations/use-delete-template"
-import { useTemplate } from "../queries/use-template"
-import { useTemplatePage } from "../queries/use-templates"
 import { Pager } from "@/shared/components/pager"
+import { SearchInput } from "@/shared/components/search-input"
+import { formatDateTime } from "@/shared/lib/format"
+import { useListState } from "@/shared/lib/list-state"
+import { useTemplatePage } from "../queries/use-templates"
 
-const NEW = "new"
-
+/** /templates: the list; a template opens on its own page (/templates/:id, /templates/new). */
 export function TemplatesPage() {
+  const [params] = useSearchParams()
   const list = useListState("name")
   const page = useTemplatePage(list.page, list.size, list.query || undefined)
-  const templates = { ...page, data: page.data?.data }
-  const [params] = useSearchParams()
-  // "?new=1" (the help chat hands a request over) opens a new template with its assistant
-  const [selected, setSelected] = useState<string | null>(params.get("new") ? NEW : null)
-  const selectedId = selected && selected !== NEW ? selected : null
-  const template = useTemplate(selectedId)
-  const remove = useDeleteTemplate()
+
+  // old links and the help chat's hand-over (?new=1&ask=...) go to the new-template page
+  if (params.get("new")) {
+    const ask = params.get("ask")
+    return <Navigate to={`/templates/new${ask ? `?ask=${encodeURIComponent(ask)}` : ""}`} replace />
+  }
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Mail şablonları" description="Akışların gönderdiği maillerin konusu ve içeriği."
-        actions={(
-          <>
-            {selectedId !== null && (
-              <Button variant="ghost" disabled={remove.isPending} onClick={() => remove.mutate(selectedId, {
-                onSuccess: () => { toast.success("Şablon silindi"); setSelected(null) },
-                onError: (error) => toast.error("Silinemedi", { description: errorMessage(error) }),
-              })}><Trash2Icon data-icon="inline-start" />Sil</Button>
-            )}
-            <Button onClick={() => setSelected(NEW)}><PlusIcon data-icon="inline-start" />Yeni şablon</Button>
-          </>
-        )} />
+        actions={<Button asChild><Link to="/templates/new"><PlusIcon data-icon="inline-start" />Yeni şablon</Link></Button>} />
       <SearchInput value={list.search} onChange={list.setSearch} placeholder="Ad, konu veya açıklama ara…" />
-      {templates.isPending && <Skeleton className="h-10 w-full" />}
-      {templates.data && templates.data.length === 0 && list.query && (
-        <p className="text-sm text-muted-foreground">“{list.query}” ile eşleşen şablon yok.</p>
+      {page.isPending && <Skeleton className="h-24 w-full" />}
+      {page.isError && <ErrorAlert error={page.error} />}
+      {page.data && page.data.data.length === 0 && (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon"><MailIcon /></EmptyMedia>
+            <EmptyTitle>{list.query ? `“${list.query}” ile eşleşen şablon yok` : "Henüz şablon yok"}</EmptyTitle>
+            <EmptyDescription>Hazır veri seti şablonundan başlayan yeni bir şablon oluşturun.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent><Button asChild><Link to="/templates/new">Yeni şablon</Link></Button></EmptyContent>
+        </Empty>
       )}
-      {templates.isError && <ErrorAlert error={templates.error} />}
-      {templates.data && templates.data.length > 0 && (
-        <ItemGroup className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {templates.data.map((item) => {
-            const active = selected === item.id.toString()
-            return (
-              <Item key={item.id} variant={active ? "muted" : "outline"} size="sm" asChild
-                className={cn("text-left", active && "border-primary/40")}>
-                <button type="button" aria-pressed={active} onClick={() => setSelected(item.id.toString())}>
-                  <ItemMedia variant="icon"><MailIcon /></ItemMedia>
-                  <ItemContent className="min-w-0">
-                    <ItemTitle className="w-full truncate">{item.name}</ItemTitle>
-                    <ItemDescription className="truncate">
-                      {item.description ?? "Açıklama yok"} · {item.owner.username} · {formatDateTime(item.updatedAt)}
-                    </ItemDescription>
-                  </ItemContent>
-                </button>
-              </Item>
-            )
-          })}
+      {page.data && page.data.data.length > 0 && (
+        <ItemGroup className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3" data-agent-target="templates">
+          {page.data.data.map((item) => (
+            <Item key={item.id} variant="outline" size="sm" asChild className="text-left hover:border-primary/40"
+              data-agent-row={item.id}>
+              <Link to={`/templates/${item.id}`}>
+                <ItemMedia variant="icon"><MailIcon /></ItemMedia>
+                <ItemContent className="min-w-0">
+                  <ItemTitle className="w-full truncate">{item.name}</ItemTitle>
+                  <ItemDescription className="truncate">
+                    {item.description ?? "Açıklama yok"} · {item.owner.username} · {formatDateTime(item.updatedAt)}
+                  </ItemDescription>
+                </ItemContent>
+              </Link>
+            </Item>
+          ))}
         </ItemGroup>
       )}
       {page.data && <Pager meta={page.data.meta} onPage={list.setPage} onSize={list.setSize} />}
-      {selected === null && (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon"><MailIcon /></EmptyMedia>
-            <EmptyTitle>Bir şablon seçin</EmptyTitle>
-            <EmptyDescription>Ya da hazır veri seti şablonundan başlayan yeni bir şablon oluşturun.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      )}
-      {selected === NEW && (
-        <TemplateEditor key="new" template={null} initial={DEFAULT_DATASET_TEMPLATE}
-          onSaved={(saved) => setSelected(saved.id.toString())} />
-      )}
-      {selectedId !== null && template.isPending && <Skeleton className="h-96 w-full" />}
-      {selectedId !== null && template.data && (
-        <TemplateEditor key={`${template.data.id}-${template.data.version}`} template={template.data}
-          initial={template.data} onSaved={(saved) => setSelected(saved.id.toString())} />
-      )}
     </div>
   )
 }

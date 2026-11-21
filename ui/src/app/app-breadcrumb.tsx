@@ -6,6 +6,7 @@ import {
 import { useSavedDataset } from "@/features/datasets/queries/use-saved-datasets"
 import { useFlow } from "@/features/flows/queries/use-flow"
 import { useSurvey } from "@/features/surveys/queries/use-surveys"
+import { useTemplate } from "@/features/templates/queries/use-template"
 import { shortId } from "@/shared/lib/format"
 
 const SECTIONS: Record<string, string> = {
@@ -42,11 +43,13 @@ export function AppBreadcrumb() {
   const dataset = useSavedDataset(datasetName)
   const surveyId = section === "surveys" && id && id !== "new" ? id : null
   const survey = useSurvey(surveyId)
+  const templateId = section === "templates" && id && id !== "new" ? id : null
+  const template = useTemplate(templateId)
 
   if (!section || !SECTIONS[section]) return null
   const crumbs: Crumb[] = [{ label: SECTIONS[section], to: id ? `/${section}` : undefined }]
   if (section === "admin" && id && ADMIN_PAGES[id]) crumbs.push({ label: ADMIN_PAGES[id] })
-  else if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : section === "surveys" ? "Yeni anket" : "Yeni veri seti" })
+  else if (id === "new") crumbs.push({ label: { flows: "Yeni akış", surveys: "Yeni anket", templates: "Yeni şablon" }[section] ?? "Yeni veri seti" })
   else if (surveyId) {
     crumbs.push({ label: survey.data?.title ?? `#${shortId(surveyId)}`, to: action ? `/surveys/${surveyId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })
@@ -54,7 +57,8 @@ export function AppBreadcrumb() {
   else if (flowId) {
     crumbs.push({ label: flow.data?.name ?? `#${shortId(flowId)}`, to: action ? `/flows/${flowId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })
-  } else if (datasetName) crumbs.push({ label: dataset.data?.label ?? datasetName })
+  } else if (templateId) crumbs.push({ label: template.data?.name ?? `#${shortId(templateId)}` })
+  else if (datasetName) crumbs.push({ label: dataset.data?.label ?? dataset.data?.name ?? `#${shortId(datasetName)}` })
 
   return (
     <Breadcrumb className="min-w-0">

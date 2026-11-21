@@ -46,7 +46,7 @@ export function FlowsPage() {
       )}
       {flows.data && flows.data.data.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-md border">
+          <div className="overflow-x-auto rounded-md border" data-agent-target="flows">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -58,7 +58,7 @@ export function FlowsPage() {
               </TableHeader>
               <TableBody>
                 {flows.data.data.map((flow) => (
-                  <TableRow key={flow.id} className="cursor-pointer" onClick={() => navigate(`/flows/${flow.id}`)}>
+                  <TableRow key={flow.id} data-agent-row={flow.id} className="cursor-pointer" onClick={() => navigate(`/flows/${flow.id}`)}>
                     <TableCell className="max-w-[36rem]">
                       <div className="truncate font-medium">{flow.name}</div>
                       {flow.description && (

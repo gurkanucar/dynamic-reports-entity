@@ -229,3 +229,43 @@
   from { height: var(--radix-collapsible-content-height); opacity: 1; }
   to { height: 0; opacity: 0; }
 }
+
+/* What the browser agent (WebMCP) is working with: a pulsing ring and a label (shared/lib/agent-highlight.ts). */
+.agent-highlight[data-agent-static] { position: relative; }
+[role="dialog"].agent-highlight::after { top: 0.75rem; left: auto; right: 3rem; }
+.agent-highlight {
+  outline: 2px solid var(--primary);
+  outline-offset: 4px;
+  border-radius: var(--radius-lg);
+  animation: agent-pulse 1.2s ease-out 3;
+  scroll-margin: 6rem;
+}
+.agent-highlight::after {
+  content: attr(data-agent-label);
+  position: absolute;
+  top: -1.9rem;
+  left: 0;
+  z-index: 30;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: agent-label 0.25s ease-out;
+}
+tr.agent-highlight { outline-offset: -2px; background: color-mix(in oklab, var(--primary) 10%, transparent); }
+tr.agent-highlight::after { top: 0.25rem; left: auto; right: 0.5rem; }
+@keyframes agent-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 45%, transparent); }
+  100% { box-shadow: 0 0 0 14px transparent; }
+}
+@keyframes agent-label {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-highlight, .agent-highlight::after { animation: none; }
+}

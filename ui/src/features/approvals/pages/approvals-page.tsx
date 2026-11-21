@@ -73,7 +73,7 @@ export function ApprovalsPage() {
         </Select>
         <SearchInput className="sm:ml-auto" value={list.search} onChange={list.setSearch} placeholder="Talep veya grup ara…" />
       </div>
-      <Card className="py-0">
+      <Card className="py-0" data-agent-target="approvals">
         <CardContent className="flex flex-col gap-3 px-0">
           {requests.isPending && <Skeleton className="m-4 h-32" />}
           {requests.isError && <div className="p-4"><ErrorAlert error={requests.error} /></div>}
@@ -103,7 +103,7 @@ export function ApprovalsPage() {
               </TableHeader>
               <TableBody>
                 {requests.data.data.map((request) => (
-                  <TableRow key={request.id} className="cursor-pointer" onClick={() => open(request.id)}>
+                  <TableRow key={request.id} data-agent-row={request.id} className="cursor-pointer" onClick={() => open(request.id)}>
                     <TableCell className="max-w-96 pl-4">
                       <div className="truncate font-medium">{request.title}</div>
                       <div className="truncate text-xs text-muted-foreground">{request.source.label}</div>

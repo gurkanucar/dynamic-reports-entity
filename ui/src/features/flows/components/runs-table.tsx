@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SortableHead } from "@/shared/components/sortable-head"
-import { formatDateTime } from "@/shared/lib/format"
+import { formatDateTime, shortId } from "@/shared/lib/format"
 import type { RunSummaryResponse } from "../types/flow.dto"
 import { RunStatusBadge } from "./run-status-badge"
 
@@ -51,7 +51,7 @@ export function RunsTable({ runs, showFlow, onSelect, sort, onSort, filtered }: 
     ? <SortableHead field={field} sort={sort} onSort={onSort} descFirst className={className}>{label}</SortableHead>
     : <TableHead className={className}>{label}</TableHead>
   return (
-    <div className="overflow-x-auto rounded-md border">
+    <div className="overflow-x-auto rounded-md border" data-agent-target="runs">
       <Table>
         <TableHeader>
           <TableRow>
@@ -66,8 +66,8 @@ export function RunsTable({ runs, showFlow, onSelect, sort, onSort, filtered }: 
         </TableHeader>
         <TableBody>
           {runs.map((run) => (
-            <TableRow key={run.id} className="cursor-pointer" onClick={() => onSelect(run.id)}>
-              <TableCell className="tabular-nums text-muted-foreground">{run.id}</TableCell>
+            <TableRow key={run.id} data-agent-row={run.id} className="cursor-pointer" onClick={() => onSelect(run.id)}>
+              <TableCell className="font-mono text-xs text-muted-foreground" title={run.id}>{shortId(run.id)}</TableCell>
               {showFlow && <TableCell className="max-w-56 truncate font-medium">{run.flow.name}</TableCell>}
               <TableCell><RunStatusBadge status={run.status} /></TableCell>
               <TableCell><TriggerBadge run={run} /></TableCell>

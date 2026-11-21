@@ -59,7 +59,7 @@ export function SavedDatasetsPage() {
         </Empty>
       )}
       {datasets.data && datasets.data.length > 0 && (
-        <Card>
+        <Card data-agent-target="datasets">
           <CardContent>
             <Table>
               <TableHeader>
@@ -73,7 +73,7 @@ export function SavedDatasetsPage() {
               </TableHeader>
               <TableBody>
                 {rows.map((dataset) => (
-                  <TableRow key={dataset.id} className="cursor-pointer" onClick={() => navigate(`/datasets/${dataset.id}`)}>
+                  <TableRow key={dataset.id} data-agent-row={dataset.id} className="cursor-pointer" onClick={() => navigate(`/datasets/${dataset.id}`)}>
                     <TableCell className="max-w-[36rem] whitespace-normal">
                       <div className="truncate font-medium">{dataset.label ?? dataset.name}</div>
                       {dataset.description && (
