@@ -8,6 +8,7 @@ One **Compose** service runs the whole platform from `docker-compose.yml`:
 | `app` | the API (Spring Boot); H2 database and run files on the `app-data` volume | internal (8080) |
 | `kafka` | Kafka triggers and "Kafka'ya yaz" steps | internal (9092) |
 | `mailpit` | catches every e-mail the flows send | optional domain → port 8025 |
+| `populate` | one-off: fills the platform with demo content, then exits | — |
 
 ## Steps
 
@@ -22,6 +23,14 @@ One **Compose** service runs the whole platform from `docker-compose.yml`:
 
 No other host ports are needed. `web` also publishes 8088 for trying it without a proxy; remove the `ports:` lines
 of `web` if the server's port 8088 should stay closed.
+
+## Demo content
+
+With `POPULATE_DEMO_DATA=true` the `populate` service fills the fresh platform once, through the API, after the app is
+healthy: 13 saved datasets, 8 mail templates, 8 approval groups, 15 flows with schedules and webhook/Kafka triggers,
+runs, approved / rejected / pending approvals. It leaves a marker on the `populate-state` volume, so redeploys do not
+add it again; delete that volume to run it once more. Without the variable the service exits at once.
+The Kafka-triggered welcome flow needs a message on `flows.hr.new-hire`; the script only sends it when run locally.
 
 ## Good to know
 

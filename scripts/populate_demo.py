@@ -8,9 +8,9 @@ Everything goes through the same checks as the UI (permissions, validation). Saf
 (by name) is left alone; runs are added each time.
 
     python3 scripts/populate_demo.py                 # http://localhost:8080
-    PLATFORM_URL=http://host:8080 python3 scripts/populate_demo.py
+    PLATFORM_URL=https://veri-akis.example.com DEMO_PASSWORD=... python3 scripts/populate_demo.py   # a deployment
 
-Users are the demo users (password "password"): admin@mail.com (everything), alice (HR), bob (IT, salaries),
+Users are the demo users (password DEMO_PASSWORD, "password" by default): admin@mail.com (everything), alice (HR), bob (IT, salaries),
 carol (Software Development only).
 """
 import base64
@@ -24,7 +24,9 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = os.environ.get("PLATFORM_URL", "http://localhost:8080")
+BASE = os.environ.get("PLATFORM_URL", "http://localhost:8080").rstrip("/")
+# the demo users' password: DEMO_PASSWORD of the server (docker-compose.yml requires one)
+PASSWORD = os.environ.get("DEMO_PASSWORD", "password")
 ADMIN, ALICE, BOB, CAROL = "admin@mail.com", "alice", "bob", "carol"
 
 
@@ -35,7 +37,7 @@ def call(method, path, user=None, body=None, headers=None, raw=None):
     if data is not None:
         request.add_header("Content-Type", "application/json")
     if user:
-        token = base64.b64encode(f"{user}:password".encode()).decode()
+        token = base64.b64encode(f"{user}:{PASSWORD}".encode()).decode()
         request.add_header("Authorization", "Basic " + token)
     for key, value in (headers or {}).items():
         request.add_header(key, value)
@@ -137,6 +139,24 @@ DATASETS = [
                      "fields": ["completedOn", "training.name", "score"],
                      "where": {"field": "status", "operator": "EQ", "value": "PASSED"}, "order": "DESC", "limit": 3}],
         "sort": [{"field": "fullName"}]}),
+    (ADMIN, "beceri_envanteri", "Beceri envanteri", "Her beceriye sahip kişi sayısı, kategoriye göre", {
+        "root": "PersonnelSkill",
+        "columns": [{"field": "skill.category", "label": "Kategori"}, {"field": "skill.name", "label": "Beceri"},
+                    {"aggregate": "COUNT", "label": "Kişi"}],
+        "sort": [{"field": "skill.category"}, {"aggregate": "COUNT", "direction": "DESC"}]}),
+    (BOB, "departman_butceleri", "Departman proje bütçeleri", "Departman başına proje sayısı ve toplam bütçe", {
+        "root": "Project",
+        "columns": [{"field": "department.name", "label": "Departman"}, {"aggregate": "COUNT", "label": "Proje"},
+                    {"field": "budget", "aggregate": "SUM", "label": "Toplam bütçe"},
+                    {"field": "budget", "aggregate": "MAX", "label": "En büyük proje"}],
+        "sort": [{"field": "budget", "aggregate": "SUM", "direction": "DESC"}]}),
+    (ALICE, "egitim_basari_ozeti", "Eğitim başarı özeti", "Eğitim başına katılım, geçme ve ortalama puan", {
+        "root": "TrainingRecord",
+        "columns": [{"field": "training.name", "label": "Eğitim"}, {"field": "training.category", "label": "Kategori"},
+                    {"aggregate": "COUNT", "label": "Katılım"},
+                    {"field": "score", "aggregate": "AVG", "label": "Ortalama puan"},
+                    {"field": "score", "aggregate": "MIN", "label": "En düşük puan"}],
+        "sort": [{"field": "score", "aggregate": "AVG", "direction": "DESC"}]}),
 ]
 
 # ---- mail templates ----------------------------------------------------------------------------------------
@@ -196,9 +216,28 @@ TEMPLATES = [
      f'<p>İlk hafta planın ve zorunlu eğitimlerin ekipte seni bekliyor.</p>{FOOTER}</div>'),
 ]
 
+TEMPLATES += [
+    ("Değişiklik talebi sonucu", "IT değişiklik kurulunun kararı", "{{trigger.changeId}}: {{steps.kurul.decision}}",
+     f'{STYLE}<div class="wrap"><h1>Değişiklik talebi {{{{trigger.changeId}}}}</h1>'
+     f'<p class="meta">{{{{trigger.system}}}} · risk: {{{{trigger.risk}}}} · {{{{trigger.requester}}}}</p>'
+     f'<div class="ok">Karar: <b>{{{{steps.kurul.decision}}}}</b>{{{{#steps.kurul.decidedBy}}}} '
+     f'({{{{steps.kurul.decidedBy}}}}){{{{/steps.kurul.decidedBy}}}}</div>'
+     f'<p>{{{{trigger.summary}}}}</p>{{{{#steps.kurul.comment}}}}<p>Yorum: “{{{{steps.kurul.comment}}}}”</p>'
+     f'{{{{/steps.kurul.comment}}}}{FOOTER}</div>'),
+    ("Standart değişiklik", "Düşük riskli değişiklik bilgisi", "{{trigger.changeId}} standart değişiklik olarak kaydedildi",
+     f'{STYLE}<div class="wrap"><h1>Standart değişiklik</h1><p class="meta">{{{{trigger.system}}}} · '
+     f'{{{{trigger.requester}}}}</p><div class="ok">Düşük riskli olduğu için kurul onayı gerekmedi.</div>'
+     f'<p>{{{{trigger.summary}}}}</p>{FOOTER}</div>'),
+]
+
 GROUPS = [
     ("Satın alma kurulu", "50.000 TL ve üstü satın alma talepleri", [("admin@mail.com", None), ("bob", "bob@example.com")]),
     ("Proje yöneticileri", "Proje kapasite ve bütçe kararları", [("bob", "bob@example.com"), ("carol", "carol@example.com")]),
+    ("IT değişiklik kurulu", "Yüksek riskli sistem değişiklikleri (CAB)", [("bob", "bob@example.com"),
+                                                                          ("admin@mail.com", None)]),
+    ("Bütçe komitesi", "Yıllık ve çeyreklik bütçe kararları", [("admin@mail.com", None), ("alice", "alice@example.com")]),
+    ("Eğitim birimi", "Eğitim planlama ve istisnalar", [("alice", "alice@example.com"), ("carol", "carol@example.com")]),
+    ("Güvenlik ekibi", "Erişim ve güvenlik istisnaları", [("bob", "bob@example.com")]),
 ]
 
 
@@ -213,6 +252,9 @@ def mail_step(key, template, to, attachments=()):
 
 def main():
     status, _ = call("GET", "/api/session", ADMIN)
+    if status == 401:
+        print(f"{BASE} rejected admin@mail.com: set DEMO_PASSWORD to the server's demo password.")
+        sys.exit(1)
     if status != 200:
         print(f"Platform not reachable at {BASE} (HTTP {status}); start it first.")
         sys.exit(1)
@@ -324,6 +366,34 @@ def main():
             dataset_step("dataset", "ekibimin_egitimleri", rows=20),
             mail_step("mail", templates["Kısa bildirim"], ["carol@example.com"], ["dataset"]),
         ], [], [], []),
+        # 10. webhook in: high risk goes to the change board, the rest is a standard change
+        (ADMIN, "IT değişiklik talebi", "Webhook ile gelen değişiklik: risk yüksekse IT değişiklik kuruluna gider, "
+                                       "değilse standart değişiklik olarak kaydedilir.", [
+            {"type": "condition", "key": "yuksek_risk",
+             "expression": {"or": [{"==": [{"var": "trigger.risk"}, "yüksek"]},
+                                   {"==": [{"var": "trigger.production"}, True]}]}},
+            {"type": "approval", "key": "kurul", "groupId": groups["IT değişiklik kurulu"],
+             "title": "{{trigger.changeId}}: {{trigger.system}} — {{trigger.summary}}",
+             "description": "Talep eden: {{trigger.requester}}\nRisk: {{trigger.risk}}\nPlan: {{trigger.window}}",
+             "timeoutHours": 24, "notifyMembers": True},
+            mail_step("sonuc", templates["Değişiklik talebi sonucu"], ["degisiklik@example.com"]),
+            mail_step("standart", templates["Standart değişiklik"], ["degisiklik@example.com"]),
+        ], [{"from": "yuksek_risk", "to": "kurul", "when": "true"},
+            {"from": "yuksek_risk", "to": "standart", "when": "false"},
+            {"from": "kurul", "to": "sonuc", "when": None}],
+         [], ["webhook"]),
+        # 11. two summaries every month for the budget committee
+        (BOB, "Aylık bütçe ve eğitim özeti", "Her ayın 1'i 09:00: proje bütçeleri ve eğitim başarısı iki ekle.", [
+            dataset_step("butce", "departman_butceleri", rows=20),
+            dataset_step("egitim", "egitim_basari_ozeti", rows=0),
+            mail_step("mail", templates["Kısa bildirim"], ["butce.komitesi@example.com"], ["butce", "egitim"]),
+        ], [{"from": "butce", "to": "egitim"}, {"from": "egitim", "to": "mail"}],
+         [("0 9 1 * *", True)], []),
+        # 12. quarterly inventory, CSV for another system
+        (ADMIN, "Beceri envanteri (çeyreklik)", "Çeyrek başlarında beceri envanteri CSV olarak İK'ya.", [
+            dataset_step("dataset", "beceri_envanteri", rows=50, fmt="csv"),
+            mail_step("mail", templates["Kısa bildirim"], ["ik@example.com"], ["dataset"]),
+        ], [], [("0 8 1 1,4,7,10 *", True)], []),
     ]
 
     print("Flows")
@@ -356,7 +426,8 @@ def main():
     print("Runs")
     for name in ("Aktif personel listesi", "Eğitim yenileme hatırlatması", "Geciken eğitimler için toplu kayıt",
                  "Haftalık proje raporu", "Departman 360 (aylık)", "Maaş özeti (yönetim)", "Ekibimin eğitim durumu",
-                 "Haftalık departman kadrosu", "Zorunlu eğitim uyumu"):
+                 "Haftalık departman kadrosu", "Zorunlu eğitim uyumu", "Aylık bütçe ve eğitim özeti",
+                 "Beceri envanteri (çeyreklik)"):
         if name in flows:
             flow_id, owner = flows[name]
             status, _ = call("POST", f"/api/flows/{flow_id}/runs", owner if owner != CAROL else CAROL)
@@ -378,22 +449,43 @@ def main():
             status, _ = call("POST", path, raw=raw, headers={"X-Signature": signature})
             print(f"  ⇢ webhook {request['requestId']} {request['amount']} TL: HTTP {status}")
 
+    if "IT değişiklik talebi" in secrets:
+        url, secret = secrets["IT değişiklik talebi"]
+        for change in ({"changeId": "CHG-3101", "system": "Bordro", "risk": "düşük", "production": False,
+                        "summary": "Rapor başlıklarının düzeltilmesi", "requester": "Carol White", "window": "Salı 18:00"},
+                       {"changeId": "CHG-3102", "system": "ERP", "risk": "yüksek", "production": True,
+                        "summary": "Veritabanı sürüm yükseltmesi", "requester": "Bob Jones", "window": "Cumartesi 02:00"},
+                       {"changeId": "CHG-3103", "system": "VPN", "risk": "yüksek", "production": True,
+                        "summary": "Sertifika yenileme", "requester": "Grace Kim", "window": "Pazar 01:00"},
+                       {"changeId": "CHG-3104", "system": "CRM", "risk": "orta", "production": True,
+                        "summary": "Yeni alan eklenmesi", "requester": "Mia Allen", "window": "Çarşamba 20:00"}):
+            raw = json.dumps(change, ensure_ascii=False).encode()
+            signature = "sha256=" + hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+            path = url if url.startswith("/") else "/" + url.split("/", 3)[3]
+            status, _ = call("POST", path, raw=raw, headers={"X-Signature": signature})
+            print(f"  ⇢ webhook {change['changeId']} ({change['risk']}): HTTP {status}")
+
     # Kafka has no stdlib client: use the compose broker's console producer when Docker is there
     hires = ['h-201|{"fullName": "Ece Yıldız", "department": "Software Development", "startDate": "2026-12-01"}',
              'h-202|{"fullName": "Mert Can", "department": "Sales", "startDate": "2026-12-15"}']
+    local = BASE.startswith(("http://localhost", "http://127.0.0.1"))
     try:
+        if not local:
+            raise OSError("not local: the local broker is not the server's")
         subprocess.run(["docker", "exec", "-i", "dynamic-reports-kafka", "/opt/kafka/bin/kafka-console-producer.sh",
                         "--bootstrap-server", "localhost:9092", "--topic", "flows.hr.new-hire",
                         "--property", "parse.key=true", "--property", "key.separator=|"],
                        input="\n".join(hires) + "\n", text=True, check=True, capture_output=True, timeout=60)
         print("  ⇢ kafka flows.hr.new-hire: 2 messages")
     except (OSError, subprocess.SubprocessError) as error:
-        print(f"  · kafka skipped ({error.__class__.__name__}); send a message to flows.hr.new-hire by hand")
+        print(f"  · kafka skipped ({error}); send a message to flows.hr.new-hire on the server's broker by hand")
 
     print("Approvals (waiting for runs to reach them)")
     time.sleep(8)
     decisions = {"PR-1042": ("approve", BOB, "Bütçede var, onaylıyorum."),
-                 "PR-1044": ("reject", BOB, "Mevcut sandalyeler yeterli, gelecek çeyreğe kalsın.")}
+                 "PR-1044": ("reject", BOB, "Mevcut sandalyeler yeterli, gelecek çeyreğe kalsın."),
+                 "CHG-3102": ("approve", BOB, "Geri dönüş planı yeterli, pencere uygun."),
+                 "CHG-3104": ("reject", BOB, "Test ortamında denenmeden canlıya alınmasın.")}
     pending = must(call("GET", "/api/approval-requests?scope=mine&status=pending&page=1&size=50", BOB), "approvals")
     for request in pending["data"]:
         for code, (decision, user, comment) in decisions.items():

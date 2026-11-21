@@ -4,6 +4,8 @@
 #   app      the API (Spring Boot), data and run files on the volume app-data    -> internal only
 #   kafka    Kafka triggers and "Kafka'ya yaz" steps                              -> internal only
 #   mailpit  catches every e-mail the flows send; web UI on 8025                  -> optional second domain, port 8025
+#   populate one-off: fills the platform with realistic demo content (scripts/populate_demo.py) when
+#            POPULATE_DEMO_DATA=true, once per app-data volume; then exits         -> no domain
 #
 # Nothing publishes host ports except web (8088, for trying it without a proxy); Dokploy routes domains itself.
 # Settings: see .env.example (DEMO_PASSWORD, PUBLIC_URL, the assistant's key ...).
@@ -48,6 +50,34 @@ services:
       retries: 30
       start_period: 40s
 
+  # One-off demo content through the API (same checks as the UI): datasets, templates, groups, flows, runs, approvals.
+  # Runs only with POPULATE_DEMO_DATA=true and only once: it leaves a marker on the populate-state volume.
+  # To run it again: delete that volume (or the marker) and redeploy.
+  populate:
+    build:
+      context: ./scripts
+      dockerfile_inline: |
+        FROM python:3.13-alpine
+        COPY populate_demo.py /populate_demo.py
+    restart: "no"
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      PLATFORM_URL: http://app:8080
+      DEMO_PASSWORD: "${DEMO_PASSWORD:-}"
+      POPULATE_DEMO_DATA: "${POPULATE_DEMO_DATA:-false}"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - populate-state:/state
+    entrypoint:
+      - sh
+      - -c
+      - |
+        if [ "$$POPULATE_DEMO_DATA" != "true" ]; then echo "POPULATE_DEMO_DATA is not true: nothing to do"; exit 0; fi
+        if [ -f /state/populated ]; then echo "Demo data was added on $$(cat /state/populated): nothing to do"; exit 0; fi
+        python3 /populate_demo.py && date -u +%Y-%m-%dT%H:%M:%SZ > /state/populated
+
   kafka:
     image: apache/kafka:4.1.0
     restart: unless-stopped
@@ -78,3 +108,4 @@ services:
 volumes:
   app-data:
   kafka-data:
+  populate-state:
