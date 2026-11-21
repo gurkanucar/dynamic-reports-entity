@@ -41,6 +41,7 @@ class SurveyFlowBridge {
             return;
         }
         Map<String, Object> output = new LinkedHashMap<>();
+        output.put("surveyId", submitted.surveyId());   // the run screen links to the response
         output.put("responseId", submitted.responseId());
         output.put("respondent", submitted.respondent());
         output.put("submittedAt", submitted.submittedAt().toString());

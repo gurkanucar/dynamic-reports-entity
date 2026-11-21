@@ -1,4 +1,5 @@
-import { ChevronDownIcon, ChevronRightIcon, MailIcon } from "lucide-react"
+import { BarChart3Icon, ChevronDownIcon, ChevronRightIcon, ClipboardListIcon, MailIcon } from "lucide-react"
+import { Link } from "react-router"
 import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,20 @@ export function StepOutput({ step }: { step: RunStepDto }) {
           <SentMailDialog fileId={output.bodyFileId} subject={String(output.subject ?? "")}
             recipients={[...(output.to as string[] ?? []), ...(output.cc as string[] ?? [])]}
             sentAt={output.sentAt as string | undefined} />
+        )}
+        {step.type === "survey" && typeof output.surveyId === "number" && (
+          <>
+            {typeof output.responseId === "number" && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/surveys/${output.surveyId}?response=${output.responseId}`}>
+                  <ClipboardListIcon data-icon="inline-start" />Yanıtı aç
+                </Link>
+              </Button>
+            )}
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`/surveys/${output.surveyId}`}><BarChart3Icon data-icon="inline-start" />Anket sonuçları</Link>
+            </Button>
+          </>
         )}
         <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setOpen(!open)} aria-expanded={open}>
           {open ? <ChevronDownIcon data-icon="inline-start" /> : <ChevronRightIcon data-icon="inline-start" />}Çıktı

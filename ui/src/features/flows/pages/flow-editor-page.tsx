@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils"
 import { ApiError, errorMessage } from "@/shared/api/http-client"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { Hint } from "@/shared/components/hint"
+import { useAskParam } from "@/features/assistant/lib/use-ask-param"
 import { AssistantChat } from "@/features/assistant/components/assistant-chat"
 import { useAssistantSettings } from "@/features/assistant/queries/use-assistant-settings"
 import type { FlowDraftDto } from "@/features/assistant/types/assistant.dto"
@@ -88,7 +89,8 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
   const [savingTriggers, setSavingTriggers] = useState(false)
   const [secrets, setSecrets] = useState<{ flowId: number; items: WebhookSecret[] } | null>(null)
   const assistant = useAssistantSettings()
-  const [showAssistant, setShowAssistant] = useState(false)
+  const ask = useAskParam()
+  const [showAssistant, setShowAssistant] = useState(ask !== undefined)
   const selectedStep = model.steps.find((step) => step.key === selected) ?? null
 
   // the server's problems by step key (errors[].field = steps[i]...), shown until the next save
@@ -256,7 +258,7 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
           expanded && "lg:col-span-1 lg:max-h-[calc(100svh-6rem)] lg:overflow-y-auto", "flex flex-col gap-4")}>
           {assistant.data?.enabled && (
             // kept mounted while hidden: the conversation survives closing the panel
-            <AssistantChat kind="flow" title="Akış asistanı" model={assistant.data.model}
+            <AssistantChat kind="flow" title="Akış asistanı" model={assistant.data.model} initialInput={ask}
               className={cn("h-[32rem]", !showAssistant && "hidden")}
               description="Ne olmasını istediğinizi yazın; asistan adımları, zamanlamayı ve gerekirse mail şablonunu hazırlar. Verilerinizi görmez."
               examples={[

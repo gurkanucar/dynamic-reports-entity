@@ -257,6 +257,33 @@ paths:
         '422': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
 
+  /api/help-suggestions:
+    post:
+      tags: [assistant]
+      operationId: requestHelp
+      summary: Ask the help chat about the platform's pages
+      description: |
+        Same request/poll pattern as `/api/dataset-suggestions`. `current` = `{path, title}` of the page the user is
+        on. The model answers from the platform guide only (no data, no records). The reply's `message` is the
+        answer; `draft` is `{links: [{label, path}], handoff: {assistant, path, request} | null}`. Links are checked
+        against the existing pages (admin pages only for admins); `handoff` names the specialist assistant
+        (dataset, flow, survey, mail-template) and its page, which the UI opens with `?ask=<request>`.
+        Poll `GET /api/help-suggestions/{id}`.
+      parameters: [{ $ref: '#/components/parameters/Csrf' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DraftSuggestionRequest' }
+      responses:
+        '202':
+          description: Accepted; follow `Location`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuggestionEnvelope' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: PLATFORM_SESSION }

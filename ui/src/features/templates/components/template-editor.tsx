@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
 import { Textarea } from "@/components/ui/textarea"
 import { ErrorAlert } from "@/shared/components/error-alert"
+import { useAskParam } from "@/features/assistant/lib/use-ask-param"
 import { AssistantChat } from "@/features/assistant/components/assistant-chat"
 import { useAssistantSettings } from "@/features/assistant/queries/use-assistant-settings"
 import type { TemplateDraftDto } from "@/features/assistant/types/assistant.dto"
@@ -41,6 +42,7 @@ export function TemplateEditor({ template, initial, onSaved }: {
   onSaved: (saved: TemplateResponse) => void
 }) {
   const [form, setForm] = useState<TemplateRequest>(template ?? initial)
+  const ask = useAskParam()
   const save = useSaveTemplate()
   const assistant = useAssistantSettings()
   const set = (change: Partial<TemplateRequest>) => setForm((current) => ({ ...current, ...change }))
@@ -72,6 +74,7 @@ export function TemplateEditor({ template, initial, onSaved }: {
       <div className="flex min-w-0 flex-col gap-6">
         {assistant.data?.enabled && (
           <AssistantChat kind="mail-template" title="Şablon asistanı" model={assistant.data.model}
+            initialInput={template ? undefined : ask}
             description="Nasıl bir mail istediğinizi yazın; asistan konuyu, metni ve tasarımı hazırlar. Verilerinizi görmez."
             examples={EXAMPLES} busyLabel="Şablon hazırlanıyor…"
             placeholder={{ empty: "Nasıl bir mail olsun?", change: "Şablonda neyi değiştireyim?" }}

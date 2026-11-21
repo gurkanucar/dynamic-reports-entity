@@ -1,4 +1,5 @@
 import type { DatasetDefinition } from "@/features/datasets/types/dataset.types"
+import { useAskParam } from "../lib/use-ask-param"
 import { AssistantChat } from "./assistant-chat"
 
 const EXAMPLES = [
@@ -13,6 +14,7 @@ export function AssistantPanel({ definition, model, onApply }: {
   model: string | null
   onApply: (definition: DatasetDefinition) => void
 }) {
+  const ask = useAskParam()
   return (
     // stays in view while the editor scrolls; the conversation scrolls inside it
     <AssistantChat kind="dataset" title="Veri seti asistanı" model={model} examples={EXAMPLES}
@@ -20,6 +22,6 @@ export function AssistantPanel({ definition, model, onApply }: {
       placeholder={{ empty: "Nasıl bir veri seti istiyorsunuz?", change: "Veri setini nasıl değiştireyim?" }}
       busyLabel="Veri seti hazırlanıyor…" current={definition?.columns.length ? definition : null}
       applicable={(reply) => reply.definition !== null} onApply={(reply) => onApply(reply.definition!)}
-      className="h-[min(42rem,calc(100svh-7rem))] xl:sticky xl:top-4" />
+      className="h-[min(42rem,calc(100svh-7rem))] xl:sticky xl:top-4" initialInput={ask} />
   )
 }

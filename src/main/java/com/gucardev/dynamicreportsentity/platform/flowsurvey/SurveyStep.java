@@ -16,7 +16,7 @@ import java.util.Set;
 
 /**
  * Sends a survey and waits for its answer: e-mails a single-use link to {@code to} and goes on once someone answers
- * through it (outcome {@code answered}, output {@code responseId, respondent, answers, text}) or after
+ * through it (outcome {@code answered}, output {@code surveyId, responseId, respondent, answers, text}) or after
  * {@code timeoutHours} ({@code timeout}). E.g. "ask the new hire's manager for the equipment list, then order it".
  *
  * @param to      addresses (Mustache, e.g. {@code {{trigger.managerEmail}}})

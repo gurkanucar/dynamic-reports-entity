@@ -367,4 +367,34 @@ class DatasetSuggestionIntegrationTest {
                            "otherAggregate": "AVG"}}""",
                 com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetDefinition.class), admin);
     }
+
+    @Test
+    void theHelpChatKnowsThePageKeepsOnlyRealLinksAndHandsBuildingOver() {
+        ANSWERS.add(Map.entry(200, toolCall("h1", "answer", JSON.writeValueAsString(Map.of(
+                "message", "Akış asistanı bunu sizin için kurabilir.",
+                "links", List.of(Map.of("label", "Çalışmalar", "path", "/runs?status=failed"),
+                        Map.of("label", "Uydurma", "path", "/secret-page"),
+                        Map.of("label", "Personel", "path", "/admin/personnel")),
+                "handoff", Map.of("assistant", "flow", "request", "Her pazartesi geciken eğitimleri İK'ya maille"))))));
+
+        MvcTestResult created = mvc.post().uri("/api/help-suggestions").with(ALICE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(JSON.writeValueAsString(Map.of(
+                        "messages", List.of(Map.of("role", "user", "content", "Geciken eğitimleri her hafta nasıl mailleyebilirim?")),
+                        "current", Map.of("path", "/flows", "title", "Akışlar"))))
+                .exchange();
+        assertThat(created).hasStatus(HttpStatus.ACCEPTED);
+        JsonNode suggestion = poll(created.getResponse().getHeader(HttpHeaders.LOCATION), ALICE);
+
+        assertThat(suggestion.get("status").asString()).isEqualTo("completed");
+        JsonNode reply = suggestion.get("reply");
+        assertThat(reply.get("message").asString()).contains("Akış asistanı");
+        // made-up pages and admin pages (alice is no admin) are dropped; the query string is cut off
+        assertThat(reply.get("draft").get("links").toString()).contains("/runs").doesNotContain("secret", "/admin", "status=");
+        assertThat(reply.get("draft").get("handoff").get("path").asString()).isEqualTo("/flows/new");
+        // the model saw the guide and the page, not the user's data
+        String system = REQUESTS.getFirst().getValue().get("messages").get(0).get("content").asString();
+        assertThat(system).contains("the page /flows (Akışlar)", "NOT an admin", "/approvals", "Onaylarım")
+                .doesNotContain("Software Development", "{{ADMIN}}", "{{PAGE}}");
+    }
 }

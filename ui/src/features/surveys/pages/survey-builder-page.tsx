@@ -24,6 +24,7 @@ import { ApiError } from "@/shared/api/http-client"
 import { DatePicker } from "@/shared/components/date-picker"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
+import { useAskParam } from "@/features/assistant/lib/use-ask-param"
 import { AssistantChat } from "@/features/assistant/components/assistant-chat"
 import { useAssistantSettings } from "@/features/assistant/queries/use-assistant-settings"
 import { surveysApi } from "../api/surveys.api"
@@ -104,7 +105,8 @@ function Builder({ saved }: { saved: SurveyResponse | null }) {
   const [problems, setProblems] = useState<Problems>(NO_PROBLEMS)
   const [answers, setAnswers] = useState<Answers>({})
   const [tryResult, setTryResult] = useState<{ valid: boolean; messages: string[]; errors: Record<string, string> } | null>(null)
-  const [tab, setTab] = useState(assistant.data?.enabled && !saved ? "assistant" : "preview")
+  const ask = useAskParam()
+  const [tab, setTab] = useState(assistant.data?.enabled && (!saved || ask) ? "assistant" : "preview")
 
   const fields = form.definition.fields
   const set = (change: Partial<SurveyRequest>) => setForm((current) => ({ ...current, ...change }))
@@ -300,7 +302,7 @@ function Builder({ saved }: { saved: SurveyResponse | null }) {
             </TabsContent>
             {assistant.data?.enabled && (
               <TabsContent value="assistant" forceMount className="data-[state=inactive]:hidden">
-                <AssistantChat kind="survey" title="Anket asistanı" model={assistant.data.model}
+                <AssistantChat kind="survey" title="Anket asistanı" model={assistant.data.model} initialInput={ask}
                   description="Kimin, ne için dolduracağını yazın; asistan soruları, koşulları ve kuralları hazırlar. Yanıtları görmez."
                   examples={EXAMPLES} busyLabel="Anket hazırlanıyor…"
                   placeholder={{ empty: "Nasıl bir anket istiyorsunuz?", change: "Ankette neyi değiştireyim?" }}

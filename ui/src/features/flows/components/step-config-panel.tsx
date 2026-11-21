@@ -1,4 +1,4 @@
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
+import { BarChart3Icon, EyeIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
 import { Link } from "react-router"
 import { Button } from "@/components/ui/button"
@@ -412,6 +412,25 @@ function SurveyStepFields({ step, onChange }: {
           </SelectContent>
         </Select>
         <FieldDescription>Yalnızca yayındaki anketler gönderilebilir.</FieldDescription>
+        {survey.data && (
+          <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-2.5">
+            <p className="text-xs text-muted-foreground">
+              {questions.length} soru · {survey.data.definition.rules?.length ?? 0} kural
+              {survey.data.anonymous && " · anonim"}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              <Button type="button" variant="outline" size="xs" asChild>
+                <Link to={`/s/${survey.data.id}`} target="_blank"><EyeIcon data-icon="inline-start" />Önizle</Link>
+              </Button>
+              <Button type="button" variant="outline" size="xs" asChild>
+                <Link to={`/surveys/${survey.data.id}`} target="_blank"><BarChart3Icon data-icon="inline-start" />Sonuçlar</Link>
+              </Button>
+              <Button type="button" variant="outline" size="xs" asChild>
+                <Link to={`/surveys/${survey.data.id}/edit`} target="_blank"><PencilIcon data-icon="inline-start" />Düzenle</Link>
+              </Button>
+            </div>
+          </div>
+        )}
       </Field>
       <Field>
         <FieldLabel htmlFor="survey-to">Alıcılar</FieldLabel>

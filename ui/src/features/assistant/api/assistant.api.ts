@@ -9,6 +9,7 @@ const PATHS: Record<AssistantKind, string> = {
   "cron": "/api/cron-suggestions",
   "step": "/api/step-suggestions",
   "survey": "/api/survey-suggestions",
+  "help": "/api/help-suggestions",
 }
 
 export const assistantApi = {

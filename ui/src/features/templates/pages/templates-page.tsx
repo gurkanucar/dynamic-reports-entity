@@ -1,5 +1,6 @@
 import { MailIcon, PlusIcon, Trash2Icon } from "lucide-react"
 import { useState } from "react"
+import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
@@ -25,7 +26,9 @@ export function TemplatesPage() {
   const list = useListState("name")
   const page = useTemplatePage(list.page, list.size, list.query || undefined)
   const templates = { ...page, data: page.data?.data }
-  const [selected, setSelected] = useState<string | null>(null)
+  const [params] = useSearchParams()
+  // "?new=1" (the help chat hands a request over) opens a new template with its assistant
+  const [selected, setSelected] = useState<string | null>(params.get("new") ? NEW : null)
   const selectedId = selected && selected !== NEW ? Number(selected) : null
   const template = useTemplate(selectedId)
   const remove = useDeleteTemplate()

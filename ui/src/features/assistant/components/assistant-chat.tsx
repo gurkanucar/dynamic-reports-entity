@@ -34,6 +34,8 @@ export interface AssistantChatProps {
   /** Called with every applicable reply right away, and again on "apply again". */
   onApply: (reply: SuggestionReplyDto) => void
   className?: string
+  /** Text to start the input with (a request handed over by the help chat: `?ask=`). */
+  initialInput?: string
 }
 
 /**
@@ -42,9 +44,9 @@ export interface AssistantChatProps {
  * the user fine-tunes it in the editor and saves.
  */
 export function AssistantChat({ kind, title, description, model, examples, placeholder, busyLabel, current,
-  applicable, onApply, className }: AssistantChatProps) {
+  applicable, onApply, className, initialInput }: AssistantChatProps) {
   const [entries, setEntries] = useState<ChatEntry[]>([])
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState(initialInput ?? "")
   const create = useCreateSuggestion(kind)
   const busy = create.isPending
 

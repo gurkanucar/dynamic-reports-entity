@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/sidebar"
 import { useLogout } from "@/features/auth/mutations/use-logout"
 import { useCurrentUser } from "@/features/auth/queries/use-current-user"
+import { HelpChat } from "@/features/help/components/help-chat"
+import { useWebMcp } from "./web-mcp"
 import { Separator } from "@/components/ui/separator"
 import { AppBreadcrumb } from "./app-breadcrumb"
 
@@ -111,6 +113,7 @@ export function AppLayout() {
   const logout = useLogout()
   const location = useLocation()
   const admin = user.data?.authorities.includes("PLATFORM_ADMIN") ?? false
+  useWebMcp(user.data)
   return (
     <SidebarProvider defaultOpen={sidebarRemembered()}>
       <CloseSidebarOnNavigate />
@@ -174,9 +177,10 @@ export function AppLayout() {
           <AppBreadcrumb />
         </header>
         {/* SidebarInset is the page's <main> already */}
-        <div className="flex min-w-0 flex-1 flex-col gap-6 p-4 md:p-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-6 p-4 pb-20 md:p-6 md:pb-20">
           <Outlet />
         </div>
+        <HelpChat />
       </SidebarInset>
     </SidebarProvider>
   )

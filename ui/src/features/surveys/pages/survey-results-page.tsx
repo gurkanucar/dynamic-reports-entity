@@ -2,7 +2,7 @@ import {
   CopyIcon, EyeIcon, FileSpreadsheetIcon, InboxIcon, MessageSquareIcon, PencilIcon, StarIcon, WorkflowIcon,
 } from "lucide-react"
 import { useState } from "react"
-import { Link, useParams } from "react-router"
+import { Link, useParams, useSearchParams } from "react-router"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -195,7 +195,9 @@ function Responses({ survey }: { survey: SurveyResponse }) {
   const [priorities, setPriorities] = useState<Priority[]>([])
   const responses = useSurveyResponses(survey.id, list.page, { status: statuses, priority: priorities,
     q: list.query || undefined, sort: list.sort, size: list.size })
-  const [open, setOpen] = useState<number | null>(null)
+  // "?response=<id>": a run's survey step links straight to the response
+  const [params] = useSearchParams()
+  const [open, setOpen] = useState<number | null>(params.get("response") ? Number(params.get("response")) : null)
   const tracking = survey.settings.tracking
   const questions = survey.definition.fields.filter((field) => field.type !== "section")
   const columns = questions.slice(0, 2)
