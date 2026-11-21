@@ -1,4 +1,5 @@
 import { http, saveResponseAsFile } from "@/shared/api/http-client"
+import { queryString } from "@/shared/lib/list-state"
 import type { Envelope } from "@/shared/types/api.types"
 import type {
   DownloadLinkResponse, FileContentResponse, FlowDetailResponse, FlowRequest, FlowSummaryResponse, RunDetailResponse,
@@ -9,7 +10,9 @@ import type {
 const ifMatch = (version: number) => ({ "If-Match": `"${version}"` })
 
 export const flowsApi = {
-  list: (page: number, size = 20) => http.get<Envelope<FlowSummaryResponse[]>>(`/api/flows?page=${page}&size=${size}`),
+  /** `sort`: name, updatedAt, createdAt, owner. */
+  list: (page: number, size = 20, filters: { q?: string; sort?: string } = {}) =>
+    http.get<Envelope<FlowSummaryResponse[]>>(`/api/flows${queryString({ page, size, q: filters.q, sort: filters.sort })}`),
   get: async (id: number) => (await http.get<Envelope<FlowDetailResponse>>(`/api/flows/${id}`)).data,
   create: async (request: FlowRequest) =>
     (await http.send<Envelope<FlowDetailResponse>>("POST", "/api/flows", request)).data,
@@ -22,9 +25,11 @@ export const flowsApi = {
     (await http.send<Envelope<RunSummaryResponse>>("POST", `/api/flows/${flowId}/runs`)).data,
   runsOfFlow: (flowId: number, page: number, size = 20) =>
     http.get<Envelope<RunSummaryResponse[]>>(`/api/flows/${flowId}/runs?page=${page}&size=${size}`),
-  runs: (statuses: RunStatus[], page: number, size = 20) =>
-    http.get<Envelope<RunSummaryResponse[]>>(
-      `/api/flow-runs?page=${page}&size=${size}${statuses.map((s) => `&status=${s}`).join("")}`),
+  /** `sort`: createdAt, startedAt, finishedAt, status, flow. */
+  runs: (statuses: RunStatus[], page: number, size = 20,
+    filters: { q?: string; trigger?: string[]; sort?: string } = {}) =>
+    http.get<Envelope<RunSummaryResponse[]>>(`/api/flow-runs${queryString({ page, size, status: statuses,
+      trigger: filters.trigger ?? [], q: filters.q, sort: filters.sort })}`),
   run: async (runId: number) => (await http.get<Envelope<RunDetailResponse>>(`/api/flow-runs/${runId}`)).data,
   cancel: async (runId: number) =>
     (await http.send<Envelope<RunSummaryResponse>>("POST", `/api/flow-runs/${runId}/cancel`)).data,

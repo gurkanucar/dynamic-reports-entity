@@ -7,6 +7,9 @@ export type TriggerDraft =
   | { kind: "schedule"; uid: string; saved?: ScheduleResponse; cron: string; timeZone: string; enabled: boolean }
   | { kind: "webhook"; uid: string; saved?: TriggerResponse; enabled: boolean }
   | { kind: "kafka"; uid: string; saved?: TriggerResponse; topic: string; filter: JsonLogicRule | null; enabled: boolean }
+  /** Every response to a survey (an `event` trigger on `survey:<id>`). */
+  | { kind: "survey"; uid: string; saved?: TriggerResponse; surveyId: number | null; title?: string;
+      filter: JsonLogicRule | null; enabled: boolean }
 
 export type TriggerKind = TriggerDraft["kind"]
 
@@ -21,7 +24,14 @@ export function newTrigger(kind: TriggerKind): TriggerDraft {
     case "schedule": return { kind, uid: uid(), cron: "0 8 * * MON-FRI", timeZone: DEFAULT_TIME_ZONE, enabled: true }
     case "webhook": return { kind, uid: uid(), enabled: true }
     case "kafka": return { kind, uid: uid(), topic: "flows.", filter: null, enabled: true }
+    case "survey": return { kind, uid: uid(), surveyId: null, filter: null, enabled: true }
   }
+}
+
+export const SURVEY_SOURCE = "survey:"
+
+export function surveyTrigger(surveyId: number, title?: string, filter: JsonLogicRule | null = null): TriggerDraft {
+  return { kind: "survey", uid: uid(), surveyId, title, filter, enabled: true }
 }
 
 export function toDrafts(schedules: ScheduleResponse[], triggers: TriggerResponse[]): TriggerDraft[] {
@@ -30,7 +40,10 @@ export function toDrafts(schedules: ScheduleResponse[], triggers: TriggerRespons
       timeZone: saved.timeZone, enabled: saved.enabled })),
     ...triggers.map((saved): TriggerDraft => saved.type === "webhook"
       ? { kind: "webhook", uid: uid(), saved, enabled: saved.enabled }
-      : { kind: "kafka", uid: uid(), saved, topic: saved.topic ?? "", filter: saved.filter, enabled: saved.enabled }),
+      : saved.type === "event" && saved.topic?.startsWith(SURVEY_SOURCE)
+        ? { kind: "survey", uid: uid(), saved, surveyId: Number(saved.topic.slice(SURVEY_SOURCE.length)),
+          filter: saved.filter, enabled: saved.enabled }
+        : { kind: "kafka", uid: uid(), saved, topic: saved.topic ?? "", filter: saved.filter, enabled: saved.enabled }),
   ]
 }
 
@@ -40,6 +53,8 @@ export function describeTrigger(trigger: TriggerDraft): string {
     case "schedule": return describeCron(trigger.cron)
     case "webhook": return trigger.saved ? "Webhook çağrısı" : "Webhook çağrısı (kaydedince adres verilir)"
     case "kafka": return `Kafka: ${trigger.topic || "topic seçilmedi"}${trigger.filter ? " · filtreli" : ""}`
+    case "survey": return `Anket yanıtı: ${trigger.surveyId === null ? "anket seçilmedi"
+      : trigger.title ?? `#${trigger.surveyId}`}${trigger.filter ? " · filtreli" : ""}`
   }
 }
 
@@ -71,14 +86,16 @@ export async function saveTriggers(flowId: number, original: TriggerDraft[], dra
     }
     const request = draft.kind === "kafka"
       ? { type: "kafka" as const, enabled: draft.enabled, topic: draft.topic.trim(), filter: draft.filter }
-      : { type: "webhook" as const, enabled: draft.enabled }
+      : draft.kind === "survey"
+        ? { type: "event" as const, enabled: draft.enabled, topic: `${SURVEY_SOURCE}${draft.surveyId}`, filter: draft.filter }
+        : { type: "webhook" as const, enabled: draft.enabled }
     if (!draft.saved) {
       const created = await flowsApi.createTrigger(flowId, request)
       if (created.secret && created.trigger.webhookUrl) {
         secrets.push({ url: `${window.location.origin}${created.trigger.webhookUrl}`, secret: created.secret })
       }
-    } else if (draft.saved.enabled !== draft.enabled || (draft.kind === "kafka"
-      && (draft.saved.topic !== draft.topic || JSON.stringify(draft.saved.filter) !== JSON.stringify(draft.filter)))) {
+    } else if (draft.saved.enabled !== draft.enabled || ((draft.kind === "kafka" || draft.kind === "survey")
+      && (draft.saved.topic !== request.topic || JSON.stringify(draft.saved.filter) !== JSON.stringify(draft.filter)))) {
       await flowsApi.replaceTrigger(draft.saved, request)
     }
   }

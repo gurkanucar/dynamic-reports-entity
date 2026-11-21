@@ -1,9 +1,10 @@
 import {
+  ClipboardListIcon,
   CalendarClockIcon, CircleAlertIcon, CopyIcon, LayoutGridIcon, RadioTowerIcon, SaveIcon, SparklesIcon, TriangleAlertIcon,
   WebhookIcon,
 } from "lucide-react"
 import { useMemo, useState } from "react"
-import { Link, useNavigate, useParams } from "react-router"
+import { Link, useLocation, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,19 +31,21 @@ import { checkFlow, type FlowIssue } from "../lib/flow-checks"
 import { removeStep, renameStep, withExplicitEdges, withLayout, type GraphModel } from "../lib/flow-graph"
 import { newKey, STEP_GROUPS, STEP_TYPES, stepType } from "../lib/step-types"
 import {
-  describeTrigger, newTrigger, saveTriggers, START_NODE, toDrafts, type TriggerDraft, type TriggerKind,
+  describeTrigger, newTrigger, saveTriggers, START_NODE, surveyTrigger, toDrafts, type TriggerDraft, type TriggerKind,
   type WebhookSecret,
 } from "../lib/triggers"
 import { useSaveFlow } from "../mutations/use-save-flow"
 import { useFlow } from "../queries/use-flow"
 import { useSchedules } from "../queries/use-schedules"
 import { useTriggers } from "../queries/use-triggers"
+import { useSurveys } from "@/features/surveys/queries/use-surveys"
 import type { FlowDetailResponse, FlowStepDto, StepType } from "../types/flow.dto"
 
 const TRIGGER_ITEMS: { kind: TriggerKind; label: string; icon: typeof CalendarClockIcon; hint: string }[] = [
   { kind: "schedule", label: "Zamanlama", icon: CalendarClockIcon, hint: "Belirli zamanlarda (cron) başlatır." },
   { kind: "webhook", label: "Webhook ile", icon: WebhookIcon, hint: "Başka bir sistem bir adrese POST ettiğinde başlar." },
   { kind: "kafka", label: "Kafka mesajı ile", icon: RadioTowerIcon, hint: "Bir topic'e mesaj geldiğinde başlar." },
+  { kind: "survey", label: "Anket yanıtı ile", icon: ClipboardListIcon, hint: "Bir anket her yanıtlandığında başlar." },
 ]
 
 /** /flows/new and /flows/:flowId/edit */
@@ -52,7 +55,11 @@ export function FlowEditorPage() {
   const flow = useFlow(flowId ?? 0)
   const schedules = useSchedules(flowId ?? 0)
   const triggers = useTriggers(flowId ?? 0)
-  if (flowId === null) return <FlowEditor key="new" flow={null} triggers={[]} />
+  const surveyParam = new URLSearchParams(useLocation().search).get("survey")
+  if (flowId === null) {
+    // "Akış oluştur" on a survey's results page: start with a trigger on that survey
+    return <FlowEditor key="new" flow={null} triggers={surveyParam ? [surveyTrigger(Number(surveyParam))] : []} />
+  }
   if (flow.isPending || schedules.isPending || triggers.isPending) return <Skeleton className="h-[32rem] w-full" />
   if (flow.isError) return <ErrorAlert error={flow.error} title="Akış yüklenemedi" />
   if (schedules.isError || triggers.isError) {
@@ -73,6 +80,7 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
     steps: flow?.steps ?? [], edges: flow?.edges ?? [], layout: flow?.layout ?? {},
   })))
   const [triggers, setTriggers] = useState<TriggerDraft[]>(savedTriggers)
+  const surveys = useSurveys("mine")
   const [selected, setSelected] = useState<string | null>(null)
   const [fitSignal, setFitSignal] = useState(0)
   // full window: the whole editor (steps, canvas, settings), not only the canvas
@@ -100,8 +108,10 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
   const errors = issues.filter((issue) => issue.severity === "error")
   const startLines: StartLine[] = useMemo(() => [
     { kind: "manual", text: "Elle (Şimdi çalıştır)", enabled: true },
-    ...triggers.map((trigger): StartLine => ({ kind: trigger.kind, text: describeTrigger(trigger), enabled: trigger.enabled })),
-  ], [triggers])
+    ...triggers.map((trigger): StartLine => ({ kind: trigger.kind, enabled: trigger.enabled,
+      text: describeTrigger(trigger.kind === "survey" && !trigger.title
+        ? { ...trigger, title: surveys.data?.data.find((survey) => survey.id === trigger.surveyId)?.title } : trigger) })),
+  ], [triggers, surveys.data])
 
   const add = (type: StepType) => {
     const key = newKey(type, model.steps.map((step) => step.key))
@@ -158,8 +168,9 @@ function FlowEditor({ flow, triggers: savedTriggers }: { flow: FlowDetailRespons
       const applied = await applyFlowDraft(draft)
       setName(applied.name)
       setModel(applied.model)
-      if (applied.schedules.length > 0) {
-        setTriggers([...triggers.filter((trigger) => trigger.kind !== "schedule"), ...applied.schedules])
+      if (applied.schedules.length > 0 || applied.surveys.length > 0) {
+        setTriggers([...triggers.filter((trigger) => (applied.schedules.length === 0 || trigger.kind !== "schedule")
+          && (applied.surveys.length === 0 || trigger.kind !== "survey")), ...applied.schedules, ...applied.surveys])
       }
       setSelected(null)
       setFitSignal((n) => n + 1)

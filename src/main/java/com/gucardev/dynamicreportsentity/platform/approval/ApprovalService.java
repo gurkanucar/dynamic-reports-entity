@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.approval;
 
+import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
+
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -197,16 +200,32 @@ public class ApprovalService {
     /**
      * @param scope {@code mine}: requests the user can decide (their groups); {@code all}: every request (admins)
      */
+    /** Sortable fields of the request list (API name → property). */
+    public static final Map<String, String> REQUEST_SORTS = Map.of("createdAt", "createdAt", "dueAt", "dueAt",
+            "title", "title", "status", "status", "group", "groupName", "id", "id");
+
     public Page<ApprovalRequest> requests(Actor user, String scope, Collection<ApprovalRequest.Status> statuses,
                                           int page, int size) {
+        return requests(user, scope, statuses, List.of(), null, null, page, size);
+    }
+
+    /**
+     * @param groupIds only these groups (empty: all the user may see)
+     * @param q        free text over title and group name
+     * @param sort     e.g. {@code -createdAt}, {@code dueAt}; default newest first
+     */
+    public Page<ApprovalRequest> requests(Actor user, String scope, Collection<ApprovalRequest.Status> statuses,
+                                          Collection<Long> groupIds, String q, String sort, int page, int size) {
         boolean all = "all".equals(scope);
         if (all) {
             requireAdmin(user);
         }
         Set<Long> memberOf = groups.findIdsByMember(user.username());
-        Collection<Long> groupIds = memberOf.isEmpty() ? List.of(-1L) : memberOf;   // "in ()" is not valid SQL
-        return requests.search(all, groupIds, statuses.isEmpty() ? List.of(ApprovalRequest.Status.values()) : statuses,
-                PageRequest.of(page - 1, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+        Collection<Long> onlyGroups = groupIds;
+        Collection<Long> memberGroups = memberOf.isEmpty() ? List.of(-1L) : memberOf;   // "in ()" is not valid SQL
+        return requests.search(all, memberGroups, statuses.isEmpty() ? List.of(ApprovalRequest.Status.values()) : statuses,
+                onlyGroups.isEmpty(), onlyGroups.isEmpty() ? List.of(-1L) : onlyGroups, ListQuery.like(q),
+                ListQuery.page(page, size, ListQuery.sort(sort, REQUEST_SORTS, "-createdAt")));
     }
 
     public ApprovalRequest request(long id, Actor user) {
@@ -223,6 +242,20 @@ public class ApprovalService {
     }
 
     /** Whether {@code user} may decide the request now (shown as buttons in the UI). */
+    /**
+     * Why the user cannot decide the request now, for the UI ({@code decided}, {@code not_member}, {@code own_request});
+     * null when they can.
+     */
+    public String decisionBlocker(ApprovalRequest request, Actor user) {
+        if (request.getStatus() != ApprovalRequest.Status.PENDING) {
+            return "decided";
+        }
+        if (!groups.findIdsByMember(user.username()).contains(request.getGroupId())) {
+            return "not_member";
+        }
+        return request.isAllowSelfApproval() || !request.isRequestedBy(user.username()) ? null : "own_request";
+    }
+
     public boolean canDecide(ApprovalRequest request, Actor user) {
         return request.getStatus() == ApprovalRequest.Status.PENDING
                 && groups.findIdsByMember(user.username()).contains(request.getGroupId())

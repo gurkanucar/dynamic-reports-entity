@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
+
 import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
@@ -12,6 +14,7 @@ import java.time.Clock;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Starting, cancelling and reading runs. A run is visible to the flow owner (it runs as them), to the user who
@@ -76,13 +79,30 @@ public class RunService {
     }
 
     /** Newest first; {@code flowId} null = runs of every visible flow. */
+    /** Sortable fields of run lists (API name → property). */
+    public static final Map<String, String> SORTS = Map.of("createdAt", "createdAt", "startedAt", "startedAt",
+            "finishedAt", "finishedAt", "status", "status", "flow", "flowName", "id", "id");
+
     public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, Actor user, int page, int size) {
+        return list(flowId, statuses, List.of(), null, null, null, null, user, page, size);
+    }
+
+    /**
+     * @param triggers only runs started this way (empty: all)
+     * @param q        over the flow name
+     * @param from     created on or after (start of day), {@code to} created on or before (end of day)
+     */
+    public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, Collection<TriggerType> triggers, String q,
+                              java.time.LocalDate from, java.time.LocalDate to, String sort, Actor user, int page,
+                              int size) {
+        ListQuery.range(from, to, "created");
         if (flowId != null) {
             flows.get(flowId, user);
         }
         String runAs = user.hasAuthority(FlowService.ADMIN_AUTHORITY) || flowId != null ? null : user.username();
         return runs.search(runAs, flowId, statuses.isEmpty() ? List.of(RunStatus.values()) : statuses,
-                PageRequest.of(page - 1, size, Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id"))));
+                triggers.isEmpty() ? List.of(TriggerType.values()) : triggers, ListQuery.like(q), ListQuery.from(from),
+                ListQuery.to(to), ListQuery.page(page, size, ListQuery.sort(sort, SORTS, "-createdAt")));
     }
 
     public List<RunArtifact> files(long runId) {

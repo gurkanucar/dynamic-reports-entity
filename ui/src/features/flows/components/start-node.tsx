@@ -1,5 +1,5 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react"
-import { CalendarClockIcon, HandIcon, PlayIcon, RadioTowerIcon, WebhookIcon, type LucideIcon } from "lucide-react"
+import { CalendarClockIcon, ClipboardListIcon, HandIcon, PlayIcon, RadioTowerIcon, WebhookIcon, type LucideIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TriggerKind } from "../lib/triggers"
 
@@ -17,10 +17,10 @@ export interface StartNodeData extends Record<string, unknown> {
 export type StartNodeType = Node<StartNodeData, "start">
 
 const ICONS: Record<StartLine["kind"], LucideIcon> = {
-  manual: HandIcon, schedule: CalendarClockIcon, webhook: WebhookIcon, kafka: RadioTowerIcon,
+  manual: HandIcon, schedule: CalendarClockIcon, webhook: WebhookIcon, kafka: RadioTowerIcon, survey: ClipboardListIcon,
 }
 
-/** What starts the flow (n8n's trigger node): always by hand, plus schedules, webhooks and Kafka. Not deletable. */
+/** What starts the flow (n8n's trigger node): always by hand, plus schedules, webhooks, Kafka and survey responses. Not deletable. */
 export function StartNode({ data, selected }: NodeProps<StartNodeType>) {
   const errors = data.errors ?? []
   return (

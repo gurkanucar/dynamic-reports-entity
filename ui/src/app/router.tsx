@@ -13,6 +13,10 @@ import { RunsPage } from "@/features/flows/pages/runs-page"
 import { DatasetBuilderPage } from "@/features/datasets/pages/dataset-builder-page"
 import { SavedDatasetsPage } from "@/features/datasets/pages/saved-datasets-page"
 import { TemplatesPage } from "@/features/templates/pages/templates-page"
+import { SurveyBuilderPage } from "@/features/surveys/pages/survey-builder-page"
+import { SurveyFillPage } from "@/features/surveys/pages/survey-fill-page"
+import { SurveyResultsPage } from "@/features/surveys/pages/survey-results-page"
+import { SurveysPage } from "@/features/surveys/pages/surveys-page"
 import { AppLayout, NotFound } from "./app-layout"
 
 function RequireSession({ children }: { children: ReactNode }) {
@@ -27,6 +31,8 @@ function RequireSession({ children }: { children: ReactNode }) {
 
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage /> },
+  // a survey to fill in: a page of its own (no menu), still behind the login
+  { path: "/s/:surveyId", element: <RequireSession><SurveyFillPage /></RequireSession> },
   {
     element: <RequireSession><AppLayout /></RequireSession>,
     children: [
@@ -43,6 +49,10 @@ export const router = createBrowserRouter([
       { path: "approval-groups", element: <ApprovalGroupsPage /> },
       { path: "runs", element: <RunsPage /> },
       { path: "templates", element: <TemplatesPage /> },
+      { path: "surveys", element: <SurveysPage /> },
+      { path: "surveys/new", element: <SurveyBuilderPage /> },
+      { path: "surveys/:surveyId", element: <SurveyResultsPage /> },
+      { path: "surveys/:surveyId/edit", element: <SurveyBuilderPage /> },
       { path: "*", element: <NotFound /> },
     ],
   },

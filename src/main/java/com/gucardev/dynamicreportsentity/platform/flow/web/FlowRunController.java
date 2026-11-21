@@ -52,16 +52,28 @@ class FlowRunController {
         this.clock = clock;
     }
 
-    /** Runs of every flow the user may see, newest first. */
+    /**
+     * Runs of every flow the user may see. Filters: {@code status}, {@code trigger} (repeatable), {@code q} (flow
+     * name), {@code createdFrom}/{@code createdTo} (days); {@code sort}: createdAt, startedAt, finishedAt, status,
+     * flow (default {@code -createdAt}).
+     */
     @GetMapping("/api/flow-runs")
     ApiResponse<List<RunSummary>> list(@RequestParam(required = false) List<String> status,
+                                       @RequestParam(required = false) List<String> trigger,
+                                       @RequestParam(required = false) String q,
+                                       @RequestParam(required = false) java.time.LocalDate createdFrom,
+                                       @RequestParam(required = false) java.time.LocalDate createdTo,
+                                       @RequestParam(required = false) String sort,
                                        @RequestParam(required = false) Integer page,
                                        @RequestParam(required = false) Integer size, Authentication authentication) {
         int[] paging = paging(page, size);
         List<RunStatus> statuses = status == null ? List.of()
                 : status.stream().map(value -> WebSupport.parse(RunStatus.class, value, "status")).toList();
-        return ApiResponse.page(runs.list(null, statuses, viewer(authentication), paging[0], paging[1]),
-                FlowViews::summary);
+        List<com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType> triggers = trigger == null ? List.of()
+                : trigger.stream().map(value -> WebSupport.parse(
+                com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType.class, value, "trigger")).toList();
+        return ApiResponse.page(runs.list(null, statuses, triggers, q, createdFrom, createdTo, sort,
+                viewer(authentication), paging[0], paging[1]), FlowViews::summary);
     }
 
     /** While the run is active, {@code Retry-After} suggests when to ask again. */

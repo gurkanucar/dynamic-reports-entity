@@ -1,7 +1,7 @@
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge, type Tone } from "@/shared/components/status-badge"
 import type { ApprovalStatus } from "../types/approval.dto"
 
-const LABELS: Record<ApprovalStatus, string> = {
+export const APPROVAL_LABELS: Record<ApprovalStatus, string> = {
   pending: "Bekliyor",
   approved: "Onaylandı",
   rejected: "Reddedildi",
@@ -9,14 +9,14 @@ const LABELS: Record<ApprovalStatus, string> = {
   cancelled: "İptal",
 }
 
-const VARIANTS: Record<ApprovalStatus, "secondary" | "destructive" | "outline"> = {
-  pending: "outline",
-  approved: "secondary",
-  rejected: "destructive",
-  timed_out: "outline",
-  cancelled: "outline",
+const TONES: Record<ApprovalStatus, Tone> = {
+  pending: "warning",
+  approved: "success",
+  rejected: "danger",
+  timed_out: "muted",
+  cancelled: "neutral",
 }
 
 export function ApprovalStatusBadge({ status }: { status: ApprovalStatus }) {
-  return <Badge variant={VARIANTS[status]}>{LABELS[status]}</Badge>
+  return <StatusBadge tone={TONES[status]}>{APPROVAL_LABELS[status]}</StatusBadge>
 }

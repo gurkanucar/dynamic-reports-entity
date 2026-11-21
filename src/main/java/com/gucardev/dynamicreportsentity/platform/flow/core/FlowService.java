@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.api.ListQuery;
+
 import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
 
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
@@ -65,10 +67,18 @@ public class FlowService {
         this.clock = clock;
     }
 
+    /** Sortable fields of the flow list (API name → property). */
+    public static final Map<String, String> SORTS = Map.of("name", "name", "updatedAt", "updatedAt",
+            "createdAt", "createdAt", "owner", "owner", "id", "id");
+
     public Page<Flow> list(Actor viewer, int page, int size) {
-        PageRequest request = PageRequest.of(page - 1, size, Sort.by(Sort.Order.desc("updatedAt"), Sort.Order.desc("id")));
-        return viewer.hasAuthority(ADMIN_AUTHORITY) ? flows.findAll(request)
-                : flows.findByOwner(viewer.username(), request);
+        return list(viewer, null, null, page, size);
+    }
+
+    /** Own flows (every flow for admins); {@code q} over name and description; {@code sort} default {@code -updatedAt}. */
+    public Page<Flow> list(Actor viewer, String q, String sort, int page, int size) {
+        return flows.search(viewer.hasAuthority(ADMIN_AUTHORITY) ? null : viewer.username(), ListQuery.like(q),
+                ListQuery.page(page, size, ListQuery.sort(sort, SORTS, "-updatedAt")));
     }
 
     public Flow get(long id, Actor viewer) {

@@ -78,6 +78,9 @@ public class Survey {
 
     private Instant publishedAt;
 
+    @Column(name = "settings_json", length = 20_000)
+    private String settingsJson;
+
     Survey(String owner, Instant now) {
         this.owner = owner;
         this.createdAt = now;
@@ -95,12 +98,17 @@ public class Survey {
         this.anonymous = input.anonymous();
         this.oneResponsePerUser = input.oneResponsePerUser();
         this.closesAt = input.closesAt();
+        this.settingsJson = (input.settings() == null ? SurveySettings.DEFAULT : input.settings()).toJson();
         this.updatedBy = editor;
         this.updatedAt = now;
     }
 
     public SurveyDefinition definition() {
         return SurveyDefinition.fromJson(definitionJson);
+    }
+
+    public SurveySettings settings() {
+        return SurveySettings.fromJson(settingsJson);
     }
 
     /** Whether it takes responses now. */

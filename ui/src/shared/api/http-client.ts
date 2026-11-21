@@ -82,7 +82,7 @@ export const http = {
     return (await (await send(path)).json()) as T
   },
 
-  async send<T>(method: "POST" | "PUT" | "DELETE", path: string, body?: unknown, extra?: HeadersInit): Promise<T> {
+  async send<T>(method: "POST" | "PUT" | "PATCH" | "DELETE", path: string, body?: unknown, extra?: HeadersInit): Promise<T> {
     const response = await send(path, jsonInit(method, body, extra))
     return response.status === 204 ? (undefined as T) : ((await response.json()) as T)
   },

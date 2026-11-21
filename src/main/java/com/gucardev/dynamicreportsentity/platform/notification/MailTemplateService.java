@@ -48,8 +48,19 @@ public class MailTemplateService {
         this.clock = clock;
     }
 
+    /** Sortable fields of the template list (API name → property). */
+    public static final java.util.Map<String, String> SORTS = java.util.Map.of("name", "name",
+            "updatedAt", "updatedAt", "id", "id");
+
     public Page<MailTemplate> list(int page, int size) {
-        return templates.findAll(PageRequest.of(page - 1, size, Sort.by("name", "id")));
+        return list(null, null, page, size);
+    }
+
+    /** {@code q} over name, subject, description; {@code sort} default {@code name}. */
+    public Page<MailTemplate> list(String q, String sort, int page, int size) {
+        return templates.search(com.gucardev.dynamicreportsentity.platform.api.ListQuery.like(q),
+                com.gucardev.dynamicreportsentity.platform.api.ListQuery.page(page, size,
+                        com.gucardev.dynamicreportsentity.platform.api.ListQuery.sort(sort, SORTS, "name")));
     }
 
     public MailTemplate get(long id) {

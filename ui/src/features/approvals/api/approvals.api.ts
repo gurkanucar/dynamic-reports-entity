@@ -1,4 +1,5 @@
 import { http } from "@/shared/api/http-client"
+import { queryString } from "@/shared/lib/list-state"
 import type { Envelope } from "@/shared/types/api.types"
 import type {
   ApprovalGroupRequest, ApprovalGroupResponse, ApprovalRequestResponse, ApprovalStatus, DecisionRequest,
@@ -13,9 +14,11 @@ export const approvalsApi = {
       { "If-Match": `"${version}"` })).data,
   removeGroup: (id: number) => http.send<void>("DELETE", `/api/approval-groups/${id}`),
 
-  requests: (scope: "mine" | "all", statuses: ApprovalStatus[], page: number, size = 20) =>
-    http.get<Envelope<ApprovalRequestResponse[]>>(`/api/approval-requests?scope=${scope}&page=${page}&size=${size}${
-      statuses.map((s) => `&status=${s}`).join("")}`),
+  /** `sort`: createdAt, dueAt, title, status, group (`-` = descending). */
+  requests: (scope: "mine" | "all", statuses: ApprovalStatus[], page: number, size = 20,
+    filters: { q?: string; groupId?: number[]; sort?: string } = {}) =>
+    http.get<Envelope<ApprovalRequestResponse[]>>(`/api/approval-requests${queryString({ scope, page, size,
+      status: statuses, groupId: filters.groupId ?? [], q: filters.q, sort: filters.sort })}`),
   request: async (id: number) =>
     (await http.get<Envelope<ApprovalRequestResponse>>(`/api/approval-requests/${id}`)).data,
   decide: async (id: number, approve: boolean, request: DecisionRequest) =>

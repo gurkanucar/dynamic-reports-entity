@@ -81,10 +81,17 @@ class ApprovalController {
 
     // ---- requests -------------------------------------------------------------------------------------
 
-    /** {@code scope=mine} (default): requests of my groups; {@code all}: every request (dataset admins). */
+    /**
+     * {@code scope=mine} (default): requests of my groups; {@code all}: every request (platform admins). Filters:
+     * {@code status} (repeatable), {@code groupId} (repeatable), {@code q} (title, group); {@code sort}: createdAt,
+     * dueAt, title, status, group (default {@code -createdAt}).
+     */
     @GetMapping("/api/approval-requests")
     ApiResponse<List<ApprovalApi.ApprovalView>> requests(@RequestParam(defaultValue = "mine") String scope,
                                                       @RequestParam(required = false) List<String> status,
+                                                      @RequestParam(required = false) List<Long> groupId,
+                                                      @RequestParam(required = false) String q,
+                                                      @RequestParam(required = false) String sort,
                                                       @RequestParam(required = false) Integer page,
                                                       @RequestParam(required = false) Integer size,
                                                       Authentication authentication) {
@@ -95,15 +102,16 @@ class ApprovalController {
         Actor user = Actor.of(authentication);
         List<ApprovalRequest.Status> statuses = status == null ? List.of()
                 : status.stream().map(value -> HttpSupport.parse(ApprovalRequest.Status.class, value, "status")).toList();
-        return ApiResponse.page(approvals.requests(user, scope, statuses, paging[0], paging[1]),
-                request -> ApprovalApi.approval(request, approvals.canDecide(request, user)));
+        return ApiResponse.page(approvals.requests(user, scope, statuses, groupId == null ? List.of() : groupId, q, sort,
+                        paging[0], paging[1]),
+                request -> ApprovalApi.approval(request, approvals.decisionBlocker(request, user)));
     }
 
     @GetMapping("/api/approval-requests/{id}")
     ApiResponse<ApprovalApi.ApprovalView> request(@PathVariable long id, Authentication authentication) {
         Actor user = Actor.of(authentication);
         ApprovalRequest request = approvals.request(id, user);
-        return ApiResponse.of(ApprovalApi.approval(request, approvals.canDecide(request, user)));
+        return ApiResponse.of(ApprovalApi.approval(request, approvals.decisionBlocker(request, user)));
     }
 
     @PostMapping("/api/approval-requests/{id}/approve")
@@ -124,6 +132,6 @@ class ApprovalController {
                                                        Authentication authentication) {
         Actor user = Actor.of(authentication);
         ApprovalRequest request = approvals.decide(id, approve, body == null ? null : body.comment(), user);
-        return ApiResponse.of(ApprovalApi.approval(request, false));
+        return ApiResponse.of(ApprovalApi.approval(request, "decided"));
     }
 }

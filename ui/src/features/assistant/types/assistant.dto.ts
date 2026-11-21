@@ -2,7 +2,7 @@ import type { ErrorInfo } from "@/shared/types/api.types"
 import type { FieldType, DatasetDefinition } from "@/features/datasets/types/dataset.types"
 
 /** What the assistant drafts; each has its own endpoint (/api/<kind>-suggestions). */
-export type AssistantKind = "dataset" | "mail-template" | "flow" | "cron" | "step"
+export type AssistantKind = "dataset" | "mail-template" | "flow" | "cron" | "step" | "survey"
 
 export interface ChatMessage {
   role: "user" | "assistant"
@@ -43,6 +43,8 @@ export interface TemplateDraftDto {
 export interface FlowDraftDto {
   flow: { name: string; steps: Record<string, unknown>[]; edges: { from: string; to: string; when?: string | null }[] }
   schedules: { cron: string; timeZone?: string }[]
+  /** Run for every response to a survey; `filter` is JSON Logic over `trigger`. */
+  surveyTriggers?: { surveyId: number; filter?: unknown }[]
   newTemplates: (TemplateDraftDto & { ref: string })[]
 }
 

@@ -44,6 +44,22 @@ class ApprovalStepHandler implements StepHandler {
         return ApprovalStep.TYPE;
     }
 
+    /**
+     * Who asks for the decision, for the four-eyes rule (that person may not decide unless the step allows it): the
+     * user who started a manual run, the flow owner for its schedules, the person behind an application event (a
+     * survey respondent: {@code trigger.startedBy}). A webhook or Kafka message comes from another system: no
+     * platform user asked, so the flow owner may decide like any member.
+     */
+    static String onBehalfOf(ClaimedStep claimed) {
+        return switch (claimed.trigger()) {
+            case MANUAL, SCHEDULE -> claimed.runAs();
+            case EVENT -> claimed.triggerPayload() instanceof Map<?, ?> payload
+                    && payload.get("startedBy") instanceof String person && !person.isBlank()
+                    ? person : claimed.triggeredBy();
+            case WEBHOOK, KAFKA -> claimed.triggeredBy();
+        };
+    }
+
     @Override
     public StepResult execute(StepContext context) {
         ClaimedStep claimed = context.step();
@@ -56,7 +72,7 @@ class ApprovalStepHandler implements StepHandler {
                     claimed.flowName() + " · çalışma #" + claimed.runId(), "/flows/" + claimed.flowId(),
                     step.groupId(), renderer.renderText(step.title(), data),
                     step.description() == null ? null : renderer.renderPlain(step.description(), data),
-                    claimed.triggeredBy(), claimed.runAs(), Boolean.TRUE.equals(step.allowSelfApproval()),
+                    claimed.triggeredBy(), onBehalfOf(claimed), Boolean.TRUE.equals(step.allowSelfApproval()),
                     !Boolean.FALSE.equals(step.notifyMembers()),
                     now.plus(Duration.ofHours(step.timeoutHoursOrDefault()))));
         } catch (ApprovalException e) {

@@ -47,9 +47,11 @@ class MailTemplateController {
 
     @GetMapping("/api/mail-templates")
     ApiResponse<List<TemplateSummary>> list(@RequestParam(required = false) Integer page,
-                                            @RequestParam(required = false) Integer size) {
+                                            @RequestParam(required = false) Integer size,
+                                            @RequestParam(required = false) String q,
+                                            @RequestParam(required = false) String sort) {
         int[] paging = paging(page, size);
-        return ApiResponse.page(templates.list(paging[0], paging[1]), NotificationApi::summary);
+        return ApiResponse.page(templates.list(q, sort, paging[0], paging[1]), NotificationApi::summary);
     }
 
     @PostMapping("/api/mail-templates")

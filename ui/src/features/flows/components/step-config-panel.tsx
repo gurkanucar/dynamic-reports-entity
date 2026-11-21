@@ -14,6 +14,7 @@ import { GroupDialog } from "@/features/approvals/components/group-dialog"
 import { useApprovalGroups } from "@/features/approvals/queries/use-approval-groups"
 import type { ApprovalGroupResponse } from "@/features/approvals/types/approval.dto"
 import { useCurrentUser } from "@/features/auth/queries/use-current-user"
+import { useSurvey, useSurveys } from "@/features/surveys/queries/use-surveys"
 import { DefinitionEditor } from "@/features/datasets/components/definition-editor"
 import { useCatalog } from "@/features/datasets/queries/use-catalog"
 import { useSavedDatasets } from "@/features/datasets/queries/use-saved-datasets"
@@ -40,6 +41,7 @@ function variablesFor(model: GraphModel, key: string, withItem: boolean): string
       case "dataset": paths.push(`${prefix}.rowCount`, `${prefix}.hasRows`); break
       case "filter": paths.push(`${prefix}.count`, `${prefix}.items`); break
       case "approval": paths.push(`${prefix}.decision`, `${prefix}.decidedBy`, `${prefix}.comment`); break
+      case "survey": paths.push(`${prefix}.respondent`, `${prefix}.answers`, `${prefix}.text`); break
       case "webhook": paths.push(`${prefix}.status`, `${prefix}.body`); break
       case "condition": paths.push(`${prefix}.result`); break
       default: break
@@ -140,6 +142,7 @@ function StepFields({ step, model, onChange }: {
         </>
       )
     case "approval": return <ApprovalFields step={step} onChange={onChange} />
+    case "survey": return <SurveyStepFields step={step} onChange={onChange} />
     case "webhook":
       return (
         <>
@@ -376,6 +379,69 @@ function MailFields({ step, model, onChange }: {
             ))}
           </ToggleGroup>
         </Field>
+      )}
+    </>
+  )
+}
+
+/** Which survey goes to whom, with what message, and how long to wait. */
+function SurveyStepFields({ step, onChange }: {
+  step: Extract<FlowStepDto, { type: "survey" }>
+  onChange: (step: FlowStepDto) => void
+}) {
+  const surveys = useSurveys("mine", 1, { status: ["published"] })
+  const survey = useSurvey(step.surveyId || null)
+  const [to, setTo] = useState(step.to.join(", "))
+  const questions = survey.data?.definition.fields.filter((field) => field.type !== "section") ?? []
+  return (
+    <>
+      <Field>
+        <div className="flex items-center justify-between gap-2">
+          <FieldLabel>Anket</FieldLabel>
+          <Button type="button" variant="ghost" size="sm" asChild>
+            <Link to="/surveys/new" target="_blank"><PlusIcon data-icon="inline-start" />Yeni anket</Link>
+          </Button>
+        </div>
+        <Select value={step.surveyId ? String(step.surveyId) : undefined}
+          onValueChange={(value) => onChange({ ...step, surveyId: Number(value) })}>
+          <SelectTrigger className="w-full"><SelectValue placeholder="Yayındaki bir anket seçin" /></SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {surveys.data?.data.map((item) => <SelectItem key={item.id} value={String(item.id)}>{item.title}</SelectItem>)}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <FieldDescription>Yalnızca yayındaki anketler gönderilebilir.</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="survey-to">Alıcılar</FieldLabel>
+        <Input id="survey-to" value={to} placeholder="yonetici@sirket.com, {{trigger.managerEmail}}"
+          onChange={(e) => setTo(e.target.value)}
+          onBlur={() => onChange({ ...step, to: to.split(",").map((item) => item.trim()).filter(Boolean) })} />
+        <FieldDescription>Virgülle ayırın; {"{{…}}"} ile tetikleyiciden de alınabilir. İlk yanıt adımı devam ettirir.</FieldDescription>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="survey-subject">Konu (isteğe bağlı)</FieldLabel>
+        <Input id="survey-subject" value={step.subject ?? ""} placeholder={`Anket: ${survey.data?.title ?? "…"}`}
+          onChange={(e) => onChange({ ...step, subject: e.target.value || null })} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="survey-message">Mesaj</FieldLabel>
+        <Textarea id="survey-message" className="min-h-20" value={step.message ?? ""}
+          placeholder="Merhaba, {{trigger.fullName}} için ekipman listesini doldurur musunuz?"
+          onChange={(e) => onChange({ ...step, message: e.target.value || null })} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="survey-timeout">En fazla bekleme (saat)</FieldLabel>
+        <Input id="survey-timeout" type="number" min={1} max={720} className="w-32" value={step.timeoutHours ?? 72}
+          onChange={(e) => onChange({ ...step, timeoutHours: Number(e.target.value) || null })} />
+        <FieldDescription>Süre dolarsa “Zaman aşımı” çıkışından devam eder; bağlantı da kapanır.</FieldDescription>
+      </Field>
+      {questions.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Sonraki adımlarda: <code>{`{{steps.${step.key}.text.${questions[0].id}}}`}</code>, <code>{`steps.${step.key}.respondent`}</code>
+          {" "}· sorular: {questions.map((field) => field.id).join(", ")}
+        </p>
       )}
     </>
   )

@@ -47,6 +47,11 @@ the visual editor, fine-tunes it and saves it. You never see data, only the meta
   {"var": "item.field"}>}` keeps the list items matching the expression.
 - **webhook** (HTTP request to another system): `{"type": "webhook", "key": "notify", "url": "https://...",
   "method": "POST", "body": "<JSON with {{placeholders}}>", "contentType": "application/json"}`.
+- **survey** (send a survey and wait for the answer): `{"type": "survey", "key": "ask_manager", "surveyId": <id>,
+  "to": ["{{trigger.managerEmail}}"], "subject": "...", "message": "...", "timeoutHours": 72}` mails a single-use link
+  to one of the listed surveys and waits; outcomes "answered" and "timeout". Later steps read
+  `steps.<key>.answers.<question id>`, `steps.<key>.text.<question id>`, `steps.<key>.respondent`. Use it when a
+  person must fill in details in the middle of a process (a manager lists the equipment, a customer rates a visit).
 - **kafka** (write a message): `{"type": "kafka", "key": "publish", "topic": "flows.x", "payload": "<JSON>"}`.
 
 # Starting the flow

@@ -1,15 +1,16 @@
 import { ApiError } from "@/shared/api/http-client"
 import { templatesApi } from "@/features/templates/api/templates.api"
 import type { FlowDraftDto } from "@/features/assistant/types/assistant.dto"
-import type { FlowEdgeDto, FlowStepDto } from "../types/flow.dto"
+import type { FlowEdgeDto, FlowStepDto, JsonLogicRule } from "../types/flow.dto"
 import { DEFAULT_TIME_ZONE } from "./cron"
 import { withExplicitEdges, withLayout, type GraphModel } from "./flow-graph"
-import { newTrigger, type TriggerDraft } from "./triggers"
+import { newTrigger, surveyTrigger, type TriggerDraft } from "./triggers"
 
 export interface AppliedDraft {
   name: string
   model: GraphModel
   schedules: TriggerDraft[]
+  surveys: TriggerDraft[]
   /** Names of the mail templates created for it. */
   createdTemplates: string[]
 }
@@ -39,6 +40,8 @@ export async function applyFlowDraft(draft: FlowDraftDto): Promise<AppliedDraft>
       ...(newTrigger("schedule") as Extract<TriggerDraft, { kind: "schedule" }>),
       cron: schedule.cron, timeZone: schedule.timeZone ?? DEFAULT_TIME_ZONE,
     })),
+    surveys: (draft.surveyTriggers ?? []).map((trigger) =>
+      surveyTrigger(trigger.surveyId, undefined, (trigger.filter ?? null) as JsonLogicRule | null)),
     createdTemplates,
   }
 }

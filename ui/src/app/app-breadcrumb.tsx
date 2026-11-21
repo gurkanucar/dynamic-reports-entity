@@ -5,6 +5,7 @@ import {
 } from "@/components/ui/breadcrumb"
 import { useSavedDataset } from "@/features/datasets/queries/use-saved-datasets"
 import { useFlow } from "@/features/flows/queries/use-flow"
+import { useSurvey } from "@/features/surveys/queries/use-surveys"
 
 const SECTIONS: Record<string, string> = {
   datasets: "Veri setleri",
@@ -13,6 +14,7 @@ const SECTIONS: Record<string, string> = {
   approvals: "Onaylarım",
   "approval-groups": "Onay grupları",
   templates: "Mail şablonları",
+  surveys: "Anketler",
 }
 
 interface Crumb {
@@ -30,10 +32,16 @@ export function AppBreadcrumb() {
   const datasetName = section === "datasets" && id && id !== "new" ? decodeURIComponent(id) : undefined
   const flow = useFlow(flowId)
   const dataset = useSavedDataset(datasetName)
+  const surveyId = section === "surveys" && id && id !== "new" ? Number(id) : null
+  const survey = useSurvey(surveyId)
 
   if (!section || !SECTIONS[section]) return null
   const crumbs: Crumb[] = [{ label: SECTIONS[section], to: id ? `/${section}` : undefined }]
-  if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : "Yeni veri seti" })
+  if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : section === "surveys" ? "Yeni anket" : "Yeni veri seti" })
+  else if (surveyId) {
+    crumbs.push({ label: survey.data?.title ?? `#${surveyId}`, to: action ? `/surveys/${surveyId}` : undefined })
+    if (action === "edit") crumbs.push({ label: "Düzenle" })
+  }
   else if (flowId) {
     crumbs.push({ label: flow.data?.name ?? `#${flowId}`, to: action ? `/flows/${flowId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })

@@ -1,8 +1,12 @@
-import { CalendarClockIcon, HandIcon, PlayIcon, RadioTowerIcon, Trash2Icon, WebhookIcon } from "lucide-react"
+import { CalendarClockIcon, ClipboardListIcon, HandIcon, PlayIcon, RadioTowerIcon, Trash2Icon, WebhookIcon } from "lucide-react"
+import { useEffect } from "react"
+import { Link } from "react-router"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useSurvey, useSurveys } from "@/features/surveys/queries/use-surveys"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
@@ -41,8 +45,10 @@ export function StartPanel({ triggers, onChange, saved }: {
               {trigger.kind === "schedule" && <CalendarClockIcon className="size-4" />}
               {trigger.kind === "webhook" && <WebhookIcon className="size-4" />}
               {trigger.kind === "kafka" && <RadioTowerIcon className="size-4" />}
+              {trigger.kind === "survey" && <ClipboardListIcon className="size-4" />}
               <span className="text-sm font-medium">
-                {trigger.kind === "schedule" ? "Zamanlama" : trigger.kind === "webhook" ? "Webhook" : "Kafka mesajı"}
+                {trigger.kind === "schedule" ? "Zamanlama" : trigger.kind === "webhook" ? "Webhook"
+                  : trigger.kind === "survey" ? "Anket yanıtı" : "Kafka mesajı"}
               </span>
               <Switch className="ml-auto" checked={trigger.enabled} aria-label="Etkin"
                 onCheckedChange={(enabled) => update(trigger.uid, { enabled })} />
@@ -61,6 +67,7 @@ export function StartPanel({ triggers, onChange, saved }: {
                 {" "}Gönderilen JSON gövdesi adımlarda <code>trigger</code> olarak okunur.
               </p>
             )}
+            {trigger.kind === "survey" && <SurveyFields trigger={trigger} onChange={(change) => update(trigger.uid, change)} />}
             {trigger.kind === "kafka" && (
               <FieldGroup>
                 <Field data-invalid={!trigger.topic.trim() || trigger.topic.trim().endsWith(".") ? true : undefined}>
@@ -85,10 +92,65 @@ export function StartPanel({ triggers, onChange, saved }: {
             <Button variant="outline" size="sm" onClick={() => add("schedule")}><CalendarClockIcon data-icon="inline-start" />Zamanlama</Button>
             <Button variant="outline" size="sm" onClick={() => add("webhook")}><WebhookIcon data-icon="inline-start" />Webhook</Button>
             <Button variant="outline" size="sm" onClick={() => add("kafka")}><RadioTowerIcon data-icon="inline-start" />Kafka mesajı</Button>
+            <Button variant="outline" size="sm" onClick={() => add("survey")}><ClipboardListIcon data-icon="inline-start" />Anket yanıtı</Button>
           </div>
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/** Every response to one of my surveys starts the flow; the answers are `trigger.answers.<id>`. */
+function SurveyFields({ trigger, onChange }: {
+  trigger: Extract<TriggerDraft, { kind: "survey" }>
+  onChange: (change: Partial<TriggerDraft>) => void
+}) {
+  const surveys = useSurveys("mine")
+  const survey = useSurvey(trigger.surveyId)
+  const questions = survey.data?.definition.fields.filter((field) => field.type !== "section") ?? []
+  const variables = [...questions.map((field) => `trigger.answers.${field.id}`), "trigger.respondent"]
+  // the start node names the survey: a saved trigger knows only its id
+  const title = survey.data?.title
+  useEffect(() => {
+    if (title && trigger.title !== title) onChange({ title } as Partial<TriggerDraft>)
+  }, [title, trigger.title, onChange])
+  return (
+    <FieldGroup>
+      <Field data-invalid={trigger.surveyId === null ? true : undefined}>
+        <FieldLabel htmlFor={`survey-${trigger.uid}`}>Anket</FieldLabel>
+        <Select value={trigger.surveyId === null ? "" : String(trigger.surveyId)}
+          onValueChange={(value) => onChange({ surveyId: Number(value),
+            title: surveys.data?.data.find((item) => item.id === Number(value))?.title } as Partial<TriggerDraft>)}>
+          <SelectTrigger id={`survey-${trigger.uid}`} className="w-full">
+            <SelectValue placeholder={surveys.isPending ? "Yükleniyor…" : "Anket seçin"} />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              {surveys.data?.data.map((item) => (
+                <SelectItem key={item.id} value={String(item.id)}>{item.title}</SelectItem>
+              ))}
+              {trigger.surveyId !== null && !surveys.data?.data.some((item) => item.id === trigger.surveyId) && (
+                <SelectItem value={String(trigger.surveyId)}>{survey.data?.title ?? `#${trigger.surveyId}`}</SelectItem>
+              )}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+        <FieldDescription>
+          Her yeni yanıtta bir çalışma başlar. <Link to="/surveys/new" className="underline">Yeni anket</Link>
+        </FieldDescription>
+      </Field>
+      {trigger.surveyId !== null && (
+        <Field>
+          <FieldLabel>Filtre (isteğe bağlı)</FieldLabel>
+          <JsonLogicEditor value={trigger.filter ?? true} variables={variables}
+            onChange={(filter) => onChange({ filter: filter === true ? null : filter } as Partial<TriggerDraft>)} />
+          <FieldDescription>
+            Cevaplar adımlarda <code>trigger.answers.&lt;anahtar&gt;</code>, okunur hâli <code>trigger.text.&lt;anahtar&gt;</code>
+            {questions.length > 0 && <> ({questions.slice(0, 4).map((field) => field.id).join(", ")}{questions.length > 4 ? ", …" : ""})</>}.
+          </FieldDescription>
+        </Field>
+      )}
+    </FieldGroup>
   )
 }
 

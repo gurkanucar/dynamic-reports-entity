@@ -10,6 +10,8 @@ import { formatDateTime } from "@/shared/lib/format"
 import { errorMessage } from "@/shared/api/http-client"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
+import { SearchInput } from "@/shared/components/search-input"
+import { useListState } from "@/shared/lib/list-state"
 import { TemplateEditor } from "../components/template-editor"
 import { DEFAULT_DATASET_TEMPLATE } from "../lib/default-template"
 import { useDeleteTemplate } from "../mutations/use-delete-template"
@@ -19,7 +21,8 @@ import { useTemplates } from "../queries/use-templates"
 const NEW = "new"
 
 export function TemplatesPage() {
-  const templates = useTemplates()
+  const list = useListState("name")
+  const templates = useTemplates(list.query || undefined)
   const [selected, setSelected] = useState<string | null>(null)
   const selectedId = selected && selected !== NEW ? Number(selected) : null
   const template = useTemplate(selectedId)
@@ -39,7 +42,11 @@ export function TemplatesPage() {
             <Button onClick={() => setSelected(NEW)}><PlusIcon data-icon="inline-start" />Yeni şablon</Button>
           </>
         )} />
+      <SearchInput value={list.search} onChange={list.setSearch} placeholder="Ad, konu veya açıklama ara…" />
       {templates.isPending && <Skeleton className="h-10 w-full" />}
+      {templates.data && templates.data.length === 0 && list.query && (
+        <p className="text-sm text-muted-foreground">“{list.query}” ile eşleşen şablon yok.</p>
+      )}
       {templates.isError && <ErrorAlert error={templates.error} />}
       {templates.data && templates.data.length > 0 && (
         <ItemGroup className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">

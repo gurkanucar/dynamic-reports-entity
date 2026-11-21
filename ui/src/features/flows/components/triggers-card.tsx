@@ -1,4 +1,4 @@
-import { CopyIcon, KeyRoundIcon, PlusIcon, RadioTowerIcon, Trash2Icon, WebhookIcon } from "lucide-react"
+import { ClipboardListIcon, CopyIcon, KeyRoundIcon, PlusIcon, RadioTowerIcon, Trash2Icon, WebhookIcon } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
@@ -58,12 +58,14 @@ export function TriggersCard({ flowId }: { flowId: number }) {
                 type: trigger.type, enabled, topic: trigger.topic, filter: trigger.filter } },
               { onError: fail("Değiştirilemedi") })} />
             <Badge variant="secondary">
-              {trigger.type === "webhook" ? <WebhookIcon data-icon="inline-start" /> : <RadioTowerIcon data-icon="inline-start" />}
-              {trigger.type === "webhook" ? "Webhook" : "Kafka"}
+              {trigger.type === "webhook" ? <WebhookIcon data-icon="inline-start" />
+                : trigger.type === "event" ? <ClipboardListIcon data-icon="inline-start" /> : <RadioTowerIcon data-icon="inline-start" />}
+              {trigger.type === "webhook" ? "Webhook" : trigger.type === "event" ? "Anket yanıtı" : "Kafka"}
             </Badge>
             <div className="flex min-w-0 flex-1 flex-col">
               <span className="truncate font-mono text-xs">
-                {trigger.webhookUrl ? fullUrl(trigger.webhookUrl) : trigger.topic}
+                {trigger.webhookUrl ? fullUrl(trigger.webhookUrl)
+                  : trigger.type === "event" ? `Anket #${trigger.topic?.replace("survey:", "")}` : trigger.topic}
               </span>
               <span className="text-xs text-muted-foreground">
                 {trigger.filter ? "Filtreli · " : ""}Son tetiklenme: {formatDateTime(trigger.lastFiredAt)}

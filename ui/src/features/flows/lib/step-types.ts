@@ -1,5 +1,5 @@
 import {
-  CheckCheckIcon, DatabaseIcon, FilterIcon, GitBranchIcon, MailIcon, RadioTowerIcon, WebhookIcon, type LucideIcon,
+  CheckCheckIcon, ClipboardListIcon, DatabaseIcon, FilterIcon, GitBranchIcon, MailIcon, RadioTowerIcon, WebhookIcon, type LucideIcon,
 } from "lucide-react"
 import type { FlowStepDto, StepType } from "../types/flow.dto"
 
@@ -50,6 +50,12 @@ export const STEP_TYPES: StepTypeInfo[] = [
     create: (key) => ({ type: "approval", key, groupId: 0, title: "{{flow.name}} onayı", timeoutHours: 72 }),
   },
   {
+    type: "survey", group: "Mantık", label: "Anket gönder", icon: ClipboardListIcon,
+    outcomes: [{ id: "answered", label: "Yanıtlandı" }, { id: "timeout", label: "Zaman aşımı" }],
+    description: "Bir anketin tek kullanımlık bağlantısını mailler ve yanıtı bekler; cevaplar sonraki adımlarda kullanılır.",
+    create: (key) => ({ type: "survey", key, surveyId: 0, to: [], timeoutHours: 72 }),
+  },
+  {
     type: "mail", group: "Eylemler", label: "Mail", icon: MailIcon, outcomes: SINGLE,
     description: "Şablondan mail gönderir, veri setlerini ekleyebilir.",
     create: (key) => ({ type: "mail", key, templateId: 0, to: [], attachments: [] }),
@@ -82,6 +88,7 @@ export function summary(step: FlowStepDto): string {
     case "approval": return `${step.timeoutHours ?? 72} saat içinde`
     case "webhook": return `${step.method ?? "POST"} ${safeHost(step.url)}`
     case "kafka": return step.topic
+    case "survey": return step.to.length ? `${step.to.join(", ")} · ${step.timeoutHours ?? 72} saat` : "Alıcı yok"
   }
 }
 

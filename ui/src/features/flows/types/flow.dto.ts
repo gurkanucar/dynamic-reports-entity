@@ -73,9 +73,20 @@ export interface KafkaPublishStepDto {
   payload: string
 }
 
+/** Mails a single-use survey link and waits for the answer (outcomes answered, timeout). */
+export interface SurveyStepDto {
+  type: "survey"
+  key: string
+  surveyId: number
+  to: string[]
+  subject?: string | null
+  message?: string | null
+  timeoutHours?: number | null
+}
+
 export type FlowStepDto =
   | DatasetStepDto | MailStepDto | ConditionStepDto | FilterStepDto | ApprovalStepDto | WebhookStepDto
-  | KafkaPublishStepDto
+  | KafkaPublishStepDto | SurveyStepDto
 
 export type StepType = FlowStepDto["type"]
 
@@ -154,7 +165,7 @@ export interface RunSummaryResponse {
   flow: { id: number; name: string }
   status: RunStatus
   cancelRequested: boolean
-  trigger: "manual" | "schedule" | "webhook" | "kafka"
+  trigger: "manual" | "schedule" | "webhook" | "kafka" | "event"
   triggeredBy: string
   runAs: UserRef
   scheduleId: number | null
@@ -218,7 +229,8 @@ export interface RunDetailResponse extends RunSummaryResponse {
 
 // ---- event triggers ----
 
-export type TriggerType = "webhook" | "kafka"
+/** `event`: an event of another module; `topic` is its source, e.g. `survey:42`. */
+export type TriggerType = "webhook" | "kafka" | "event"
 
 export interface TriggerRequest {
   type: TriggerType

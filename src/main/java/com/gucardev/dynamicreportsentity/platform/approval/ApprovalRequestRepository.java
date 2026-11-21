@@ -35,13 +35,17 @@ interface ApprovalRequestRepository extends JpaRepository<ApprovalRequest, Long>
              FOR UPDATE SKIP LOCKED""", nativeQuery = true)
     List<Long> lockOverdue(@Param("now") Instant now, @Param("limit") int limit);
 
-    /** Requests of the given groups (or all), newest first. */
+    /** Requests of the given groups (or all), filtered by status, group and title text ({@code q}: a LIKE pattern). */
     @Query("""
             select r from ApprovalRequest r
              where (:all = true or r.groupId in :groupIds)
-               and r.status in :statuses""")
+               and r.status in :statuses
+               and (:anyGroup = true or r.groupId in :onlyGroups)
+               and (:q is null or lower(r.title) like :q escape '\\' or lower(r.groupName) like :q escape '\\')""")
     Page<ApprovalRequest> search(@Param("all") boolean all, @Param("groupIds") Collection<Long> groupIds,
-                                 @Param("statuses") Collection<ApprovalRequest.Status> statuses, Pageable pageable);
+                                 @Param("statuses") Collection<ApprovalRequest.Status> statuses,
+                                 @Param("anyGroup") boolean anyGroup, @Param("onlyGroups") Collection<Long> onlyGroups,
+                                 @Param("q") String q, Pageable pageable);
 
     boolean existsByGroupIdAndStatus(Long groupId, ApprovalRequest.Status status);
 }

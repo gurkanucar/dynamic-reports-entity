@@ -29,7 +29,7 @@ const CHART: ChartConfig = {
   other: { label: "Sürüyor / iptal", color: "var(--muted-foreground)" },
 }
 
-const TRIGGERS: Record<string, string> = { manual: "Elle", schedule: "Zamanlama", webhook: "Webhook", kafka: "Kafka" }
+const TRIGGERS: Record<string, string> = { manual: "Elle", schedule: "Zamanlama", webhook: "Webhook", kafka: "Kafka", event: "Anket" }
 
 /** The home page: what needs attention (approvals, failures) and how the flows have been running. */
 export function DashboardPage() {

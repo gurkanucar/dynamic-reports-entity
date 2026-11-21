@@ -1,5 +1,9 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import java.time.Instant;
+
+import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
+
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,9 +36,15 @@ interface FlowRunRepository extends JpaRepository<FlowRun, Long> {
             select r from FlowRun r
              where (:runAs is null or r.runAs = :runAs)
                and (:flowId is null or r.flowId = :flowId)
-               and r.status in :statuses""")
+               and r.status in :statuses
+               and r.triggerType in :triggers
+               and (:q is null or lower(r.flowName) like :q escape '\\')
+               and (:from is null or r.createdAt >= :from)
+               and (:to is null or r.createdAt < :to)""")
     Page<FlowRun> search(@Param("runAs") String runAs, @Param("flowId") Long flowId,
-                         @Param("statuses") Collection<RunStatus> statuses, Pageable pageable);
+                         @Param("statuses") Collection<RunStatus> statuses,
+                         @Param("triggers") Collection<TriggerType> triggers, @Param("q") String q,
+                         @Param("from") Instant from, @Param("to") Instant to, Pageable pageable);
 
     List<FlowRun> findByFlowIdAndStatusIn(Long flowId, Collection<RunStatus> statuses);
 }

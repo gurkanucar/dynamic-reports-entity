@@ -10,13 +10,16 @@ info:
     rule) are JSON Logic over the answers (`{"var": "<question id>"}`), evaluated on the server: hidden questions are
     dropped, required ones checked, answers typed, then every rule must be true.
 
-    Every accepted response is published to flows as an event under the source `survey:<id>`: a flow trigger
+    A flow's `survey` step mails a single-use link (`/s/<id>?invitation=<token>`) and waits; the response sent
+    through it resumes that step (outcome `answered`) instead of starting new runs. Every other accepted response is
+    published to flows as an event under the source `survey:<id>`: a flow trigger
     `{"type": "event", "topic": "survey:42"}` starts a run with `trigger = {surveyId, surveyTitle, responseId,
     respondent, submittedAt, answers, text, labels}`.
 paths:
   /api/surveys:
     get:
       summary: "scope=mine (default): surveys I own (admins: all); scope=open: surveys I can answer now"
+      description: "Filters: status (repeatable), q (title, description). sort: title, updatedAt, createdAt, status, closesAt; default -updatedAt."
       parameters:
         - { name: scope, in: query, schema: { type: string, enum: [mine, open] } }
         - { name: page, in: query, schema: { type: integer, minimum: 1 } }
@@ -47,8 +50,23 @@ paths:
         "409": { description: "SURVEY_CLOSED / ALREADY_ANSWERED" }
         "422": { description: "VALIDATION_FAILED: answers.<id> (REQUIRED, OUT_OF_RANGE, UNKNOWN_OPTION, ...) or rules.<id> (RULE_FAILED, the rule's message)" }
     get:
-      summary: Responses, newest first (owner or admin)
+      summary: Responses (owner or admin)
+      description: "Filters: status, priority (repeatable), assignee, q (respondent, answers, assignee), submittedFrom/submittedTo. sort: submittedAt, status, priority, followUpAt, assignee, respondent; default -submittedAt."
       responses: { "200": { description: "Page of {id, surveyVersion, respondent, submittedAt, answers, display}" } }
+  /api/surveys/{id}/responses/{responseId}:
+    get: { summary: One response with its follow-up, responses: { "200": { description: ResponseView } } }
+    patch:
+      summary: "The owner's follow-up (JSON merge patch): status (new|in_progress|resolved|unresolved), priority (low|normal|high), followUpAt, assignee, tracking (extra fields by id). Answers never change."
+      responses: { "200": { description: ResponseView }, "422": { description: VALIDATION_FAILED } }
+  /api/surveys/{id}/responses/{responseId}/notes:
+    get: { summary: Notes on the response, responses: { "200": { description: "[{id, author, text, createdAt}]" } } }
+    post: { summary: "Add a note {text}", responses: { "201": { description: Note } } }
+  /api/surveys/{id}/responses/{responseId}/notes/{noteId}:
+    delete: { summary: Remove a note, responses: { "204": { description: Deleted } } }
+  /api/surveys/{id}/results:
+    get:
+      summary: "Counted answers of the questions marked showInResults, when settings.results lets this user see them (respondents: after answering; everyone). No text answers."
+      responses: { "200": { description: Summary }, "403": { description: RESULTS_NOT_VISIBLE } }
   /api/surveys/{id}/responses/export:
     get:
       summary: All responses as an Excel file (answers as people read them; numbers as numbers)

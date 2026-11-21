@@ -5,8 +5,10 @@ import type {
 } from "../types/template.dto"
 
 export const templatesApi = {
-  list: (page = 1, size = 100) =>
-    http.get<Envelope<TemplateSummaryResponse[]>>(`/api/mail-templates?page=${page}&size=${size}`),
+  /** `sort`: name, updatedAt. */
+  list: (page = 1, size = 100, filters: { q?: string; sort?: string } = {}) =>
+    http.get<Envelope<TemplateSummaryResponse[]>>(`/api/mail-templates?page=${page}&size=${size}${
+      filters.q ? `&q=${encodeURIComponent(filters.q)}` : ""}${filters.sort ? `&sort=${filters.sort}` : ""}`),
   get: async (id: number) => (await http.get<Envelope<TemplateResponse>>(`/api/mail-templates/${id}`)).data,
   create: async (request: TemplateRequest) =>
     (await http.send<Envelope<TemplateResponse>>("POST", "/api/mail-templates", request)).data,

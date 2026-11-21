@@ -51,6 +51,9 @@ export interface ApprovalRequestResponse {
   comment: string | null
   /** The current user may approve or reject it now. */
   canDecide: boolean
+  /** Why not: decided, not_member (not in the group), own_request (four-eyes rule); null when they can. */
+  decisionBlocker: "decided" | "not_member" | "own_request" | null
+  allowSelfApproval: boolean
 }
 
 export interface DecisionRequest {

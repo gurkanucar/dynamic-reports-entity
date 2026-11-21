@@ -39,6 +39,11 @@ function stepIssues(step: FlowStepDto): string[] {
       ...(!step.title.trim() ? ["Onaylayana gösterilecek başlığı girin."] : []),
     ]
     case "webhook": return /^https?:\/\/[^\s/]+/.test(step.url.trim()) ? [] : ["Geçerli bir http(s) adresi girin."]
+    case "survey": return [
+      ...(!step.surveyId ? ["Gönderilecek anketi seçin."] : []),
+      ...(step.to.length === 0 ? ["En az bir alıcı girin."] : []),
+      ...step.to.filter((address) => !address.includes("{{") && !EMAIL.test(address)).map((address) => `Geçersiz e-posta: ${address}`),
+    ]
     case "kafka": return [
       ...(!step.topic.trim() || step.topic.trim().endsWith(".") ? ["Topic adını tamamlayın."] : []),
       ...(!step.payload.trim() ? ["Mesaj içeriğini girin."] : []),
@@ -85,13 +90,16 @@ export function checkFlow(name: string, model: GraphModel, triggers: TriggerDraf
     if (trigger.kind === "schedule" && !looksLikeCron(trigger.cron)) {
       issues.push({ target: START_NODE, severity: "error", message: `Zamanlama geçersiz: “${trigger.cron}”.` })
     }
+    if (trigger.kind === "survey" && trigger.surveyId === null) {
+      issues.push({ target: START_NODE, severity: "error", message: "Anket tetikleyicisi için bir anket seçin." })
+    }
     if (trigger.kind === "kafka" && (!trigger.topic.trim() || trigger.topic.trim().endsWith("."))) {
       issues.push({ target: START_NODE, severity: "error", message: "Kafka tetikleyicisinin topic adını tamamlayın." })
     }
   }
   if (triggers.length === 0) {
     issues.push({ target: START_NODE, severity: "warning",
-      message: "Akış yalnızca elle başlatılabilir; zamanlama, webhook ya da Kafka ekleyebilirsiniz." })
+      message: "Akış yalnızca elle başlatılabilir; zamanlama, webhook, Kafka ya da anket yanıtı ekleyebilirsiniz." })
   }
   return issues
 }

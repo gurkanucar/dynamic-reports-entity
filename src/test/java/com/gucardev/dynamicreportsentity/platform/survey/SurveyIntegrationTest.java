@@ -227,6 +227,117 @@ class SurveyIntegrationTest {
         assertThat(runs.get(0).get("trigger").asString()).isEqualTo("event");
     }
 
+    @Test
+    void theOwnerFollowsUpResponsesWithStatusPriorityFieldsAndNotes() throws Exception {
+        long id = create("""
+                {"title": "Şikayet formu", "status": "published", "oneResponsePerUser": false,
+                 "settings": {"tracking": {"status": true, "priority": true, "followUpDate": true, "assignee": true,
+                   "fields": [{"id": "ticket", "label": "Kayıt no", "type": "text"},
+                              {"id": "area", "label": "Alan", "type": "choice",
+                               "options": [{"id": "it", "label": "BT"}, {"id": "hr", "label": "İK"}]}]}},
+                 "definition": {"fields": [{"id": "topic", "type": "shortText", "label": "Konu", "required": true}]}}""");
+        long first = json(answer(id, ALICE, Map.of("topic", "Yazıcı bozuk"))).get("data").get("responseId").asLong();
+        answer(id, BOB, Map.of("topic", "Maaş bordrosu yanlış"));
+
+        MvcTestResult patched = mvc.patch().uri("/api/surveys/" + id + "/responses/" + first).with(CAROL)
+                .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"status": "in_progress", "priority": "high", "followUpAt": "2026-12-01", "assignee": "bob",
+                         "tracking": {"ticket": "T-17", "area": "it"}}""").exchange();
+        assertThat(patched).hasStatusOk();
+        JsonNode view = json(patched).get("data");
+        assertThat(view.get("status").asString()).isEqualTo("in_progress");
+        assertThat(view.get("priority").asString()).isEqualTo("high");
+        assertThat(view.get("tracking").get("area").asString()).isEqualTo("it");
+        assertThat(mvc.patch().uri("/api/surveys/" + id + "/responses/" + first).with(CAROL)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"tracking\": {\"area\": \"sales\"}}").exchange())
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+        assertThat(mvc.patch().uri("/api/surveys/" + id + "/responses/" + first).with(ALICE)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\": \"resolved\"}").exchange())
+                .hasStatus(HttpStatus.NOT_FOUND);   // only the owner follows up
+
+        JsonNode filtered = json(mvc.get().uri("/api/surveys/" + id + "/responses?status=in_progress").with(CAROL).exchange());
+        assertThat(filtered.get("data")).hasSize(1);
+        assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses?q=bordro").with(CAROL).exchange()).get("data"))
+                .hasSize(1);
+        JsonNode sorted = json(mvc.get().uri("/api/surveys/" + id + "/responses?sort=-priority").with(CAROL).exchange());
+        assertThat(sorted.get("data").get(0).get("id").asLong()).isEqualTo(first);
+        assertThat(mvc.get().uri("/api/surveys/" + id + "/responses?sort=answersJson").with(CAROL).exchange())
+                .hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(json(mvc.get().uri("/api/surveys/" + id).with(CAROL).exchange()).get("data")
+                .get("followUpCounts").get("in_progress").asInt()).isEqualTo(1);
+
+        MvcTestResult note = post("/api/surveys/" + id + "/responses/" + first + "/notes", CAROL,
+                "{\"text\": \"Teknisyen yönlendirildi.\"}");
+        assertThat(note).hasStatus(HttpStatus.CREATED);
+        long noteId = json(note).get("data").get("id").asLong();
+        assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses/" + first + "/notes").with(CAROL).exchange())
+                .get("data").get(0).get("author").asString()).isEqualTo("carol");
+        assertThat(json(mvc.get().uri("/api/surveys/" + id + "/responses?status=in_progress").with(CAROL).exchange())
+                .get("data").get(0).get("notes").asInt()).isEqualTo(1);
+        assertThat(mvc.delete().uri("/api/surveys/" + id + "/responses/" + first + "/notes/" + noteId).with(CAROL)
+                .exchange()).hasStatus(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void respondentsSeeTheCountedResultsAfterAnswering() throws Exception {
+        String poll = """
+                {"title": "Öğle yemeği", "status": "published", "oneResponsePerUser": true,
+                 "settings": {"results": "respondents"},
+                 "definition": {"fields": [
+                   {"id": "place", "type": "singleChoice", "label": "Nerede?", "showInResults": true,
+                    "options": [{"id": "a", "label": "Kebapçı"}, {"id": "b", "label": "Balıkçı"}]},
+                   {"id": "why", "type": "shortText", "label": "Neden?"}]}}""";
+        long id = create(poll);
+        assertThat(mvc.get().uri("/api/surveys/" + id + "/results").with(ALICE).exchange()).hasStatus(HttpStatus.FORBIDDEN);
+        answer(id, ALICE, Map.of("place", "b", "why", "Deniz kenarı"));
+        JsonNode results = json(mvc.get().uri("/api/surveys/" + id + "/results").with(ALICE).exchange()).get("data");
+        assertThat(results.get("fields")).hasSize(1);   // only the question marked for results; no text answers
+        assertThat(results.get("fields").get(0).get("counts").get(1).get("count").asInt()).isEqualTo(1);
+
+        MvcTestResult personal = post("/api/surveys", CAROL, poll.replace("\"Neden?\"}", "\"Neden?\", \"showInResults\": true}"));
+        assertThat(personal).hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
+        MvcTestResult anonymous = post("/api/surveys", CAROL, poll.replace("\"oneResponsePerUser\": true",
+                "\"oneResponsePerUser\": false, \"anonymous\": true"));
+        assertThat(anonymous.getResponse().getContentAsString()).contains("RESULTS_NEED_RESPONDENT");
+    }
+
+    @Test
+    void aSurveyStepMailsALinkAndWaitsForTheAnswer() throws Exception {
+        long id = create(survey("Ekipman listesi", "published", """
+                {"fields": [{"id": "items", "type": "multipleChoice", "label": "Neler lazım?", "required": true,
+                  "options": [{"id": "laptop", "label": "Dizüstü"}, {"id": "phone", "label": "Telefon"}]}]}""", true));
+        MvcTestResult template = post("/api/mail-templates", CAROL, JSON.writeValueAsString(Map.of(
+                "name", "Ekipman siparişi " + Instant.now().toEpochMilli(), "subject", "Sipariş: {{steps.ask.text.items}}",
+                "bodyHtml", "<p>{{steps.ask.respondent}}: {{steps.ask.text.items}}</p>")));
+        long templateId = json(template).get("data").get("id").asLong();
+        long flowId = json(post("/api/flows", CAROL, """
+                {"name": "Yeni çalışan ekipmanı %d",
+                 "steps": [{"type": "survey", "key": "ask", "surveyId": %d, "to": ["yonetici@example.com"],
+                            "message": "Yeni çalışan için ekipmanları seçin."},
+                           {"type": "mail", "key": "order", "templateId": %d, "to": ["it@example.com"]}]}"""
+                .formatted(Instant.now().toEpochMilli(), id, templateId))).get("data").get("id").asLong();
+        assertThat(mvc.post().uri("/api/flows/" + flowId + "/runs").with(CAROL).exchange()).hasStatus(HttpStatus.ACCEPTED);
+
+        await(() -> RecordingMailSender.SENT.size() == 1, Duration.ofSeconds(20));
+        String body = String.valueOf(RecordingMailSender.SENT.getFirst().getContent());
+        java.util.regex.Matcher link = java.util.regex.Pattern.compile("invitation=([A-Za-z0-9_-]+)").matcher(body);
+        assertThat(link.find()).isTrue();
+        String token = link.group(1);
+        JsonNode form = json(mvc.get().uri("/api/surveys/" + id + "/form?invitation=" + token).with(ALICE).exchange());
+        assertThat(form.get("data").get("open").asBoolean()).isTrue();
+
+        MvcTestResult answered = post("/api/surveys/" + id + "/responses", ALICE, JSON.writeValueAsString(Map.of(
+                "answers", Map.of("items", java.util.List.of("laptop", "phone")), "invitation", token)));
+        assertThat(answered).hasStatus(HttpStatus.CREATED);
+        await(() -> RecordingMailSender.SENT.size() == 2, Duration.ofSeconds(20));
+        assertThat(subject(RecordingMailSender.SENT.get(1))).isEqualTo("Sipariş: Dizüstü, Telefon");
+        assertThat(post("/api/surveys/" + id + "/responses", ALICE, JSON.writeValueAsString(Map.of(
+                "answers", Map.of("items", java.util.List.of("phone")), "invitation", token))))
+                .hasStatus(HttpStatus.CONFLICT);   // single use
+        // the invitation's response does not use up alice's own "one response per user"
+        assertThat(answer(id, ALICE, Map.of("items", java.util.List.of("phone")))).hasStatus(HttpStatus.CREATED);
+    }
+
     private static String subject(MimeMessage mail) {
         try {
             return mail.getSubject();

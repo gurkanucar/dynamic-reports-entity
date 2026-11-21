@@ -63,12 +63,14 @@ class FlowController {
         this.schedules = schedules;
     }
 
-    /** Own flows (all flows for PLATFORM_ADMIN), last changed first. */
+    /** Own flows (all for PLATFORM_ADMIN); {@code q} over name and description; {@code sort}: name, updatedAt, createdAt, owner (default {@code -updatedAt}). */
     @GetMapping
     ApiResponse<List<FlowSummary>> list(@RequestParam(required = false) Integer page,
-                                        @RequestParam(required = false) Integer size, Authentication authentication) {
+                                        @RequestParam(required = false) Integer size,
+                                        @RequestParam(required = false) String q,
+                                        @RequestParam(required = false) String sort, Authentication authentication) {
         int[] paging = paging(page, size);
-        return ApiResponse.page(flows.list(viewer(authentication), paging[0], paging[1]), FlowViews::summary);
+        return ApiResponse.page(flows.list(viewer(authentication), q, sort, paging[0], paging[1]), FlowViews::summary);
     }
 
     @PostMapping

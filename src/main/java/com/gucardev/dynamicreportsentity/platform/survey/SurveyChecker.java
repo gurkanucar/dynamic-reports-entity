@@ -96,6 +96,50 @@ final class SurveyChecker {
         return problems;
     }
 
+    /** Settings that fit the survey: known result visibility, sensible tracking fields. */
+    static List<FieldProblem> checkSettings(SurveySettings settings, boolean anonymous, boolean oneResponsePerUser) {
+        List<FieldProblem> problems = new ArrayList<>();
+        if (settings == null) {
+            return problems;
+        }
+        if (!SurveySettings.RESULTS.contains(settings.results())) {
+            problems.add(new FieldProblem("settings.results", "INVALID_VALUE", "results is one of " + SurveySettings.RESULTS + "."));
+        } else if (settings.results().equals("respondents") && anonymous && !oneResponsePerUser) {
+            problems.add(new FieldProblem("settings.results", "RESULTS_NEED_RESPONDENT",
+                    "Showing results to respondents needs to know who answered: turn off anonymous, or allow one "
+                            + "response per user."));
+        }
+        List<SurveySettings.TrackingField> fields = settings.tracking().fields();
+        if (fields.size() > 20) {
+            problems.add(new FieldProblem("settings.tracking.fields", "TOO_MANY", "At most 20 tracking fields."));
+        }
+        Set<String> ids = new HashSet<>();
+        for (int i = 0; i < fields.size(); i++) {
+            SurveySettings.TrackingField field = fields.get(i);
+            String path = "settings.tracking.fields[" + i + "]";
+            if (field == null || field.id() == null || !ID.matcher(field.id()).matches()) {
+                problems.add(new FieldProblem(path + ".id", "INVALID_FORMAT", "A field id starts with a letter: letters, digits and _."));
+                continue;
+            }
+            if (!ids.add(field.id())) {
+                problems.add(new FieldProblem(path + ".id", "DUPLICATE_ID", "Two tracking fields have the id '" + field.id() + "'."));
+            }
+            if (field.label() == null || field.label().isBlank()) {
+                problems.add(new FieldProblem(path + ".label", "REQUIRED", "A tracking field needs a label."));
+            }
+            length(problems, path + ".label", field.label(), 100);
+            if (!SurveySettings.TRACKING_TYPES.contains(field.type())) {
+                problems.add(new FieldProblem(path + ".type", "UNKNOWN_TYPE", "type is one of " + SurveySettings.TRACKING_TYPES + "."));
+            } else if (field.type().equals("choice")) {
+                options(problems, path, field.options());
+            }
+        }
+        return problems;
+    }
+
+    /** Question types whose answers can be counted for others to see. */
+    static final Set<String> RESULT_TYPES = Set.of("singleChoice", "multipleChoice", "dropdown", "yesNo", "rating", "nps");
+
     private static void checkField(List<FieldProblem> problems, String path, Field field, Set<String> earlier) {
         if (field.id() == null || !ID.matcher(field.id()).matches()) {
             problems.add(new FieldProblem(path + ".id", "INVALID_FORMAT",
@@ -148,6 +192,10 @@ final class SurveyChecker {
         }
         if (field.visibleWhen() != null) {
             logic(problems, path + ".visibleWhen", field.visibleWhen(), earlier, "an earlier question");
+        }
+        if (Boolean.TRUE.equals(field.showInResults()) && !RESULT_TYPES.contains(field.type())) {
+            problems.add(new FieldProblem(path + ".showInResults", "NOT_ALLOWED",
+                    "Only choice, yes/no, rating and score questions can be shown in results (never personal answers)."));
         }
     }
 

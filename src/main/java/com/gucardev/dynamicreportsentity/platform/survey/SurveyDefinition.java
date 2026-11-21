@@ -36,11 +36,13 @@ public record SurveyDefinition(String submitLabel, String successMessage, List<F
      * @param max         number: largest value; rating: stars (3-10, default 5); multipleChoice: most choices
      * @param visibleWhen JSON Logic over the earlier answers; the question is asked only when it is true
      * @param width       {@code half}: two half questions share a row; absent = full
+     * @param showInResults counted in the results people may see ({@link SurveySettings#results()}); choice, yes/no,
+     *                      rating and score questions only, never personal answers
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record Field(String id, String type, String label, String help, String placeholder, Boolean required,
                         List<Option> options, Double min, Double max, Integer minLength, Integer maxLength,
-                        Object visibleWhen, String width) {
+                        Object visibleWhen, String width, Boolean showInResults) {
 
         public boolean isRequired() {
             return Boolean.TRUE.equals(required) && answerable() && !"yesNo".equals(type);

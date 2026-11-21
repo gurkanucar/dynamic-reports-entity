@@ -15,6 +15,28 @@ interface SurveyResponseRepository extends JpaRepository<SurveyResponse, Long> {
 
     Page<SurveyResponse> findBySurveyId(long surveyId, Pageable pageable);
 
+    /** The owner's response list: follow-up filters, a LIKE pattern over respondent and answers, a date range. */
+    @Query("""
+            select r from SurveyResponse r
+             where r.surveyId = :surveyId
+               and r.followStatus in :statuses
+               and (:anyPriority = true or r.priority in :priorities)
+               and (:assignee is null or r.assignee = :assignee)
+               and (:q is null or lower(r.respondent) like :q escape '\\' or lower(r.answersJson) like :q escape '\\'
+                    or lower(r.assignee) like :q escape '\\')
+               and (:from is null or r.submittedAt >= :from)
+               and (:to is null or r.submittedAt < :to)""")
+    Page<SurveyResponse> search(@Param("surveyId") long surveyId,
+                                @Param("statuses") Collection<SurveyResponse.FollowStatus> statuses,
+                                @Param("anyPriority") boolean anyPriority,
+                                @Param("priorities") Collection<SurveyResponse.Priority> priorities,
+                                @Param("assignee") String assignee, @Param("q") String q,
+                                @Param("from") java.time.Instant from, @Param("to") java.time.Instant to,
+                                Pageable pageable);
+
+    @Query("select r.followStatus, count(r) from SurveyResponse r where r.surveyId = :surveyId group by r.followStatus")
+    List<Object[]> countByStatus(@Param("surveyId") long surveyId);
+
     Stream<SurveyResponse> streamBySurveyIdOrderById(long surveyId);
 
     long countBySurveyId(long surveyId);

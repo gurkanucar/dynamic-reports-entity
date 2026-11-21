@@ -1,5 +1,5 @@
 import {
-  CheckCheckIcon, DatabaseIcon, LayoutDashboardIcon, HistoryIcon, LogOutIcon, MailIcon, MonitorIcon, MoonIcon, SunIcon, UsersIcon,
+  CheckCheckIcon, ClipboardListIcon, DatabaseIcon, LayoutDashboardIcon, HistoryIcon, LogOutIcon, MailIcon, MonitorIcon, MoonIcon, SunIcon, UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
 import { useEffect } from "react"
@@ -23,6 +23,7 @@ const NAVIGATION = [
   { to: "/datasets", label: "Veri setleri", icon: DatabaseIcon },
   { to: "/flows", label: "Akışlar", icon: WorkflowIcon },
   { to: "/runs", label: "Çalışmalar", icon: HistoryIcon },
+  { to: "/surveys", label: "Anketler", icon: ClipboardListIcon },
   { to: "/approvals", label: "Onaylarım", icon: CheckCheckIcon },
   { to: "/approval-groups", label: "Onay grupları", icon: UsersIcon },
   { to: "/templates", label: "Mail şablonları", icon: MailIcon },
@@ -80,7 +81,8 @@ export function AppLayout() {
         {/* sticky: the sidebar toggle stays reachable on long pages (the flow editor) */}
         <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
           <SidebarTrigger />
-          <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
+          {/* full height: meets the bottom border instead of floating in the middle */}
+          <Separator orientation="vertical" className="mr-1 self-stretch data-[orientation=vertical]:h-auto" />
           <AppBreadcrumb />
         </header>
         {/* SidebarInset is the page's <main> already */}

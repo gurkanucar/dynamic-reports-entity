@@ -51,7 +51,8 @@ final class ApprovalApi {
      */
     record ApprovalView(long id, SourceRef source, GroupRef group, String title, String description, String status,
                         String requestedBy, UserRef onBehalfOf, String createdAt, String dueAt, String decidedBy,
-                        String decidedAt, String comment, boolean canDecide) {
+                        String decidedAt, String comment, boolean canDecide, String decisionBlocker,
+                        boolean allowSelfApproval) {
     }
 
     record SourceRef(String type, String id, String label, String link) {
@@ -62,11 +63,13 @@ final class ApprovalApi {
                 group.getVersion(), time(group.getUpdatedAt()), new UserRef(group.getUpdatedBy()));
     }
 
-    static ApprovalView approval(ApprovalRequest request, boolean canDecide) {
+    /** @param blocker why the viewer cannot decide ({@link ApprovalService#decisionBlocker}); null = they can */
+    static ApprovalView approval(ApprovalRequest request, String blocker) {
         return new ApprovalView(request.getId(), new SourceRef(request.getSourceType(), request.getSourceId(),
                 request.getSubject(), request.getLink()), new GroupRef(request.getGroupId(), request.getGroupName()),
                 request.getTitle(), request.getDescription(), value(request.getStatus()), request.getRequestedBy(),
                 new UserRef(request.getOnBehalfOf()), time(request.getCreatedAt()), time(request.getDueAt()),
-                request.getDecidedBy(), time(request.getDecidedAt()), request.getComment(), canDecide);
+                request.getDecidedBy(), time(request.getDecidedAt()), request.getComment(), blocker == null, blocker,
+                request.isAllowSelfApproval());
     }
 }

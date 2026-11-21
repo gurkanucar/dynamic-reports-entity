@@ -22,6 +22,7 @@ const EXAMPLES: Record<StepType, string[]> = {
   approval: ["Süre 24 saat olsun ve başlığa tutarı yaz", "Talep eden kendisi onaylayamasın"],
   webhook: ["Gövdeye run.id ve akış adını ekle"],
   kafka: ["Mesaj anahtarı talep numarası olsun"],
+  survey: ["Mesajı daha kibar yaz", "Süreyi 2 gün yap"],
 }
 
 /**

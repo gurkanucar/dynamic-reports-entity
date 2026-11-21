@@ -126,6 +126,8 @@ export function AssistantChat({ kind, title, description, model, examples, place
                             {entry.content && <p className="whitespace-pre-line">{entry.content}</p>}
                           </BubbleContent>
                         </Bubble>
+                        {entry.reply && <DraftNotes draft={entry.reply.draft}
+                          onSuggest={entry === entries.at(-1) && !busy ? send : undefined} />}
                         {entry.reply && (
                           <Button variant="secondary" size="sm" className="self-start" onClick={() => onApply(entry.reply!)}>
                             <CheckIcon data-icon="inline-start" />Bu öneriyi tekrar uygula
@@ -172,5 +174,30 @@ export function AssistantChat({ kind, title, description, model, examples, place
         </form>
       </CardFooter>
     </Card>
+  )
+}
+
+/** What the assistant assumed and what it suggests next (survey drafts carry them); suggestions are one click away. */
+function DraftNotes({ draft, onSuggest }: { draft: unknown; onSuggest?: (text: string) => void }) {
+  const notes = (draft ?? {}) as { assumptions?: unknown; suggestions?: unknown }
+  const assumptions = Array.isArray(notes.assumptions) ? notes.assumptions.filter((item) => typeof item === "string") : []
+  const suggestions = Array.isArray(notes.suggestions) ? notes.suggestions.filter((item) => typeof item === "string") : []
+  if (assumptions.length === 0 && suggestions.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      {assumptions.length > 0 && (
+        <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+          {assumptions.map((assumption) => <li key={assumption}>Varsayım: {assumption}</li>)}
+        </ul>
+      )}
+      {onSuggest && suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions.map((suggestion) => (
+            <Button key={suggestion} variant="outline" size="xs" className="h-auto py-1 whitespace-normal text-left"
+              onClick={() => onSuggest(suggestion)}>{suggestion}</Button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
