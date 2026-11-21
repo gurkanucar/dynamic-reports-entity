@@ -85,24 +85,25 @@ class SecurityConfiguration {
     }
 
     /**
-     * Demo users only (password: "password"); usernames match personnel.username in db/seed/h2/demo.
+     * Demo users only (password: {@code security.demo-password}, "password" by default: set DEMO_PASSWORD wherever
+     * the app is reachable by others); usernames match personnel.username in db/seed/h2/demo.
      * alice = HR, carol = Software Development, bob = IT with salary access, admin = everything.
      * admin@mail.com is the same full-access user under an e-mail login, for trying the UI.
      */
     @Bean
-    UserDetailsService users() {
+    UserDetailsService users(@Value("${security.demo-password:password}") String password) {
         return new InMemoryUserDetailsManager(
-                user("alice", "PLATFORM_USER"),
-                user("carol", "PLATFORM_USER"),
-                user("bob", "PLATFORM_USER", "SALARY_VIEW"),
-                user("admin", FULL_ACCESS),
-                user("admin@mail.com", FULL_ACCESS));
+                user("alice", password, "PLATFORM_USER"),
+                user("carol", password, "PLATFORM_USER"),
+                user("bob", password, "PLATFORM_USER", "SALARY_VIEW"),
+                user("admin", password, FULL_ACCESS),
+                user("admin@mail.com", password, FULL_ACCESS));
     }
 
     private static final String[] FULL_ACCESS =
             {"PLATFORM_USER", "PLATFORM_ADMIN", "SALARY_VIEW", "NATIONAL_ID_VIEW", "ALL_DEPARTMENTS"};
 
-    private static UserDetails user(String name, String... authorities) {
-        return User.withUsername(name).password("{noop}password").authorities(authorities).build();
+    private static UserDetails user(String name, String password, String... authorities) {
+        return User.withUsername(name).password("{noop}" + password).authorities(authorities).build();
     }
 }

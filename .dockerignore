@@ -1,0 +1,12 @@
+target
+ui
+data
+.git
+.idea
+.playwright-mcp
+perf
+docs
+http
+scripts
+*.md
+.env

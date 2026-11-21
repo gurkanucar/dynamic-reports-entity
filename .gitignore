@@ -38,3 +38,6 @@ files/
 
 ### Local H2 database of the small profile ###
 /data/
+
+### Local settings of docker compose ###
+.env

@@ -1,0 +1,80 @@
+# The whole platform in one stack (Dokploy "Compose" service, or `docker compose up -d --build` anywhere).
+#
+#   web      nginx: the UI and the only entry point; forwards /api to app        -> give it the domain, port 80
+#   app      the API (Spring Boot), data and run files on the volume app-data    -> internal only
+#   kafka    Kafka triggers and "Kafka'ya yaz" steps                              -> internal only
+#   mailpit  catches every e-mail the flows send; web UI on 8025                  -> optional second domain, port 8025
+#
+# Nothing publishes host ports except web (8088, for trying it without a proxy); Dokploy routes domains itself.
+# Settings: see .env.example (DEMO_PASSWORD, PUBLIC_URL, the assistant's key ...).
+services:
+  web:
+    build: ./ui
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8088}:80"
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8088}
+      DEMO_PASSWORD: "${DEMO_PASSWORD:?set DEMO_PASSWORD (the demo users password)}"
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      MAIL_HOST: mailpit
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FLOWS_KAFKA_ENABLED: "true"
+      FLOWS_WEBHOOK_ALLOWED_HOSTS: ${FLOWS_WEBHOOK_ALLOWED_HOSTS:-localhost}
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
+    volumes:
+      - app-data:/data
+    depends_on:
+      - kafka
+      - mailpit
+    expose:
+      - "8080"
+    healthcheck:
+      # 401 = up and answering (no session yet)
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/session | grep -q 401"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  kafka:
+    image: apache/kafka:4.1.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    expose:
+      - "9092"
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    restart: unless-stopped
+    expose:
+      - "1025"
+      - "8025"
+
+volumes:
+  app-data:
+  kafka-data:

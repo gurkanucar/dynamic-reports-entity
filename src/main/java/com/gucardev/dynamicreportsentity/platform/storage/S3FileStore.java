@@ -8,6 +8,8 @@ import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
@@ -36,8 +38,13 @@ class S3FileStore implements FileStore, AutoCloseable {
                 ? DefaultCredentialsProvider.builder().build()
                 : StaticCredentialsProvider.create(AwsBasicCredentials.create(settings.accessKey(), settings.secretKey()));
         S3Configuration pathStyle = S3Configuration.builder().pathStyleAccessEnabled(settings.pathStyle()).build();
+        // Checksums only where S3 requires them: otherwise the SDK uploads "aws-chunked" with checksum trailers, and
+        // S3-compatible stores that keep that Content-Encoding (S3Mock, older Ceph) hand it back to browsers, which
+        // then refuse or corrupt the download.
         var client = S3Client.builder().region(Region.of(settings.region())).credentialsProvider(credentials)
-                .serviceConfiguration(pathStyle);
+                .serviceConfiguration(pathStyle)
+                .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+                .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
         var signer = S3Presigner.builder().region(Region.of(settings.region())).credentialsProvider(credentials)
                 .serviceConfiguration(pathStyle);
         if (settings.endpoint() != null) {
@@ -101,7 +108,9 @@ class S3FileStore implements FileStore, AutoCloseable {
         URI url = URI.create(presigner.presignGetObject(presign -> presign
                 .signatureDuration(settings.presignedUrlTtl())
                 .getObjectRequest(get -> get.bucket(settings.bucket()).key(key)
-                        .responseContentDisposition(disposition).responseContentType(contentType)))
+                        .responseContentDisposition(disposition).responseContentType(contentType)
+                        // files uploaded before the setting above may carry "aws-chunked"; the body is plain
+                        .responseContentEncoding("identity")))
                 .url().toString());
         return Optional.of(url);
     }

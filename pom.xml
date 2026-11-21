@@ -203,6 +203,16 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- Tests never read the developer's .env (it may select a profile, a database or real keys) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <DOTENV_FILE>target/no-such-dotenv</DOTENV_FILE>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
             <!--
                 Plugin-level (not per-execution) configuration, so IntelliJ imports the Lombok
                 processor too. Since JDK 23 javac no longer runs processors found on the classpath

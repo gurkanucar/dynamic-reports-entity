@@ -1,4 +1,4 @@
-# Development services:  docker compose up -d
+# Development services only (the app runs from the IDE):  docker compose -f docker-compose.dev.yml up -d
 #   PostgreSQL  localhost:5433  (run the app with --spring.profiles.active=postgres)
 #   Mailpit     SMTP localhost:1025, web UI http://localhost:8025 (every e-mail the flows send lands here)
 #   S3Mock      S3 API on http://localhost:9090 (run files; the app creates the bucket "flow-files")
