@@ -36,7 +36,7 @@ import static com.gucardev.dynamicreportsentity.platform.api.HttpSupport.paging;
 
 /** Mail templates (Mustache) and rendering a draft with sample data. */
 @RestController
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class MailTemplateController {
 
     private final MailTemplateService templates;

@@ -28,7 +28,7 @@ final class NotificationApi {
         }
     }
 
-    /** @param model data to render with; null = a sample run with one report step named {@code report} */
+    /** @param model data to render with; null = a sample run with one dataset step named {@code dataset} */
     record PreviewRequest(@NotBlank @Size(max = 500) String subject,
                           @NotBlank @Size(max = 200_000) String bodyHtml,
                           Map<String, Object> model) {

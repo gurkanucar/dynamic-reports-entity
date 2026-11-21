@@ -66,7 +66,7 @@ class SecurityConfiguration {
     @Bean
     CookieSerializer sessionCookie(@Value("${security.session-cookie.secure:false}") boolean secure) {
         DefaultCookieSerializer cookie = new DefaultCookieSerializer();
-        cookie.setCookieName("REPORTS_SESSION");
+        cookie.setCookieName("PLATFORM_SESSION");
         cookie.setCookiePath("/");
         cookie.setUseHttpOnlyCookie(true);
         cookie.setSameSite("Lax");
@@ -87,15 +87,20 @@ class SecurityConfiguration {
     /**
      * Demo users only (password: "password"); usernames match personnel.username in db/seed/h2/demo.
      * alice = HR, carol = Software Development, bob = IT with salary access, admin = everything.
+     * admin@mail.com is the same full-access user under an e-mail login, for trying the UI.
      */
     @Bean
     UserDetailsService users() {
         return new InMemoryUserDetailsManager(
-                user("alice", "REPORT_RUN"),
-                user("carol", "REPORT_RUN"),
-                user("bob", "REPORT_RUN", "SALARY_VIEW"),
-                user("admin", "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW", "NATIONAL_ID_VIEW", "ALL_DEPARTMENTS"));
+                user("alice", "PLATFORM_USER"),
+                user("carol", "PLATFORM_USER"),
+                user("bob", "PLATFORM_USER", "SALARY_VIEW"),
+                user("admin", FULL_ACCESS),
+                user("admin@mail.com", FULL_ACCESS));
     }
+
+    private static final String[] FULL_ACCESS =
+            {"PLATFORM_USER", "PLATFORM_ADMIN", "SALARY_VIEW", "NATIONAL_ID_VIEW", "ALL_DEPARTMENTS"};
 
     private static UserDetails user(String name, String... authorities) {
         return User.withUsername(name).password("{noop}password").authorities(authorities).build();

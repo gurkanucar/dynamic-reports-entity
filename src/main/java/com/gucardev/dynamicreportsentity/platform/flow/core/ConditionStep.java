@@ -13,8 +13,8 @@ import java.util.Set;
 
 /**
  * Branches on a JSON Logic {@code expression} evaluated over {@code {flow, run, trigger, steps}}: outcome
- * {@code true} or {@code false}. Without edges, {@code false} ends the run (a guard, e.g. "only mail when the report
- * has rows": {@code {">": [{"var": "steps.report.rowCount"}, 0]}}).
+ * {@code true} or {@code false}. Without edges, {@code false} ends the run (a guard, e.g. "only mail when the dataset
+ * has rows": {@code {">": [{"var": "steps.dataset.rowCount"}, 0]}}).
  */
 public record ConditionStep(
         @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,

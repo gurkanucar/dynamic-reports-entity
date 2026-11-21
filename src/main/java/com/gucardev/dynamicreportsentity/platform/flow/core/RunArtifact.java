@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * A file produced by a step (a report CSV). The content lives in the {@code FileStore} under {@link #storageKey};
+ * A file produced by a step (a dataset CSV). The content lives in the {@code FileStore} under {@link #storageKey};
  * this row says whose it is and until when it is kept. After {@link #expiresAt} the cleanup deletes the content and
  * sets {@link #deletedAt}; the row stays so the run can say the file has expired (410) instead of "not found".
  */

@@ -15,7 +15,7 @@ import java.util.List;
 
 /**
  * Starting, cancelling and reading runs. A run is visible to the flow owner (it runs as them), to the user who
- * started it and to report admins.
+ * started it and to dataset admins.
  */
 @Service
 public class RunService {

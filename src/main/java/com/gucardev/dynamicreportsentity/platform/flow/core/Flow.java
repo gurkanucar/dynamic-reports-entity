@@ -23,7 +23,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * A flow as its owner defined it. Runs execute as the {@link #owner}: their reports see exactly what the owner
+ * A flow as its owner defined it. Runs execute as the {@link #owner}: their datasets see exactly what the owner
  * may see. {@link #version} is the ETag of the flow API (optimistic locking).
  */
 @Entity

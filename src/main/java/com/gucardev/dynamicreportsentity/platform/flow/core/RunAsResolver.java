@@ -9,7 +9,7 @@ import java.util.Optional;
 
 /**
  * Who a run acts as. Permissions are looked up when the step runs, not when the flow was saved: a flow owner
- * who loses a permission (or leaves) stops getting that data from their scheduled reports too.
+ * who loses a permission (or leaves) stops getting that data from their scheduled datasets too.
  */
 @Component
 public class RunAsResolver {

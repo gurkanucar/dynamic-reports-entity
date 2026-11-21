@@ -29,7 +29,7 @@ import static com.gucardev.dynamicreportsentity.platform.flow.web.WebSupport.vie
 /** A single schedule, once created under its flow ({@code POST /api/flows/{id}/schedules}). */
 @RestController
 @RequestMapping("/api/flow-schedules")
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class FlowScheduleController {
 
     private final ScheduleService schedules;

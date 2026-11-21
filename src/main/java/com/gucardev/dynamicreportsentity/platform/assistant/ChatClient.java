@@ -58,7 +58,7 @@ class ChatClient {
         body.put("tools", tools);
         body.put("tool_choice", "auto");
         body.put("temperature", properties.temperature());
-        body.put("usage", Map.of("include", true));   // OpenRouter: report tokens and cost; others ignore it
+        body.put("usage", Map.of("include", true));   // OpenRouter: dataset tokens and cost; others ignore it
         String response;
         try {
             response = http.post().uri("/chat/completions")

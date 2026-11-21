@@ -80,7 +80,7 @@ class FlowPostgresClusterTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final RequestPostProcessor ADMIN = user("admin").authorities(Arrays.stream(new String[]{
-            "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW", "ALL_DEPARTMENTS"}).map(SimpleGrantedAuthority::new).toList());
+            "PLATFORM_USER", "PLATFORM_ADMIN", "SALARY_VIEW", "ALL_DEPARTMENTS"}).map(SimpleGrantedAuthority::new).toList());
 
     @Autowired MockMvcTester mvc;
     @Autowired JdbcTemplate jdbc;
@@ -183,7 +183,7 @@ class FlowPostgresClusterTest {
     @Test
     void reportFilesGoToS3AreDownloadedThroughPresignedUrlsAndExpire() throws Exception {
         long flow = post("/api/flows", """
-                {"name": "To S3", "steps": [{"type": "report", "key": "report", "fileName": "people.csv",
+                {"name": "To S3", "steps": [{"type": "dataset", "key": "dataset", "fileName": "people.csv",
                   "definition": {"root": "Personnel", "columns": [{"field": "fullName", "label": "Name"}]}}]}""")
                 .get("id").asLong();
         long runId = startRun(flow);

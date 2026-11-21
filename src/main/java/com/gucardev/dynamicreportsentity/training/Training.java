@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.training;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportHidden;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetHidden;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -15,12 +15,12 @@ import lombok.NoArgsConstructor;
 
 /**
  * Course catalog entry. Example of the opt-out style: {@code includeAllFields = true} exposes every
- * plain field (labels derived from the names: "Name", "Category", "Mandatory"); {@code @ReportField}
- * overrides a label, {@code @ReportHidden} keeps a field out.
+ * plain field (labels derived from the names: "Name", "Category", "Mandatory"); {@code @DatasetField}
+ * overrides a label, {@code @DatasetHidden} keeps a field out.
  */
 @Entity
 @Table(name = "training")
-@Reportable(label = "Training", includeAllFields = true)
+@DatasetEntity(label = "Training", includeAllFields = true)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Training {
@@ -35,12 +35,12 @@ public class Training {
     private String category;
 
     /** Months until renewal; empty if the certificate never expires. Label overridden. */
-    @ReportField(label = "Validity (months)")
+    @DatasetField(label = "Validity (months)")
     private Integer validityMonths;
 
     private Boolean mandatory;
 
-    /** Internal remarks of the training team: never reportable. */
-    @ReportHidden
+    /** Internal remarks of the training team: never dataset-ready. */
+    @DatasetHidden
     private String internalNotes;
 }

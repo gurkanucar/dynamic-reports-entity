@@ -50,10 +50,10 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 class FlowGraphIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
-    private static final RequestPostProcessor ADMIN = as("admin", "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW",
+    private static final RequestPostProcessor ADMIN = as("admin", "PLATFORM_USER", "PLATFORM_ADMIN", "SALARY_VIEW",
             "ALL_DEPARTMENTS");
-    private static final RequestPostProcessor BOB = as("bob", "REPORT_RUN", "SALARY_VIEW");
-    private static final RequestPostProcessor CAROL = as("carol", "REPORT_RUN");
+    private static final RequestPostProcessor BOB = as("bob", "PLATFORM_USER", "SALARY_VIEW");
+    private static final RequestPostProcessor CAROL = as("carol", "PLATFORM_USER");
     private static final AtomicInteger NAMES = new AtomicInteger();
 
     /** A small HTTP server playing the system a webhook step calls; answers with the queued status codes. */
@@ -236,26 +236,51 @@ class FlowGraphIntegrationTest {
         return "sha256=" + HexFormat.of().formatHex(mac.doFinal(body));
     }
 
+    // ---- saved datasets ---------------------------------------------------------------------------------
+
+    @Test
+    void aStepUsesASavedDatasetByNameWhichThenCannotBeDeleted() {
+        assertThat(post("/api/snapshots", ADMIN, Map.of("name", "g_headcount", "mode", "LIVE", "definition", Map.of(
+                "root", "Personnel", "columns", List.of(Map.of("field", "department.name"),
+                        Map.of("aggregate", "COUNT", "label", "Headcount"))))))
+                .hasStatus(HttpStatus.CREATED);
+        // exactly one source: a saved dataset or an own definition
+        assertThat(post("/api/flows", ADMIN, Map.of("name", "Both", "steps", List.of(Map.of("type", "dataset",
+                "key", "data", "datasetName", "g_headcount", "definition", Map.of("root", "Personnel",
+                        "columns", List.of(Map.of("field", "fullName"))))))))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson().extractingPath("$.errors[0].code")
+                .isEqualTo("DATASET_SOURCE_REQUIRED");
+        assertThat(post("/api/flows", ADMIN, Map.of("name", "Missing", "steps", List.of(Map.of("type", "dataset",
+                "key", "data", "datasetName", "g_nope")))))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyJson().extractingPath("$.errors[0].code")
+                .isEqualTo("SAVED_DATASET_NOT_FOUND");
+
+        long flow = flow(List.of(Map.of("type", "dataset", "key", "data", "datasetName", "g_headcount")), List.of());
+        JsonNode run = await(start(flow), "completed");
+        assertThat(run.get("steps").get(0).get("output").get("rowCount").asInt()).isPositive();
+        assertThat(mvc.delete().uri("/api/snapshots/g_headcount").with(ADMIN).exchange()).hasStatus(HttpStatus.CONFLICT);
+    }
+
     // ---- conditions -----------------------------------------------------------------------------------
 
     @Test
     void aConditionPicksTheBranch() {
         long template = template();
-        Map<String, Object> report = Map.of("type", "report", "key", "report", "definition", Map.of(
+        Map<String, Object> dataset = Map.of("type", "dataset", "key", "dataset", "definition", Map.of(
                 "root", "Personnel", "columns", List.of(Map.of("field", "fullName")),
                 "where", Map.of("field", "fullName", "operator", "EQ", "value", "Nobody Here")));
-        long flow = flow(List.of(report,
+        long flow = flow(List.of(dataset,
                         Map.of("type", "condition", "key", "check",
-                                "expression", Map.of(">", List.of(Map.of("var", "steps.report.rowCount"), 0))),
+                                "expression", Map.of(">", List.of(Map.of("var", "steps.dataset.rowCount"), 0))),
                         mail("has_rows", template, "rows@example.com"),
                         mail("empty", template, "empty@example.com")),
-                List.of(Map.of("from", "report", "to", "check"),
+                List.of(Map.of("from", "dataset", "to", "check"),
                         Map.of("from", "check", "to", "has_rows", "when", "true"),
                         Map.of("from", "check", "to", "empty", "when", "false")));
 
         JsonNode run = await(start(flow), "completed");
 
-        assertThat(keys(run)).containsExactly("report:completed", "check:completed:false", "empty:completed");
+        assertThat(keys(run)).containsExactly("dataset:completed", "check:completed:false", "empty:completed");
         assertThat(recipients()).containsExactly("empty@example.com");
     }
 

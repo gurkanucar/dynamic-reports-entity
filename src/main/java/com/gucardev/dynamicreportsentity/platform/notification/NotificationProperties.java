@@ -18,7 +18,7 @@ public record NotificationProperties(@DefaultValue Mail mail) {
      * @param from                    sender address of every e-mail the platform sends
      * @param allowedRecipientDomains if not empty, e-mails may only go to these domains (e.g. the company's)
      */
-    public record Mail(@DefaultValue("reports@localhost") String from,
+    public record Mail(@DefaultValue("datasets@localhost") String from,
                        @DefaultValue List<String> allowedRecipientDomains) {
 
         public boolean allows(String address) {

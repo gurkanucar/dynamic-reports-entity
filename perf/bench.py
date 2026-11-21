@@ -1,12 +1,12 @@
 """
-Report performance test: runs every request of http/reports.http against a running app.
+Dataset performance test: runs every request of http/datasets.http against a running app.
 
   python perf/bench.py                                  # http://localhost:8080, 5 timed runs each
   python perf/bench.py --base http://localhost:8082 --runs 10
   python perf/bench.py --no-total                       # without the COUNT(*) query for "total"
-  python perf/bench.py --explain 500                    # EXPLAIN ANALYZE every report slower than 500 ms
-  python perf/bench.py --concurrency 16 --duration 60   # load test: 16 parallel users, mixed reports
-  python perf/bench.py --concurrency 16 --only 2,5,6,8   # load test with selected reports (numbers as printed)
+  python perf/bench.py --explain 500                    # EXPLAIN ANALYZE every dataset slower than 500 ms
+  python perf/bench.py --concurrency 16 --duration 60   # load test: 16 parallel users, mixed datasets
+  python perf/bench.py --concurrency 16 --only 2,5,6,8   # load test with selected datasets (numbers as printed)
 
 Timings are end to end (HTTP + JSON + database), first page incl. "total", after one warm-up run.
 EXPLAIN plans (perf/compose.yaml container) are written to target/perf-plans/.
@@ -82,13 +82,13 @@ def inline_parameters(sql, parameters):
 def explain(request, base, number):
     admin = {"Content-Type": "application/json",
              "Authorization": "Basic " + base64.b64encode(b"admin:password").decode()}
-    status, payload, _ = call(request, base, url="http://localhost:8080/api/reports/preview", headers=admin)
+    status, payload, _ = call(request, base, url="http://localhost:8080/api/datasets/preview", headers=admin)
     if status != 200:
         return None
     preview = json.loads(payload)
     page_size = int(m.group(1)) if (m := re.search(r"size=(\d+)", request["url"])) else 200
     sql = inline_parameters(preview["sql"], preview["parameters"]) + f"\nLIMIT {page_size + 1} OFFSET 0"
-    plan = subprocess.run(["docker", "exec", "-i", "reports-postgres", "psql", "-U", "reports", "-d", "reports",
+    plan = subprocess.run(["docker", "exec", "-i", "datasets-postgres", "psql", "-U", "datasets", "-d", "datasets",
                            "-c", "EXPLAIN (ANALYZE, BUFFERS) " + sql], capture_output=True, text=True).stdout
     directory = ROOT / "target" / "perf-plans"
     directory.mkdir(parents=True, exist_ok=True)
@@ -98,7 +98,7 @@ def explain(request, base, number):
 
 
 def benchmark(requests, args):
-    print(f"{'#':>3} {'status':6} {'median':>8} {'min':>7} {'max':>7} {'rows':>5} {'total':>9}  report")
+    print(f"{'#':>3} {'status':6} {'median':>8} {'min':>7} {'max':>7} {'rows':>5} {'total':>9}  dataset")
     slow = []
     for number, request in enumerate(requests, 1):
         status, payload, _ = call(request, args.base)               # warm-up
@@ -139,7 +139,7 @@ def load_test(requests, args):
         list(pool.map(user, range(args.concurrency)))
     latencies.sort()
     pct = lambda p: latencies[min(len(latencies) - 1, int(len(latencies) * p))]
-    print(f"{args.concurrency} users, {args.duration}s, {len(mix)} different reports: {len(latencies)} requests,"
+    print(f"{args.concurrency} users, {args.duration}s, {len(mix)} different datasets: {len(latencies)} requests,"
           f" {len(latencies) / args.duration:.1f} req/s, errors {errors[0]}")
     print(f"latency p50 {pct(0.50):.0f} ms, p95 {pct(0.95):.0f} ms, p99 {pct(0.99):.0f} ms, max {latencies[-1]:.0f} ms")
 
@@ -147,13 +147,13 @@ def load_test(requests, args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--base", default="http://localhost:8080")
-    parser.add_argument("--file", default=str(ROOT / "http" / "reports.http"))
+    parser.add_argument("--file", default=str(ROOT / "http" / "datasets.http"))
     parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--explain", type=float, help="EXPLAIN ANALYZE reports slower than this many ms")
+    parser.add_argument("--explain", type=float, help="EXPLAIN ANALYZE datasets slower than this many ms")
     parser.add_argument("--concurrency", type=int, help="load test with this many parallel users")
     parser.add_argument("--duration", type=int, default=60)
     parser.add_argument("--only", type=lambda text: {int(n) for n in text.split(",")},
-                        help="load test only these reports, e.g. 2,5,6")
+                        help="load test only these datasets, e.g. 2,5,6")
     parser.add_argument("--no-total", action="store_true", help="run pages with includeTotal=false")
     arguments = parser.parse_args()
     NO_TOTAL = arguments.no_total

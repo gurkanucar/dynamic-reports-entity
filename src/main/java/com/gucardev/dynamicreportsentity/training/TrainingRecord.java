@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.training;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -20,7 +20,7 @@ import java.time.LocalDate;
  * Many-to-many WITH extra columns: Personnel ⇄ Training, carrying completion data.
  * Paths: {@code Personnel: trainingRecords.training.name}, {@code Training: records.personnel.fullName}.
  * <p>
- * Reference columns are JOIN keys for every report: index them. Without a real FK, databases
+ * Reference columns are JOIN keys for every dataset: index them. Without a real FK, databases
  * like PostgreSQL never create one automatically.
  */
 @Entity
@@ -29,7 +29,7 @@ import java.time.LocalDate;
         @Index(name = "ix_training_record_training_id", columnList = "training_id"),
         @Index(name = "ix_training_record_next_renewal_date", columnList = "next_renewal_date")
 })
-@Reportable(label = "Training Record")
+@DatasetEntity(label = "Training Record")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TrainingRecord {
@@ -40,25 +40,25 @@ public class TrainingRecord {
 
     /*
      * Classic approach:  @ManyToOne Personnel personnel;   (couples this module to personnel)
-     * Our approach:      just the ID + "this ID points at Personnel" for the report engine.
+     * Our approach:      just the ID + "this ID points at Personnel" for the dataset engine.
      */
-    @ReportReference(target = "Personnel", owner = true, inverse = "trainingRecords", inverseLabel = "Training Records")
+    @DatasetReference(target = "Personnel", owner = true, inverse = "trainingRecords", inverseLabel = "Training Records")
     @Column(nullable = false)
     private Long personnelId;
 
-    @ReportReference(target = "Training", inverse = "records", inverseLabel = "Records")
+    @DatasetReference(target = "Training", inverse = "records", inverseLabel = "Records")
     @Column(nullable = false)
     private Long trainingId;
 
-    @ReportField(label = "Completed On")
+    @DatasetField(label = "Completed On")
     private LocalDate completedOn;
 
-    @ReportField(label = "Next Renewal Date")
+    @DatasetField(label = "Next Renewal Date")
     private LocalDate nextRenewalDate;
 
-    @ReportField(label = "Score")
+    @DatasetField(label = "Score")
     private Integer score;
 
-    @ReportField(label = "Status")
+    @DatasetField(label = "Status")
     private String status;
 }

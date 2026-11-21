@@ -52,18 +52,18 @@ class SessionApiIntegrationTest {
     void loginStartsAnHttpOnlySessionThatWorksWithoutThePassword() {
         MvcTestResult login = login("carol", "password");
         assertThat(login).hasStatus(HttpStatus.CREATED).bodyJson().extractingPath("$.data.username").isEqualTo("carol");
-        Cookie session = cookie(login, "REPORTS_SESSION");
+        Cookie session = cookie(login, "PLATFORM_SESSION");
         assertThat(session).isNotNull();
         assertThat(session.isHttpOnly()).isTrue();
 
         assertThat(mvc.get().uri("/api/session").cookie(session).exchange()).hasStatusOk()
-                .bodyJson().extractingPath("$.data.authorities").asArray().containsExactly("REPORT_RUN");
-        assertThat(mvc.get().uri("/api/reports/catalog").cookie(session).exchange()).hasStatusOk();
+                .bodyJson().extractingPath("$.data.authorities").asArray().containsExactly("PLATFORM_USER");
+        assertThat(mvc.get().uri("/api/datasets/catalog").cookie(session).exchange()).hasStatusOk();
     }
 
     @Test
     void changesOnASessionNeedTheCsrfToken() {
-        Cookie session = cookie(login("admin", "password"), "REPORTS_SESSION");
+        Cookie session = cookie(login("admin", "password"), "PLATFORM_SESSION");
         Cookie csrf = cookie(mvc.get().uri("/api/session").cookie(session).exchange(), "XSRF-TOKEN");
         assertThat(csrf).isNotNull();
         assertThat(csrf.isHttpOnly()).isFalse();   // the UI reads it and sends it back as a header
@@ -83,7 +83,7 @@ class SessionApiIntegrationTest {
 
     @Test
     void logoutEndsTheSessionEverywhere() {
-        Cookie session = cookie(login("alice", "password"), "REPORTS_SESSION");
+        Cookie session = cookie(login("alice", "password"), "PLATFORM_SESSION");
         Cookie csrf = cookie(mvc.get().uri("/api/session").cookie(session).exchange(), "XSRF-TOKEN");
 
         assertThat(mvc.delete().uri("/api/session").cookie(session, csrf).header("X-XSRF-TOKEN", csrf.getValue())
@@ -100,6 +100,6 @@ class SessionApiIntegrationTest {
                 .isEqualTo("INVALID_CREDENTIALS");
         assertThat(unknownUser).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(wrongPassword.getResponse().getContentAsString()).isNotEmpty();
-        assertThat(cookie(wrongPassword, "REPORTS_SESSION")).isNull();
+        assertThat(cookie(wrongPassword, "PLATFORM_SESSION")).isNull();
     }
 }

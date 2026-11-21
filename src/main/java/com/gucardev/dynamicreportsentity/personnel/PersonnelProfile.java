@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.personnel;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -18,7 +18,7 @@ import java.time.LocalDate;
 /** One-to-one with Personnel (unique personnel_id): Personnel.profile is single-valued, no fan-out. */
 @Entity
 @Table(name = "personnel_profile")
-@Reportable(label = "Profile")
+@DatasetEntity(label = "Profile")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PersonnelProfile {
@@ -27,19 +27,19 @@ public class PersonnelProfile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ReportReference(target = "Personnel", oneToOne = true, owner = true, inverse = "profile", inverseLabel = "Profile")
+    @DatasetReference(target = "Personnel", oneToOne = true, owner = true, inverse = "profile", inverseLabel = "Profile")
     @Column(nullable = false, unique = true)
     private Long personnelId;
 
-    @ReportField(label = "Birth Date")
+    @DatasetField(label = "Birth Date")
     private LocalDate birthDate;
 
-    @ReportField(label = "Blood Type")
+    @DatasetField(label = "Blood Type")
     private String bloodType;
 
-    @ReportField(label = "City")
+    @DatasetField(label = "City")
     private String city;
 
-    @ReportField(label = "Emergency Contact")
+    @DatasetField(label = "Emergency Contact")
     private String emergencyContact;
 }

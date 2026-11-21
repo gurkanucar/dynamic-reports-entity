@@ -27,7 +27,7 @@ public record AssistantProperties(
         @DefaultValue("https://openrouter.ai/api/v1") URI baseUrl,
         String apiKey,
         String model,
-        @DefaultValue("dynamic-reports") String appName,
+        @DefaultValue("dynamic-datasets") String appName,
         @DefaultValue("60s") Duration requestTimeout,
         @DefaultValue("3m") Duration timeout,
         @DefaultValue("6") int maxIterations,

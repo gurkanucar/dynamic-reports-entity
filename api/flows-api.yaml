@@ -3,15 +3,15 @@ info:
   title: Flows API
   version: 1.0.0
   description: |
-    Business users chain steps (run a report, e-mail it) and start them by hand or on a cron schedule.
+    Business users chain steps (run a dataset, e-mail it) and start them by hand or on a cron schedule.
 
     * Success bodies use the `{ "data": ..., "meta": ... }` envelope; errors are RFC 9457 problems with a
       stable `code` and a `traceId` (catalog: `errors.yaml`).
     * Enums are snake_case, times ISO 8601 UTC, pages 1-based (`size` 1-100, default 20).
     * Changing a flow, schedule or template needs its ETag in `If-Match` (428 without, 412 if stale).
-    * Every operation needs the `REPORT_RUN` authority. Users see their own flows; `REPORT_ADMIN` sees all.
+    * Every operation needs the `PLATFORM_USER` authority. Users see their own flows; `PLATFORM_ADMIN` sees all.
       Records you may not see answer 404.
-    * Runs execute **as the flow owner**: their report field and row permissions apply, looked up when the
+    * Runs execute **as the flow owner**: their dataset field and row permissions apply, looked up when the
       step runs.
 servers:
   - url: /
@@ -30,7 +30,7 @@ paths:
       tags: [flows]
       operationId: listFlows
       summary: List flows
-      description: Own flows (all for REPORT_ADMIN), sorted by `-updatedAt,-id`.
+      description: Own flows (all for PLATFORM_ADMIN), sorted by `-updatedAt,-id`.
       parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
       responses:
         '200':
@@ -49,9 +49,9 @@ paths:
       operationId: createFlow
       summary: Create a flow
       description: |
-        The whole flow is checked: report definitions are built (not run) for the editor, templates must exist,
-        recipients must be in `flows.mail.allowed-recipient-domains`, attachments must name earlier report steps.
-        422 codes in `errors[]`: DUPLICATE_STEP_KEY, INVALID_REPORT_DEFINITION, MAX_ROWS_TOO_HIGH,
+        The whole flow is checked: dataset definitions are built (not run) for the editor, templates must exist,
+        recipients must be in `flows.mail.allowed-recipient-domains`, attachments must name earlier dataset steps.
+        422 codes in `errors[]`: DUPLICATE_STEP_KEY, INVALID_DATASET_DEFINITION, MAX_ROWS_TOO_HIGH,
         TEMPLATE_NOT_FOUND, RECIPIENT_NOT_ALLOWED, UNKNOWN_ATTACHMENT and the field rules.
       requestBody:
         required: true
@@ -408,7 +408,7 @@ paths:
     post:
       tags: [approvals]
       operationId: createApprovalGroup
-      summary: Create an approval group (REPORT_ADMIN)
+      summary: Create an approval group (PLATFORM_ADMIN)
       description: 422 codes UNKNOWN_USER, DUPLICATE_MEMBER, INVALID_EMAIL. 409 GROUP_NAME_TAKEN.
       requestBody:
         required: true
@@ -445,7 +445,7 @@ paths:
     put:
       tags: [approvals]
       operationId: replaceApprovalGroup
-      summary: Replace an approval group (REPORT_ADMIN)
+      summary: Replace an approval group (PLATFORM_ADMIN)
       description: Pending requests are decided by the members at decision time.
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
@@ -469,7 +469,7 @@ paths:
     delete:
       tags: [approvals]
       operationId: deleteApprovalGroup
-      summary: Delete an approval group (REPORT_ADMIN)
+      summary: Delete an approval group (PLATFORM_ADMIN)
       description: 409 GROUP_IN_USE while a flow's approval step refers to it.
       responses:
         '204': { description: Deleted. }
@@ -482,7 +482,7 @@ paths:
       tags: [approvals]
       operationId: listApprovalRequests
       summary: List approval requests
-      description: Newest first. `scope=mine` (default) lists the requests of my groups; `all` is for REPORT_ADMIN.
+      description: Newest first. `scope=mine` (default) lists the requests of my groups; `all` is for PLATFORM_ADMIN.
       parameters:
         - { name: scope, in: query, schema: { type: string, enum: [mine, all], default: mine } }
         - name: status
@@ -513,7 +513,7 @@ paths:
       tags: [approvals]
       operationId: getApprovalRequest
       summary: Get an approval request
-      description: Visible to group members, the requester and REPORT_ADMIN; 404 otherwise.
+      description: Visible to group members, the requester and PLATFORM_ADMIN; 404 otherwise.
       responses:
         '200':
           description: The request.
@@ -576,7 +576,7 @@ paths:
       tags: [runs]
       operationId: listRuns
       summary: List runs of every visible flow
-      description: Newest first. Users see runs that act as them; REPORT_ADMIN sees all.
+      description: Newest first. Users see runs that act as them; PLATFORM_ADMIN sees all.
       parameters:
         - { $ref: '#/components/parameters/Status' }
         - { $ref: '#/components/parameters/Page' }
@@ -648,6 +648,35 @@ paths:
             text/csv: { schema: { type: string, format: binary } }
         '404': { $ref: '#/components/responses/NotFound' }
         '410': { $ref: '#/components/responses/Gone' }
+
+  /api/flow-files/{id}/content:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [runs]
+      operationId: getFileContent
+      summary: Text of an HTML or plain text run file (a sent mail)
+      description: |
+        Read through the app, for showing a sent mail in the page (a mail step's output has `bodyFileId`).
+        Only `text/html` and `text/plain` up to 1 MB; else 422 FILE_NOT_VIEWABLE. 410 FILE_EXPIRED after the retention.
+      responses:
+        '200':
+          description: The content.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: object
+                    required: [fileName, contentType, content]
+                    properties:
+                      fileName: { type: string }
+                      contentType: { type: string }
+                      content: { type: string }
+        '404': { $ref: '#/components/responses/Problem' }
+        '410': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 
   /api/flow-files/{id}/download-link:
     parameters: [{ $ref: '#/components/parameters/Id' }]
@@ -736,7 +765,7 @@ paths:
       tags: [mail-templates]
       operationId: replaceMailTemplate
       summary: Replace a mail template
-      description: Owner or REPORT_ADMIN only (403 NOT_TEMPLATE_OWNER).
+      description: Owner or PLATFORM_ADMIN only (403 NOT_TEMPLATE_OWNER).
       parameters: [{ $ref: '#/components/parameters/IfMatch' }]
       requestBody:
         required: true
@@ -760,7 +789,7 @@ paths:
       tags: [mail-templates]
       operationId: deleteMailTemplate
       summary: Delete a mail template
-      description: Owner or REPORT_ADMIN only; 409 TEMPLATE_IN_USE while a flow uses it.
+      description: Owner or PLATFORM_ADMIN only; 409 TEMPLATE_IN_USE while a flow uses it.
       responses:
         '204': { description: Deleted. }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -806,7 +835,7 @@ paths:
       summary: What a template can use
       description: |
         `flow.{id,name}`, `run.{id,trigger,triggeredBy,startedAt,date}` and `steps.<key>` = the outputs of the
-        earlier steps. A report step's output: `rowCount`, `hasRows`, `fileName`, `columns[]`,
+        earlier steps. A dataset step's output: `rowCount`, `hasRows`, `fileName`, `columns[]`,
         `rows[].cells[]` (first `flows.preview-rows` rows), `previewTruncated`.
       responses:
         '200':
@@ -901,18 +930,21 @@ components:
 
     StepKey: { type: string, pattern: '^[a-z][a-z0-9_]{0,39}$' }
 
-    ReportStep:
+    DatasetStep:
       type: object
       description: |
-        Runs a report (same definition as `/api/reports/run`) as the flow owner and stores it as CSV.
-      required: [type, key, definition]
+        Runs a dataset as the flow owner and stores it as CSV. The dataset is either a saved one used by name
+        (`datasetName`, from `/api/snapshots`: always computed live here, and a saved dataset in use cannot be deleted)
+        or designed for this step (`definition`); exactly one of the two (422 DATASET_SOURCE_REQUIRED).
+      required: [type, key]
       properties:
-        type: { const: report }
+        type: { const: dataset }
         key: { $ref: '#/components/schemas/StepKey' }
-        definition: { type: object, description: 'ReportDefinition: root, columns, where, having, sort, perRoot.' }
+        datasetName: { type: [string, 'null'], pattern: '^[a-z][a-z0-9_]{1,39}$', description: 'A saved dataset (422 SAVED_DATASET_NOT_FOUND).' }
+        definition: { type: [object, 'null'], description: 'DatasetDefinition: root, columns, where, having, sort, perRoot.' }
         fileName: { type: [string, 'null'], maxLength: 100, pattern: '^[\w .-]+\.csv$', description: 'Default <key>.csv' }
-        maxRows: { type: [integer, 'null'], minimum: 1, description: Fail above this; at most flows.report-max-rows. }
-        timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 3600, description: Default flows.report-timeout. }
+        maxRows: { type: [integer, 'null'], minimum: 1, description: Fail above this; at most flows.dataset-max-rows. }
+        timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 3600, description: Default flows.heavy-timeout. }
         maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10, description: Default flows.max-attempts. }
 
     MailStep:
@@ -925,7 +957,7 @@ components:
         templateId: { type: integer, format: int64 }
         to: { type: array, minItems: 1, maxItems: 50, items: { type: string, format: email } }
         cc: { type: array, maxItems: 50, items: { type: string, format: email } }
-        attachments: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/StepKey' }, description: Earlier report steps. }
+        attachments: { type: array, maxItems: 10, items: { $ref: '#/components/schemas/StepKey' }, description: Earlier dataset steps. }
         timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 600 }
         maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10 }
 
@@ -1009,7 +1041,7 @@ components:
 
     FlowStep:
       oneOf:
-        - { $ref: '#/components/schemas/ReportStep' }
+        - { $ref: '#/components/schemas/DatasetStep' }
         - { $ref: '#/components/schemas/MailStep' }
         - { $ref: '#/components/schemas/ConditionStep' }
         - { $ref: '#/components/schemas/FilterStep' }
@@ -1019,7 +1051,7 @@ components:
       discriminator:
         propertyName: type
         mapping:
-          report: '#/components/schemas/ReportStep'
+          dataset: '#/components/schemas/DatasetStep'
           mail: '#/components/schemas/MailStep'
           condition: '#/components/schemas/ConditionStep'
           filter: '#/components/schemas/FilterStep'
@@ -1162,7 +1194,7 @@ components:
                 required: [key, type, status, outcome, attempt, maxAttempts, timeoutSeconds, startedAt, finishedAt, nextAttemptAt, waitingUntil, error, output]
                 properties:
                   key: { type: string }
-                  type: { type: string, enum: [report, mail, condition, filter, approval, webhook, kafka] }
+                  type: { type: string, enum: [dataset, mail, condition, filter, approval, webhook, kafka] }
                   status: { type: string, enum: [ready, running, waiting, completed, failed, cancelled] }
                   outcome: { type: [string, 'null'], description: 'Which edge was taken: true/false, approved/rejected/timeout.' }
                   attempt: { type: integer }

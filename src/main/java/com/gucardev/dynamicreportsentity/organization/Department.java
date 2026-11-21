@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.organization;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
         @Index(name = "ix_department_parent_id", columnList = "parent_id"),
         @Index(name = "ix_department_manager_id", columnList = "manager_id")
 })
-@Reportable(label = "Department")
+@DatasetEntity(label = "Department")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Department {
@@ -28,15 +28,15 @@ public class Department {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ReportField(label = "Name")
+    @DatasetField(label = "Name")
     @Column(nullable = false)
     private String name;
 
-    @ReportField(label = "Cost Center")
+    @DatasetField(label = "Cost Center")
     private String costCenter;
 
     /** Self-reference (hierarchy): parent.name, subDepartments.name */
-    @ReportReference(target = "Department", label = "Parent Department",
+    @DatasetReference(target = "Department", label = "Parent Department",
             inverse = "subDepartments", inverseLabel = "Sub-departments")
     private Long parentId;
 
@@ -44,7 +44,7 @@ public class Department {
      * A second relation between Department and Personnel (besides Personnel.department).
      * Because every relation is named, "department.manager" and "members" never get mixed up.
      */
-    @ReportReference(target = "Personnel", label = "Manager",
+    @DatasetReference(target = "Personnel", label = "Manager",
             inverse = "managedDepartments", inverseLabel = "Managed Departments")
     private Long managerId;
 }

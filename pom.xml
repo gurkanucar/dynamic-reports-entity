@@ -83,6 +83,12 @@
             <groupId>com.samskivert</groupId>
             <artifactId>jmustache</artifactId>
         </dependency>
+        <!-- HTML parsing for mail bodies: <style> rules are copied into style="" (Outlook, Gmail ignore <style>) -->
+        <dependency>
+            <groupId>org.jsoup</groupId>
+            <artifactId>jsoup</artifactId>
+            <version>1.21.2</version>
+        </dependency>
         <!-- Files of flow runs: any S3-compatible store (AWS, Ceph RGW / OpenShift Data Foundation, ...) -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>

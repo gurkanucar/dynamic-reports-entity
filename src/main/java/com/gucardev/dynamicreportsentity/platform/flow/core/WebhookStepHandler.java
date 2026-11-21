@@ -62,7 +62,7 @@ class WebhookStepHandler implements StepHandler {
         Duration timeout = Duration.between(clock.instant(), context.deadline());
         HttpRequest.Builder request = HttpRequest.newBuilder(url)
                 .timeout(timeout.isNegative() || timeout.isZero() ? Duration.ofSeconds(1) : timeout)
-                .header("User-Agent", "dynamic-reports-flows/1.0")
+                .header("User-Agent", "dynamic-datasets-flows/1.0")
                 .header("X-Flow-Run-Id", String.valueOf(context.step().runId()))
                 .header("X-Flow-Step", step.key())
                 .method(step.methodOrDefault(), body == null ? HttpRequest.BodyPublishers.noBody()

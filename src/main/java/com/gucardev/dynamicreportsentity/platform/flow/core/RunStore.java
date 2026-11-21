@@ -169,7 +169,7 @@ class RunStore {
     private StepRun newStep(FlowRun run, int index, FlowStep step, Instant now) {
         int attempts = step.maxAttempts() == null ? properties.maxAttempts() : step.maxAttempts();
         Duration timeout = step.timeoutSeconds() != null ? Duration.ofSeconds(step.timeoutSeconds())
-                : step.lane() == Lane.HEAVY ? properties.reportTimeout() : properties.lightTimeout();
+                : step.lane() == Lane.HEAVY ? properties.heavyTimeout() : properties.lightTimeout();
         return new StepRun(run, index, step, attempts, timeout, now);
     }
 

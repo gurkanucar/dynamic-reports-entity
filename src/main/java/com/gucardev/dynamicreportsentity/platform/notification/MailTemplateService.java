@@ -2,8 +2,6 @@ package com.gucardev.dynamicreportsentity.platform.notification;
 
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
-import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
-import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -21,13 +19,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Mail templates. Everybody with REPORT_RUN may read and use them; the owner or a REPORT_ADMIN may change or
+ * Mail templates. Everybody with PLATFORM_USER may read and use them; the owner or a PLATFORM_ADMIN may change or
  * delete one. A template some module still uses ({@link MailTemplateUsage}) cannot be deleted.
  */
 @Service
 public class MailTemplateService {
 
-    public static final String ADMIN_AUTHORITY = "REPORT_ADMIN";
+    public static final String ADMIN_AUTHORITY = "PLATFORM_ADMIN";
 
     /** Fields of a template as entered by the user. */
     public record TemplateInput(String name, String description, String subject, String bodyHtml) {
@@ -105,10 +103,13 @@ public class MailTemplateService {
         return templates.existsById(id);
     }
 
-    /** Fills in the template with {@code model}: subject as plain text, body as escaped HTML; empty if it is gone. */
+    /**
+     * Fills in the template with {@code model}: subject as plain text, body as escaped HTML with its {@code <style>}
+     * rules inlined ({@link CssInliner}); empty if it is gone.
+     */
     public Optional<RenderedMail> render(long id, Map<String, ?> model) {
         return templates.findById(id).map(template -> new RenderedMail(renderer.renderText(template.getSubject(), model),
-                renderer.renderHtml(template.getBodyHtml(), model)));
+                CssInliner.inline(renderer.renderHtml(template.getBodyHtml(), model))));
     }
 
     /** Renders a draft with {@code model}, or with {@link #sampleModel()} if none is given. */
@@ -120,17 +121,18 @@ public class MailTemplateService {
             throw NotificationException.invalid(problems);
         }
         Map<String, Object> data = model == null ? sampleModel() : model;
-        return Map.of("subject", renderer.renderText(subject, data), "bodyHtml", renderer.renderHtml(bodyHtml, data));
+        return Map.of("subject", renderer.renderText(subject, data), "bodyHtml",
+                CssInliner.inline(renderer.renderHtml(bodyHtml, data)));
     }
 
-    /** What a template sees in a flow with one report step named {@code report}. */
+    /** What a template sees in a flow with one dataset step named {@code dataset}. */
     public Map<String, Object> sampleModel() {
         return Map.of(
                 "flow", Map.of("id", 1, "name", "Weekly headcount"),
                 "run", Map.of("id", 42, "trigger", "schedule", "triggeredBy", "schedule:7",
                         "startedAt", clock.instant().toString(), "date", LocalDate.now(clock).toString()),
-                "steps", Map.of("report", Map.of(
-                        "rowCount", 2, "hasRows", true, "fileName", "report.csv",
+                "steps", Map.of("dataset", Map.of(
+                        "rowCount", 2, "hasRows", true, "fileName", "dataset.csv",
                         "columns", List.of("Department", "Headcount"),
                         "rows", List.of(Map.of("cells", List.of("Software Development", "12")),
                                 Map.of("cells", List.of("Human Resources", "5"))),
@@ -161,7 +163,7 @@ public class MailTemplateService {
     private static void guardChange(MailTemplate template, Actor editor) {
         if (!template.getOwner().equals(editor.username()) && !editor.hasAuthority(ADMIN_AUTHORITY)) {
             throw new NotificationException(Kind.FORBIDDEN, "NOT_TEMPLATE_OWNER",
-                    "Only the owner of the template or a report admin may change it.");
+                    "Only the owner of the template or a dataset admin may change it.");
         }
     }
 

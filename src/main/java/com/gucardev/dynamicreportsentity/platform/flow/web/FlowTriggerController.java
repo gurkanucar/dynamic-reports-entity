@@ -27,7 +27,7 @@ import static com.gucardev.dynamicreportsentity.platform.flow.web.WebSupport.vie
 /** A single event trigger, once created under its flow ({@code POST /api/flows/{id}/triggers}). */
 @RestController
 @RequestMapping("/api/flow-triggers")
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class FlowTriggerController {
 
     private final TriggerService triggers;

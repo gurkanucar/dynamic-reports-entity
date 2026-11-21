@@ -3,14 +3,14 @@
 services:
   postgres:
     image: postgres:17
-    container_name: reports-postgres
+    container_name: datasets-postgres
     environment:
-      POSTGRES_DB: reports
-      POSTGRES_USER: reports
-      POSTGRES_PASSWORD: reports
+      POSTGRES_DB: datasets
+      POSTGRES_USER: datasets
+      POSTGRES_PASSWORD: datasets
     ports:
       - "5433:5432"
-    # Modest production-like settings; pg_stat_statements shows what the reports cost in the database.
+    # Modest production-like settings; pg_stat_statements shows what the datasets cost in the database.
     command:
       - postgres
       - -c
@@ -27,10 +27,10 @@ services:
       - shared_preload_libraries=pg_stat_statements
       - -c
       - track_io_timing=on
-    # parallel hash joins of many concurrent reports live in /dev/shm; 1g ran out under 16 users
+    # parallel hash joins of many concurrent datasets live in /dev/shm; 1g ran out under 16 users
     shm_size: 4g
     volumes:
-      - reports-pgdata:/var/lib/postgresql/data
+      - datasets-pgdata:/var/lib/postgresql/data
 
 volumes:
-  reports-pgdata:
+  datasets-pgdata:

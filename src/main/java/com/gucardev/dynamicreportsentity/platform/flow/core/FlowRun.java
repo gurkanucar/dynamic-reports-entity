@@ -41,7 +41,7 @@ public class FlowRun {
     @Column(name = "definition_json", nullable = false, length = 200_000)
     private String definitionJson;
 
-    /** The flow owner: the reports run with their permissions. */
+    /** The flow owner: the datasets run with their permissions. */
     @Column(name = "run_as", nullable = false, length = 100)
     private String runAs;
 

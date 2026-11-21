@@ -65,7 +65,7 @@ class FlowKafkaIntegrationTest {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final RequestPostProcessor ADMIN = user("admin").authorities(Arrays.stream(new String[]{
-            "REPORT_RUN", "REPORT_ADMIN", "ALL_DEPARTMENTS"}).map(SimpleGrantedAuthority::new).toList());
+            "PLATFORM_USER", "PLATFORM_ADMIN", "ALL_DEPARTMENTS"}).map(SimpleGrantedAuthority::new).toList());
 
     @Autowired MockMvcTester mvc;
     @Autowired JdbcTemplate jdbc;

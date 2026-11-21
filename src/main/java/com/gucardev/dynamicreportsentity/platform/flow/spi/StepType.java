@@ -15,7 +15,7 @@ public interface StepType<S extends FlowStep> {
 
     Class<S> stepClass();
 
-    /** Checks a step when a flow is saved; report problems through {@code check} (every problem at once). */
+    /** Checks a step when a flow is saved; dataset problems through {@code check} (every problem at once). */
     default void validate(S step, StepCheck check) {
     }
 

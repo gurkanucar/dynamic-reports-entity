@@ -21,14 +21,14 @@ class JsonLogicTest {
     @Test
     void comparesAndCombines() {
         String data = """
-                {"trigger": {"status": "APPROVED", "amount": 1500, "country": "TR"}, "steps": {"report": {"rowCount": 0}}}""";
+                {"trigger": {"status": "APPROVED", "amount": 1500, "country": "TR"}, "steps": {"dataset": {"rowCount": 0}}}""";
         assertThat(eval("""
                 {"and": [{"==": [{"var": "trigger.status"}, "APPROVED"]}, {">": [{"var": "trigger.amount"}, 1000]}]}""", data))
                 .isEqualTo(true);
         assertThat(eval("""
                 {"in": [{"var": "trigger.country"}, ["TR", "DE"]]}""", data)).isEqualTo(true);
         assertThat(JsonLogic.test(JSON.readValue("""
-                {">": [{"var": "steps.report.rowCount"}, 0]}""", Object.class), JSON.readValue(data, Object.class))).isFalse();
+                {">": [{"var": "steps.dataset.rowCount"}, 0]}""", Object.class), JSON.readValue(data, Object.class))).isFalse();
         assertThat(eval("""
                 {"<=": [1000, {"var": "trigger.amount"}, 2000]}""", data)).isEqualTo(true);
         assertThat(eval("""

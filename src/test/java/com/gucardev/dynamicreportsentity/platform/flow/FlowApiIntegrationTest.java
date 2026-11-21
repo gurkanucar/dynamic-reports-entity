@@ -45,10 +45,10 @@ class FlowApiIntegrationTest {
     private static final Duration WAIT = Duration.ofSeconds(20);
 
     /** Users as the real user store knows them (runs act as the flow owner, looked up there). */
-    private static final RequestPostProcessor ADMIN = as("admin", "REPORT_RUN", "REPORT_ADMIN", "SALARY_VIEW",
+    private static final RequestPostProcessor ADMIN = as("admin", "PLATFORM_USER", "PLATFORM_ADMIN", "SALARY_VIEW",
             "NATIONAL_ID_VIEW", "ALL_DEPARTMENTS");
-    private static final RequestPostProcessor CAROL = as("carol", "REPORT_RUN");
-    private static final RequestPostProcessor ALICE = as("alice", "REPORT_RUN");
+    private static final RequestPostProcessor CAROL = as("carol", "PLATFORM_USER");
+    private static final RequestPostProcessor ALICE = as("alice", "PLATFORM_USER");
 
     private static final String HEADCOUNT = """
             {"root": "Personnel",
@@ -93,18 +93,18 @@ class FlowApiIntegrationTest {
         return json(result).get("data").get("id").asLong();
     }
 
-    private long reportTemplate(String name) {
-        return createTemplate(name, "{{flow.name}} ({{steps.report.rowCount}} rows)", """
+    private long datasetTemplate(String name) {
+        return createTemplate(name, "{{flow.name}} ({{steps.dataset.rowCount}} rows)", """
                 <h1>{{flow.name}}</h1>
-                <table>{{#steps.report.rows}}<tr>{{#cells}}<td>{{.}}</td>{{/cells}}</tr>{{/steps.report.rows}}</table>""");
+                <table>{{#steps.dataset.rows}}<tr>{{#cells}}<td>{{.}}</td>{{/cells}}</tr>{{/steps.dataset.rows}}</table>""");
     }
 
-    private String reportAndMail(String name, long templateId, String recipient) {
+    private String datasetAndMail(String name, long templateId, String recipient) {
         return """
                 {"name": "%s",
                  "steps": [
-                   {"type": "report", "key": "report", "definition": %s, "fileName": "headcount.csv"},
-                   {"type": "mail", "key": "mail", "templateId": %d, "to": ["%s"], "attachments": ["report"]}
+                   {"type": "dataset", "key": "dataset", "definition": %s, "fileName": "headcount.csv"},
+                   {"type": "mail", "key": "mail", "templateId": %d, "to": ["%s"], "attachments": ["dataset"]}
                  ]}""".formatted(name, HEADCOUNT, templateId, recipient);
     }
 
@@ -176,9 +176,9 @@ class FlowApiIntegrationTest {
     // ---- the happy path -------------------------------------------------------------------------------
 
     @Test
-    void scheduledReportIsRunAndMailedWithTheCsvAttached() throws Exception {
-        long template = reportTemplate("Headcount mail");
-        long flow = createFlow(ADMIN, reportAndMail("Weekly headcount", template, "hr@example.com"));
+    void scheduledDatasetIsRunAndMailedWithTheCsvAttached() throws Exception {
+        long template = datasetTemplate("Headcount mail");
+        long flow = createFlow(ADMIN, datasetAndMail("Weekly headcount", template, "hr@example.com"));
 
         long runId = start(ADMIN, flow);
         JsonNode run = awaitRun(ADMIN, runId, "completed");
@@ -186,10 +186,10 @@ class FlowApiIntegrationTest {
         assertThat(run.get("trigger").asString()).isEqualTo("manual");
         assertThat(run.get("runAs").get("username").asString()).isEqualTo("admin");
         assertThat(run.get("steps")).hasSize(2);
-        JsonNode report = run.get("steps").get(0);
-        assertThat(report.get("status").asString()).isEqualTo("completed");
-        assertThat(report.get("output").get("rowCount").asInt()).isEqualTo(7);
-        assertThat(report.get("output").get("columns").get(0).asString()).isEqualTo("Department");
+        JsonNode dataset = run.get("steps").get(0);
+        assertThat(dataset.get("status").asString()).isEqualTo("completed");
+        assertThat(dataset.get("output").get("rowCount").asInt()).isEqualTo(7);
+        assertThat(dataset.get("output").get("columns").get(0).asString()).isEqualTo("Department");
         assertThat(eventTypes(run)).containsSubsequence("run_queued", "step_started", "step_completed",
                 "step_started", "step_completed", "run_completed");
 
@@ -207,12 +207,34 @@ class FlowApiIntegrationTest {
         assertThat(download.getResponse().getContentAsString(UTF_8)).isEqualTo(csv);
         assertThat(mvc.get().uri(file.get("downloadUrl").asString()).with(ALICE).exchange())
                 .hasStatus(HttpStatus.NOT_FOUND);
+
+        // what was sent is kept with the run, to be shown in the page
+        long body = run.get("steps").get(1).get("output").get("bodyFileId").asLong();
+        MvcTestResult content = mvc.get().uri("/api/flow-files/" + body + "/content").with(ADMIN).exchange();
+        assertThat(content).hasStatusOk();
+        assertThat(json(content).get("data").get("content").asString()).isEqualTo(RecordingMailSender.html(mail));
+        assertThat(mvc.get().uri("/api/flow-files/" + file.get("id").asLong() + "/content").with(ADMIN).exchange())
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test
-    void reportsRunWithTheOwnersRowSecurity() {
-        long template = reportTemplate("Carol's mail");
-        long flow = createFlow(CAROL, reportAndMail("My department", template, "carol@example.com"));
+    void styleBlocksOfTemplatesAreInlinedForMailClientsThatDropThem() throws Exception {
+        long template = createTemplate("Styled", "Styled", """
+                <style>h1 { color: #dc2626; font-size: 20px } .data td { padding: 8px } a:hover { color: red }</style>
+                <h1 style="font-size: 18px">{{flow.name}}</h1><table class="data"><tr><td>x</td></tr></table>""");
+        long flow = createFlow(ADMIN, mailOnly("Styled mail", template, null));
+
+        awaitRun(ADMIN, start(ADMIN, flow), "completed");
+
+        String html = RecordingMailSender.html(mailTo("team@example.com"));
+        assertThat(html).contains("<h1 style=\"color: #dc2626; font-size: 18px;\">Styled mail</h1>",
+                "<td style=\"padding: 8px;\">x</td>", "a:hover { color: red }");
+    }
+
+    @Test
+    void datasetsRunWithTheOwnersRowSecurity() {
+        long template = datasetTemplate("Carol's mail");
+        long flow = createFlow(CAROL, datasetAndMail("My department", template, "carol@example.com"));
 
         JsonNode run = awaitRun(CAROL, start(CAROL, flow), "completed");
 
@@ -309,7 +331,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void filesAreDeletedAfterTheRetention() {
-        long flow = createFlow(ADMIN, reportAndMail("Kept a while", reportTemplate("Retention"), "keep@example.com"));
+        long flow = createFlow(ADMIN, datasetAndMail("Kept a while", datasetTemplate("Retention"), "keep@example.com"));
         JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "completed");
         JsonNode file = run.get("files").get(0);
         long fileId = file.get("id").asLong();
@@ -335,7 +357,7 @@ class FlowApiIntegrationTest {
 
     @Test
     void dueSchedulesStartOneRunPerFireTime() {
-        long flow = createFlow(ADMIN, reportAndMail("Daily", reportTemplate("Daily mail"), "daily@example.com"));
+        long flow = createFlow(ADMIN, datasetAndMail("Daily", datasetTemplate("Daily mail"), "daily@example.com"));
         MvcTestResult created = post("/api/flows/" + flow + "/schedules", ADMIN,
                 """
                 {"cron": "0 7 * * MON-FRI", "timeZone": "Europe/Istanbul", "enabled": true}""");
@@ -399,19 +421,19 @@ class FlowApiIntegrationTest {
                 .bodyJson().extractingPath("$.errors[*].field").asArray().contains("name", "steps");
         assertThat(post("/api/flows", ADMIN, """
                 {"name": "x", "steps": [
-                  {"type": "mail", "key": "mail", "templateId": %d, "to": ["boss@gmail.com"], "attachments": ["report"]},
+                  {"type": "mail", "key": "mail", "templateId": %d, "to": ["boss@gmail.com"], "attachments": ["dataset"]},
                   {"type": "mail", "key": "mail", "templateId": 999999, "to": ["a@example.com"]}]}""".formatted(template)))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
                 .bodyJson().extractingPath("$.errors[*].code").asArray().containsExactly(
                         "RECIPIENT_NOT_ALLOWED", "UNKNOWN_ATTACHMENT", "DUPLICATE_STEP_KEY", "TEMPLATE_NOT_FOUND");
         assertThat(post("/api/flows", ADMIN, """
-                {"name": "x", "steps": [{"type": "report", "key": "r", "definition": {"root": "Personnel", "columns": [{"field": "nope"}]}}]}"""))
+                {"name": "x", "steps": [{"type": "dataset", "key": "r", "definition": {"root": "Personnel", "columns": [{"field": "nope"}]}}]}"""))
                 .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT)
-                .bodyJson().extractingPath("$.errors[0].code").isEqualTo("INVALID_REPORT_DEFINITION");
-        // alice may not use salaries, so she may not schedule a report on them either
+                .bodyJson().extractingPath("$.errors[0].code").isEqualTo("INVALID_DATASET_DEFINITION");
+        // alice may not use salaries, so she may not schedule a dataset on them either
         assertThat(post("/api/flows", ALICE, """
-                {"name": "x", "steps": [{"type": "report", "key": "r", "definition": {"root": "Personnel", "columns": [{"field": "salary"}]}}]}"""))
-                .hasStatus(HttpStatus.FORBIDDEN).bodyJson().extractingPath("$.code").isEqualTo("REPORT_FIELD_FORBIDDEN");
+                {"name": "x", "steps": [{"type": "dataset", "key": "r", "definition": {"root": "Personnel", "columns": [{"field": "salary"}]}}]}"""))
+                .hasStatus(HttpStatus.FORBIDDEN).bodyJson().extractingPath("$.code").isEqualTo("DATASET_FIELD_FORBIDDEN");
     }
 
     @Test

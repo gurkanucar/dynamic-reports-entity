@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.project;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -19,7 +19,7 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "project", indexes = @Index(name = "ix_project_department_id", columnList = "department_id"))
-@Reportable(label = "Project")
+@DatasetEntity(label = "Project")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Project {
@@ -28,25 +28,25 @@ public class Project {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ReportField(label = "Code")
+    @DatasetField(label = "Code")
     @Column(nullable = false, unique = true)
     private String code;
 
-    @ReportField(label = "Name")
+    @DatasetField(label = "Name")
     private String name;
 
-    @ReportField(label = "Status")
+    @DatasetField(label = "Status")
     private String status;
 
-    @ReportField(label = "Budget")
+    @DatasetField(label = "Budget")
     private BigDecimal budget;
 
-    @ReportField(label = "Start Date")
+    @DatasetField(label = "Start Date")
     private LocalDate startDate;
 
-    @ReportField(label = "End Date")
+    @DatasetField(label = "End Date")
     private LocalDate endDate;
 
-    @ReportReference(target = "Department", label = "Owning Department", inverse = "projects", inverseLabel = "Projects")
+    @DatasetReference(target = "Department", label = "Owning Department", inverse = "projects", inverseLabel = "Projects")
     private Long departmentId;
 }

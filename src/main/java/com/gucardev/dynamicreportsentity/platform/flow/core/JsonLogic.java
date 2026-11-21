@@ -16,7 +16,7 @@ import java.util.Set;
  * <p>
  * Rules and data are plain JSON values (maps, lists, strings, numbers, booleans, null). Examples:
  * <pre>{@code
- * {">": [{"var": "steps.report.rowCount"}, 0]}
+ * {">": [{"var": "steps.dataset.rowCount"}, 0]}
  * {"and": [{"==": [{"var": "trigger.status"}, "APPROVED"]}, {"<": [{"var": "item.amount"}, 1000]}]}
  * {"in": [{"var": "trigger.country"}, ["TR", "DE"]]}
  * }</pre>

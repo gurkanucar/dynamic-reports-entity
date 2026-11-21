@@ -52,7 +52,7 @@ final class CoreStepTypes {
                 String key = step.attachments().get(i);
                 if (!check.stepsBefore().contains(key) || !check.producesFiles(key)) {
                     check.problem("attachments[" + i + "]", "UNKNOWN_ATTACHMENT",
-                            "'" + key + "' is not a report step that runs before this one.");
+                            "'" + key + "' is not a dataset step that runs before this one.");
                 }
             }
         }

@@ -1,10 +1,10 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
-import com.gucardev.dynamicreportsentity.platform.reporting.catalog.CatalogField;
-import com.gucardev.dynamicreportsentity.platform.reporting.catalog.Navigation;
-import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ReportCatalog;
-import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ReportableEntity;
+import com.gucardev.dynamicreportsentity.platform.dataset.catalog.CatalogField;
+import com.gucardev.dynamicreportsentity.platform.dataset.catalog.Navigation;
+import com.gucardev.dynamicreportsentity.platform.dataset.catalog.DatasetCatalog;
+import com.gucardev.dynamicreportsentity.platform.dataset.catalog.CatalogEntity;
 import org.springframework.stereotype.Component;
 
 import java.util.stream.Collectors;
@@ -12,20 +12,20 @@ import java.util.stream.Collectors;
 /**
  * The catalog as one user may use it, in a compact text for the model: entity, field and relation names with labels
  * and types. Only metadata, never values; fields the user may not use are left out, exactly like
- * {@code GET /api/reports/catalog}.
+ * {@code GET /api/datasets/catalog}.
  */
 @Component
 class CatalogDescriber {
 
-    private final ReportCatalog catalog;
+    private final DatasetCatalog catalog;
 
-    CatalogDescriber(ReportCatalog catalog) {
+    CatalogDescriber(DatasetCatalog catalog) {
         this.catalog = catalog;
     }
 
     String describe(Actor viewer) {
         StringBuilder text = new StringBuilder();
-        for (ReportableEntity entity : catalog.entities()) {
+        for (CatalogEntity entity : catalog.entities()) {
             text.append("Entity ").append(entity.name()).append(" — \"").append(entity.label()).append("\"\n");
             text.append("  fields: ").append(entity.fields().values().stream()
                     .filter(field -> field.isVisibleTo(viewer))

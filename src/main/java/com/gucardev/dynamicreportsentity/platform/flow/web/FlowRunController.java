@@ -1,8 +1,10 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
 import com.gucardev.dynamicreportsentity.platform.api.ApiResponse;
 
 import com.gucardev.dynamicreportsentity.platform.flow.core.ArtifactStore;
+import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowRun;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunArtifact;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunService;
@@ -24,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.time.Clock;
@@ -36,7 +39,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 
 /** Runs (status, steps, history, cancel) and the files they produced. */
 @RestController
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class FlowRunController {
 
     private final RunService runs;
@@ -93,6 +96,28 @@ class FlowRunController {
         link.put("url", artifacts.downloadUrl(file).map(URI::toString).orElse(null));
         link.put("fileName", file.getFileName());
         return ApiResponse.of(link);
+    }
+
+    /**
+     * An HTML or plain text file of a run (a sent mail's body) read through the app, for showing it in the page: the browser cannot
+     * fetch the presigned URL of {@code /download} (other origin). Up to 1 MB.
+     */
+    @GetMapping("/api/flow-files/{id}/content")
+    ApiResponse<java.util.Map<String, Object>> content(@PathVariable long id, Authentication authentication)
+            throws IOException {
+        RunArtifact file = runs.file(id, viewer(authentication));
+        if (!(file.getContentType().equals("text/html") || file.getContentType().equals("text/plain"))
+                || file.getSizeBytes() > 1_048_576) {
+            throw new FlowException(Kind.UNPROCESSABLE, "FILE_NOT_VIEWABLE",
+                    "Only HTML and text files up to 1 MB can be shown; download this one.");
+        }
+        java.util.Map<String, Object> content = new java.util.LinkedHashMap<>();
+        content.put("fileName", file.getFileName());
+        content.put("contentType", file.getContentType());
+        try (InputStream in = artifacts.open(file)) {
+            content.put("content", new String(in.readAllBytes(), UTF_8));
+        }
+        return ApiResponse.of(content);
     }
 
     /**

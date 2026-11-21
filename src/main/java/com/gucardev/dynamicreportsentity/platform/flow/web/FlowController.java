@@ -48,7 +48,7 @@ import static com.gucardev.dynamicreportsentity.platform.flow.web.WebSupport.vie
  */
 @RestController
 @RequestMapping("/api/flows")
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class FlowController {
 
     private final FlowService flows;
@@ -63,7 +63,7 @@ class FlowController {
         this.schedules = schedules;
     }
 
-    /** Own flows (all flows for REPORT_ADMIN), last changed first. */
+    /** Own flows (all flows for PLATFORM_ADMIN), last changed first. */
     @GetMapping
     ApiResponse<List<FlowSummary>> list(@RequestParam(required = false) Integer page,
                                         @RequestParam(required = false) Integer size, Authentication authentication) {

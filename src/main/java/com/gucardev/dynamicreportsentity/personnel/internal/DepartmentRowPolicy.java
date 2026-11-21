@@ -1,10 +1,10 @@
 package com.gucardev.dynamicreportsentity.personnel.internal;
 
 import com.gucardev.dynamicreportsentity.personnel.Personnel;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportRowPolicy;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetAccessDeniedException;
+import com.gucardev.dynamicreportsentity.platform.dataset.RowPolicy;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
-import com.gucardev.dynamicreportsentity.platform.reporting.RowRestriction;
+import com.gucardev.dynamicreportsentity.platform.dataset.RowRestriction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +20,7 @@ import java.util.List;
  */
 @Component
 @RequiredArgsConstructor
-class DepartmentRowPolicy implements ReportRowPolicy {
+class DepartmentRowPolicy implements RowPolicy {
 
     private final PersonnelRepository personnelRepository;
 
@@ -31,7 +31,7 @@ class DepartmentRowPolicy implements ReportRowPolicy {
         }
         Long departmentId = personnelRepository.findByUsername(viewer.username())
                 .map(Personnel::getDepartmentId)
-                .orElseThrow(() -> new ReportAccessDeniedException(
+                .orElseThrow(() -> new DatasetAccessDeniedException(
                         "No department is assigned to user " + viewer.username()));
         return List.of(new RowRestriction("Personnel", "departmentId", departmentId));
     }

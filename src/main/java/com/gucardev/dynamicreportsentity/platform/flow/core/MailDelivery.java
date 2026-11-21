@@ -40,7 +40,13 @@ public class MailDelivery {
     @Column(nullable = false)
     private Instant sentAt;
 
-    public MailDelivery(Long stepRunId, Long runId, String recipients, String subject, Instant sentAt) {
+    /** The sent HTML as a run file ({@link RunArtifact}); null if it was not kept. */
+    @Column(name = "body_file_id")
+    private Long bodyFileId;
+
+    public MailDelivery(Long stepRunId, Long runId, String recipients, String subject, Instant sentAt,
+                        Long bodyFileId) {
+        this.bodyFileId = bodyFileId;
         this.stepRunId = stepRunId;
         this.runId = runId;
         this.recipients = recipients.length() > 4000 ? recipients.substring(0, 4000) : recipients;

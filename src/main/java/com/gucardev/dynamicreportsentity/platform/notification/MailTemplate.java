@@ -16,7 +16,7 @@ import java.time.Instant;
 
 /**
  * A Mustache template for e-mails: subject (plain text) and HTML body. Shared: every user may use any
- * template; only its owner or a report admin may change it.
+ * template; only its owner or a dataset admin may change it.
  */
 @Entity
 @Table(name = "notification_mail_template", uniqueConstraints = @UniqueConstraint(name = "uk_mail_template_name",

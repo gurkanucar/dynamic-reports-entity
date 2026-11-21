@@ -1,7 +1,7 @@
 package com.gucardev.dynamicreportsentity.personnel;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
@@ -22,17 +22,17 @@ import java.io.Serializable;
 @Entity
 @Table(name = "personnel_skill", indexes = @Index(name = "ix_personnel_skill_skill_id", columnList = "skill_id"))
 @IdClass(PersonnelSkill.Key.class)
-@Reportable(label = "Personnel Skill")
+@DatasetEntity(label = "Personnel Skill")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PersonnelSkill {
 
     @Id
-    @ReportReference(target = "Personnel", owner = true, inverse = "skills", inverseLabel = "Skills")
+    @DatasetReference(target = "Personnel", owner = true, inverse = "skills", inverseLabel = "Skills")
     private Long personnelId;
 
     @Id
-    @ReportReference(target = "Skill", inverse = "holders", inverseLabel = "Holders")
+    @DatasetReference(target = "Skill", inverse = "holders", inverseLabel = "Holders")
     private Long skillId;
 
     @EqualsAndHashCode

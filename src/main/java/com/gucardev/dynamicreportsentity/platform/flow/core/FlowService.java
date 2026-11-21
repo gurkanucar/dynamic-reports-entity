@@ -22,16 +22,16 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Flow definitions. A user sees and changes their own flows; a REPORT_ADMIN sees and changes all of them.
+ * Flow definitions. A user sees and changes their own flows; a PLATFORM_ADMIN sees and changes all of them.
  * Other users' flows answer 404, not 403, so their existence does not leak.
  * <p>
- * A flow is checked completely when saved: each step by its {@link StepType} (e.g. report definitions are built for
+ * A flow is checked completely when saved: each step by its {@link StepType} (e.g. dataset definitions are built for
  * the editor and the owner), the graph by {@link FlowGraph}.
  */
 @Service
 public class FlowService {
 
-    public static final String ADMIN_AUTHORITY = "REPORT_ADMIN";
+    public static final String ADMIN_AUTHORITY = "PLATFORM_ADMIN";
 
     /** A flow as entered by the user. */
     public record FlowInput(String name, String description, List<FlowStep> steps, List<FlowEdge> edges,
@@ -121,8 +121,19 @@ public class FlowService {
         return flow.getOwner().equals(viewer.username()) || viewer.hasAuthority(ADMIN_AUTHORITY);
     }
 
+    /** What saving {@code input} as a new flow of {@code editor} would report; empty = it would save. */
+    List<FieldProblem> problems(FlowInput input, Actor editor) {
+        try {
+            check(input, editor, editor);
+            return List.of();
+        } catch (FlowException e) {
+            return e.errors() == null || e.errors().isEmpty()
+                    ? List.of(new FieldProblem("flow", e.code(), e.getMessage())) : e.errors();
+        }
+    }
+
     /**
-     * Checks every step through its {@link StepType} and the graph, reporting every problem at once.
+     * Checks every step through its {@link StepType} and the graph, datasets every problem at once.
      *
      * @param owner the user the flow runs as (null if they no longer exist: only the editor is checked)
      */

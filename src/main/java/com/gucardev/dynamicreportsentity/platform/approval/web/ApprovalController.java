@@ -31,9 +31,9 @@ import static com.gucardev.dynamicreportsentity.platform.api.HttpSupport.etag;
 import static com.gucardev.dynamicreportsentity.platform.api.HttpSupport.expectedVersion;
 import static com.gucardev.dynamicreportsentity.platform.api.HttpSupport.paging;
 
-/** Approval groups (report admins manage them) and the requests approval steps open. */
+/** Approval groups (dataset admins manage them) and the requests approval steps open. */
 @RestController
-@PreAuthorize("hasAuthority('REPORT_RUN')")
+@PreAuthorize("hasAuthority('PLATFORM_USER')")
 class ApprovalController {
 
     private final ApprovalService approvals;
@@ -81,7 +81,7 @@ class ApprovalController {
 
     // ---- requests -------------------------------------------------------------------------------------
 
-    /** {@code scope=mine} (default): requests of my groups; {@code all}: every request (report admins). */
+    /** {@code scope=mine} (default): requests of my groups; {@code all}: every request (dataset admins). */
     @GetMapping("/api/approval-requests")
     ApiResponse<List<ApprovalApi.ApprovalView>> requests(@RequestParam(defaultValue = "mine") String scope,
                                                       @RequestParam(required = false) List<String> status,

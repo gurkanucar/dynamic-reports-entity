@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.personnel;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -22,7 +22,7 @@ import java.time.LocalDate;
         @Index(name = "ix_personnel_department_id", columnList = "department_id"),
         @Index(name = "ix_personnel_manager_id", columnList = "manager_id")
 })
-@Reportable(label = "Personnel")
+@DatasetEntity(label = "Personnel")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Personnel {
@@ -37,36 +37,36 @@ public class Personnel {
     private Long id;
 
     /** Login name; links the authenticated user to their personnel record. */
-    @ReportField(label = "Username")
+    @DatasetField(label = "Username")
     @Column(unique = true)
     private String username;
 
-    @ReportField(label = "Full Name")
+    @DatasetField(label = "Full Name")
     @Column(nullable = false)
     private String fullName;
 
-    @ReportField(label = "Email")
+    @DatasetField(label = "Email")
     private String email;
 
-    @ReportField(label = "Hire Date")
+    @DatasetField(label = "Hire Date")
     private LocalDate hireDate;
 
-    @ReportField(label = "Active")
+    @DatasetField(label = "Active")
     private Boolean active;
 
     /** Visible only to users holding SALARY_VIEW – in columns, filters and sorting alike. */
-    @ReportField(label = "Salary", authority = SALARY_VIEW)
+    @DatasetField(label = "Salary", authority = SALARY_VIEW)
     private BigDecimal salary;
 
     /** Sensitive: only users holding NATIONAL_ID_VIEW see or use it; everyone else does not even find it in the catalog. */
-    @ReportField(label = "National ID", authority = NATIONAL_ID_VIEW)
+    @DatasetField(label = "National ID", authority = NATIONAL_ID_VIEW)
     private String nationalId;
 
     /** Many-to-one into another module, by ID only. Inverse: Department.members (one-to-many). */
-    @ReportReference(target = "Department", inverse = "members", inverseLabel = "Members")
+    @DatasetReference(target = "Department", inverse = "members", inverseLabel = "Members")
     private Long departmentId;
 
     /** Self-reference: manager.fullName, directReports.fullName */
-    @ReportReference(target = "Personnel", label = "Manager", inverse = "directReports", inverseLabel = "Direct Reports")
+    @DatasetReference(target = "Personnel", label = "Manager", inverse = "directReports", inverseLabel = "Direct Reports")
     private Long managerId;
 }

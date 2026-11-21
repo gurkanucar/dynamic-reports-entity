@@ -31,7 +31,7 @@ import java.util.Set;
 @Service
 public class ApprovalService {
 
-    public static final String ADMIN_AUTHORITY = "REPORT_ADMIN";
+    public static final String ADMIN_AUTHORITY = "PLATFORM_ADMIN";
 
     /** A group as entered by an admin. */
     public record GroupInput(String name, String description, List<ApprovalGroup.Member> members) {
@@ -269,7 +269,7 @@ public class ApprovalService {
     private static void requireAdmin(Actor user) {
         if (!user.hasAuthority(ADMIN_AUTHORITY)) {
             throw new ApprovalException(Kind.FORBIDDEN, "INSUFFICIENT_ROLE",
-                    "Only report admins manage approval groups.");
+                    "Only dataset admins manage approval groups.");
         }
     }
 

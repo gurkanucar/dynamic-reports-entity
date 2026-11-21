@@ -15,9 +15,9 @@ import java.util.List;
  * @param scheduleInterval    how often each instance looks for due schedules
  * @param lease               a claimed step belongs to its instance this long without renewal (renewed every
  *                            quarter of it); a dead instance's steps are retried elsewhere after it
- * @param heavySlots          report steps running at the same time per instance; keep below the JDBC pool size
+ * @param heavySlots          dataset steps running at the same time per instance; keep below the JDBC pool size
  * @param lightSlots          e-mail steps running at the same time per instance
- * @param reportTimeout       default timeout of a report step
+ * @param heavyTimeout       default timeout of a dataset step
  * @param lightTimeout        default timeout of an e-mail step
  * @param fileRetention       files of runs are deleted this long after they were made (downloads then answer 410)
  * @param cleanupInterval     how often each instance deletes expired files
@@ -36,7 +36,7 @@ public record FlowProperties(
         @DefaultValue("1m") Duration lease,
         @DefaultValue("2") int heavySlots,
         @DefaultValue("8") int lightSlots,
-        @DefaultValue("10m") Duration reportTimeout,
+        @DefaultValue("10m") Duration heavyTimeout,
         @DefaultValue("1m") Duration lightTimeout,
         @DefaultValue("7d") Duration fileRetention,
         @DefaultValue("1h") Duration cleanupInterval,

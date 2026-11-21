@@ -1,7 +1,7 @@
 package com.gucardev.dynamicreportsentity.personnel;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
-import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -14,7 +14,7 @@ import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "skill")
-@Reportable(label = "Skill")
+@DatasetEntity(label = "Skill")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Skill {
@@ -23,10 +23,10 @@ public class Skill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ReportField(label = "Name")
+    @DatasetField(label = "Name")
     @Column(nullable = false, unique = true)
     private String name;
 
-    @ReportField(label = "Category")
+    @DatasetField(label = "Category")
     private String category;
 }

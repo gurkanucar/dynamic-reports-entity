@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SCALE="${1:-1000000}"
-PSQL=(docker exec -i reports-postgres psql -U reports -d reports -v ON_ERROR_STOP=1 -q)
+PSQL=(docker exec -i datasets-postgres psql -U datasets -d datasets -v ON_ERROR_STOP=1 -q)
 
 echo "Emptying the tables"
 "${PSQL[@]}" -c "TRUNCATE department, personnel, personnel_profile, skill, personnel_skill, training,

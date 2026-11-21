@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * Sends an e-mail rendered from a mail template. The template sees {@code flow}, {@code run} and the outputs
- * of the earlier steps as {@code steps.<key>}; {@code attachments} lists report steps whose CSV file is attached.
+ * of the earlier steps as {@code steps.<key>}; {@code attachments} lists dataset steps whose CSV file is attached.
  * <p>
  * Sent at most once per step run: a retry after a successful send does not send again. If the instance dies
  * between handing the mail to the server and recording it, the retry sends it a second time (at least once).

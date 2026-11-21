@@ -16,24 +16,25 @@ http:
   INTERNAL_ERROR:          { status: 500, message: "Unexpected error; quote the traceId." }
   # ---- flows ---------------------------------------------------------------------------------------
   FLOW_NOT_FOUND:          { status: 404, message: "The flow does not exist or is not yours." }
-  REPORT_FIELD_FORBIDDEN:  { status: 403, message: "A report step uses a field you may not see." }
+  DATASET_FIELD_FORBIDDEN:  { status: 403, message: "A dataset step uses a field you may not see." }
   FLOW_HAS_ACTIVE_RUNS:    { status: 409, message: "Cancel the queued or running runs first." }
   # ---- runs and files ------------------------------------------------------------------------------
   RUN_NOT_FOUND:           { status: 404, message: "The run does not exist or is not visible to you." }
   ARTIFACT_NOT_FOUND:      { status: 404, message: "The file does not exist or is not visible to you." }
   RUN_ALREADY_FINISHED:    { status: 409, message: "The run has already finished." }
   FILE_EXPIRED:            { status: 410, message: "The file was deleted after flows.file-retention." }
+  FILE_NOT_VIEWABLE:       { status: 422, message: "Only text files up to 1 MB can be shown; download it instead." }
   # ---- schedules -----------------------------------------------------------------------------------
   SCHEDULE_NOT_FOUND:      { status: 404, message: "The schedule does not exist or is not visible to you." }
   SCHEDULE_LIMIT_REACHED:  { status: 409, message: "The flow already has the maximum number of schedules." }
   # ---- session and assistant ----------------------------------------------------------------------
   INVALID_CREDENTIALS:     { status: 401, message: "Wrong username or password." }
-  ASSISTANT_DISABLED:      { status: 503, message: "The report assistant is not configured." }
+  ASSISTANT_DISABLED:      { status: 503, message: "The dataset assistant is not configured." }
   LAST_MESSAGE_NOT_FROM_USER: { status: 422, message: "The last message must be the user's request." }
   SUGGESTION_NOT_FOUND:    { status: 404, message: "The suggestion does not exist or is not yours." }
   # ---- mail templates ------------------------------------------------------------------------------
   TEMPLATE_NOT_FOUND:      { status: 404, message: "The mail template does not exist." }
-  NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a report admin may change the template." }
+  NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a dataset admin may change the template." }
   TEMPLATE_NAME_TAKEN:     { status: 409, message: "Another template already has this name." }
   TEMPLATE_IN_USE:         { status: 409, message: "The template is used by a flow." }
   # ---- triggers ------------------------------------------------------------------------------------
@@ -59,17 +60,19 @@ field:
   INVALID_EMAIL: "Not an e-mail address."
   OUT_OF_RANGE: "Out of the allowed range."
   DUPLICATE_STEP_KEY: "Another step uses this key."
-  INVALID_REPORT_DEFINITION: "The report cannot be built (unknown field, wrong operator, ...)."
-  MAX_ROWS_TOO_HIGH: "maxRows is above flows.report-max-rows."
+  INVALID_DATASET_DEFINITION: "The dataset cannot be built (unknown field, wrong operator, ...)."
+  MAX_ROWS_TOO_HIGH: "maxRows is above flows.dataset-max-rows."
   TEMPLATE_NOT_FOUND: "The mail template does not exist."
   RECIPIENT_NOT_ALLOWED: "The address is outside flows.mail.allowed-recipient-domains."
-  UNKNOWN_ATTACHMENT: "Not a report step before this one."
+  UNKNOWN_ATTACHMENT: "Not a dataset step before this one."
   TEMPLATE_SYNTAX_ERROR: "The Mustache template does not compile."
   INVALID_CRON: "Not a cron expression."
   INVALID_TIME_ZONE: "Not an IANA time zone."
   CRON_NEVER_FIRES: "The expression has no future fire time."
   SCHEDULE_TOO_FREQUENT: "Fires more often than flows.min-schedule-interval."
   INVALID_EXPRESSION: "Not a JSON Logic rule with supported operators."
+  DATASET_SOURCE_REQUIRED: "A dataset step needs either a saved dataset (datasetName) or its own definition, not both."
+  SAVED_DATASET_NOT_FOUND: "There is no saved dataset with this name."
   APPROVAL_GROUP_NOT_FOUND: "The approval group does not exist."
   INVALID_URL: "Not an absolute http(s) URL."
   WEBHOOK_HOST_NOT_ALLOWED: "The host is outside flows.webhook.allowed-hosts."
@@ -88,14 +91,14 @@ field:
 
 # Codes on failed or retried steps (retry: whether another attempt is made while attempts are left)
 step:
-  INVALID_REPORT_DEFINITION: { retry: false, message: "The saved report no longer builds (e.g. a field was removed)." }
+  INVALID_DATASET_DEFINITION: { retry: false, message: "The saved dataset no longer builds (e.g. a field was removed)." }
   INVALID_FLOW_DEFINITION:   { retry: false, message: "The stored flow definition cannot be read by this version." }
-  REPORT_ACCESS_DENIED:      { retry: false, message: "The flow owner may no longer see a field or any rows." }
+  DATASET_ACCESS_DENIED:      { retry: false, message: "The flow owner may no longer see a field or any rows." }
   RUN_AS_USER_UNAVAILABLE:   { retry: false, message: "The flow owner no longer exists or is disabled." }
-  REPORT_FILE_TOO_LARGE:     { retry: false, message: "The CSV is larger than flows.max-artifact-size." }
+  DATASET_FILE_TOO_LARGE:     { retry: false, message: "The CSV is larger than flows.max-artifact-size." }
   TEMPLATE_NOT_FOUND:        { retry: false, message: "The mail template was deleted." }
   RECIPIENT_NOT_ALLOWED:     { retry: false, message: "A recipient is outside the allowed domains." }
-  ATTACHMENT_NOT_AVAILABLE:  { retry: false, message: "The report step to attach produced no file." }
+  ATTACHMENT_NOT_AVAILABLE:  { retry: false, message: "The dataset step to attach produced no file." }
   MAIL_RECIPIENT_REJECTED:   { retry: false, message: "The mail server rejected a recipient." }
   MAIL_REJECTED:             { retry: false, message: "The e-mail could not be built." }
   MAIL_SERVER_UNAVAILABLE:   { retry: true,  message: "The mail server could not be reached or refused the login." }
@@ -105,6 +108,7 @@ step:
   DATABASE_ERROR:            { retry: true,  message: "Database error; details in the server log." }
   INTERNAL_ERROR:            { retry: true,  message: "Unexpected error; details in the server log." }
   RUN_CANCELLED:             { retry: false, message: "The run was cancelled." }
+  SAVED_DATASET_NOT_FOUND:   { retry: false, message: "The saved dataset the step uses was deleted." }
   STEP_TYPE_UNAVAILABLE:     { retry: false, message: "This instance cannot run the step type (e.g. Kafka disabled)." }
   EXPRESSION_FAILED:         { retry: false, message: "The rule could not be evaluated on this data." }
   FILTER_SOURCE_NOT_A_LIST:  { retry: false, message: "The filter's source is not a list." }
