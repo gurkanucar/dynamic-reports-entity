@@ -1,7 +1,7 @@
-import { SparklesIcon } from "lucide-react"
+import { ArrowUpIcon, SparklesIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import {
-  Conversation, ConversationContent, ConversationEmptyState, ConversationScrollButton,
+  Conversation, ConversationContent, ConversationScrollButton,
 } from "@/components/ai-elements/conversation"
 import { Message, MessageContent, MessageResponse } from "@/components/ai-elements/message"
 import {
@@ -44,9 +44,17 @@ export function ChatThread({ entries, busy, busyLabel, examples, onSend, input, 
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="gap-5">
           {entries.length === 0 ? (
-            <ConversationEmptyState icon={<SparklesIcon className="size-6 text-primary" />} title={emptyTitle}
-              description={emptyDescription} className="gap-4">
-              <Suggestions className="w-full">
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <SparklesIcon className="size-4.5" />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium">{emptyTitle}</span>
+                  <span className="text-sm text-muted-foreground">{emptyDescription}</span>
+                </div>
+              </div>
+              <Suggestions className="w-full whitespace-normal">
                 <div className="flex w-full flex-col gap-2">
                   {examples.map((example) => (
                     <Suggestion key={example} suggestion={example} onClick={onSend}
@@ -54,7 +62,7 @@ export function ChatThread({ entries, busy, busyLabel, examples, onSend, input, 
                   ))}
                 </div>
               </Suggestions>
-            </ConversationEmptyState>
+            </div>
           ) : entries.map((entry) => (
             <Message key={entry.id} from={entry.role}>
               <MessageContent className={cn(entry.failed && "border border-destructive/30 bg-destructive/10 text-destructive")}>
@@ -85,7 +93,9 @@ export function ChatThread({ entries, busy, busyLabel, examples, onSend, input, 
             <Kbd>Enter</Kbd> gönder · <KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup> yeni satır
           </span>
           <PromptInputSubmit status={busy ? "submitted" : undefined} disabled={busy || !input.trim()}
-            aria-label="Gönder" className="shadow-sm" />
+            aria-label="Gönder" className="shadow-sm">
+            {busy ? undefined : <ArrowUpIcon className="size-4" />}
+          </PromptInputSubmit>
         </PromptInputFooter>
       </PromptInput>
     </div>

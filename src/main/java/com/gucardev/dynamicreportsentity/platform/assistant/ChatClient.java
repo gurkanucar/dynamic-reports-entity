@@ -70,6 +70,13 @@ class ChatClient {
         try {
             return parse(send(json));
         } catch (AssistantException e) {
+            if (body.containsKey("reasoning") && "ASSISTANT_BAD_REQUEST".equals(e.code())) {
+                // some models cannot turn reasoning off (or take no effort setting): ask again with their default
+                log.warn("Model {} refused assistant.reasoning={} ({}); asking without it",
+                        properties.model(), properties.reasoning(), e.getMessage());
+                body.remove("reasoning");
+                return parse(send(JSON.writeValueAsString(body)));
+            }
             if (!"ASSISTANT_CONNECTION_LOST".equals(e.code())) {
                 throw e;
             }
