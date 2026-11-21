@@ -42,4 +42,9 @@ public class PersonnelSkill {
         private Long personnelId;
         private Long skillId;
     }
+
+    public PersonnelSkill(Long personnelId, Long skillId) {
+        this.personnelId = personnelId;
+        this.skillId = skillId;
+    }
 }

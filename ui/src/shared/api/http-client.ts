@@ -88,17 +88,28 @@ export const http = {
   },
 }
 
-/** Saves a response body as a file (CSV exports, files streamed by the API). */
-export async function saveResponseAsFile(response: Response, fallbackName: string) {
+/**
+ * Saves a response body as a file (Excel/CSV exports, files streamed by the API). The link is put in the page and the
+ * blob URL kept alive for a while: Safari and Firefox otherwise save an "Unknown" file without its name or extension.
+ *
+ * @param name the file name to use; null = the server's (Content-Disposition), else `fallbackName`
+ */
+export async function saveResponseAsFile(response: Response, fallbackName: string, name: string | null = null) {
   const disposition = response.headers.get("Content-Disposition") ?? ""
   const match = /filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i.exec(disposition)
-  const name = match ? decodeURIComponent(match[1] ?? match[2]) : fallbackName
-  const url = URL.createObjectURL(await response.blob())
+  const fileName = name ?? (match ? decodeURIComponent(match[1] ?? match[2]) : fallbackName)
+  const blob = await response.blob()
+  const type = response.headers.get("Content-Type") ?? blob.type
+  const url = URL.createObjectURL(type && blob.type !== type ? new Blob([blob], { type }) : blob)
   const link = document.createElement("a")
   link.href = url
-  link.download = name
+  link.download = fileName
+  link.rel = "noopener"
+  link.style.display = "none"
+  document.body.appendChild(link)
   link.click()
-  URL.revokeObjectURL(url)
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export function errorMessage(error: unknown): string {

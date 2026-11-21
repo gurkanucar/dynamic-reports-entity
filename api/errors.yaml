@@ -58,6 +58,17 @@ http:
   NOTE_NOT_FOUND:          { status: 404, message: "The response has no such note." }
   RESULTS_NOT_VISIBLE:     { status: 403, message: "The survey does not show its results to this user (yet)." }
   INVALID_SORT:            { status: 400, message: "sort names a field the list cannot be sorted by; see the endpoint's allowed fields." }
+  # ---- master data (/api/departments, /api/personnel, /api/skills, /api/projects, /api/trainings) ---
+  DEPARTMENT_NOT_FOUND:    { status: 404, message: "No department with this id." }
+  DEPARTMENT_IN_USE:       { status: 409, message: "The department still has sub-departments, people or projects (named in detail)." }
+  PERSONNEL_NOT_FOUND:     { status: 404, message: "No person with this id." }
+  SKILL_NOT_FOUND:         { status: 404, message: "No skill with this id." }
+  SKILL_IN_USE:            { status: 409, message: "People still have this skill." }
+  PROJECT_NOT_FOUND:       { status: 404, message: "No project with this id." }
+  ASSIGNMENT_NOT_FOUND:    { status: 404, message: "No project assignment with this id." }
+  TRAINING_NOT_FOUND:      { status: 404, message: "No training with this id." }
+  TRAINING_IN_USE:         { status: 409, message: "The training has records." }
+  TRAINING_RECORD_NOT_FOUND: { status: 404, message: "No training record with this id." }
   # ---- approvals -----------------------------------------------------------------------------------
   APPROVAL_GROUP_NOT_FOUND: { status: 404, message: "The approval group does not exist." }
   GROUP_NAME_TAKEN:        { status: 409, message: "Another approval group already has this name." }
@@ -96,6 +107,12 @@ field:
   TOPIC_NOT_ALLOWED: "The topic is outside flows.kafka.allowed-topics."
   TRIGGER_TYPE_FIXED: "The type of a trigger cannot change."
   DUPLICATE_ID: "Two questions, options or rules of a survey share an id."
+  HIERARCHY_CYCLE: "A department cannot be under itself or one of its sub-departments."
+  USERNAME_TAKEN: "Another person has this username."
+  SELF_MANAGER: "A person cannot be their own manager."
+  CODE_TAKEN: "Another project has this code."
+  NAME_TAKEN: "A record with this name exists."
+  ALREADY_ASSIGNED: "The person is already on this project."
   RESULTS_NEED_RESPONDENT: "Results for respondents need to know who answered: not anonymous, or one response per user."
   UNKNOWN_TYPE: "Unknown survey question type."
   UNKNOWN_FIELD_REFERENCE: "A survey condition or rule reads a question that does not exist (or comes later)."

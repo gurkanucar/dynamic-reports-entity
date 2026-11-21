@@ -16,13 +16,15 @@ import { TemplateEditor } from "../components/template-editor"
 import { DEFAULT_DATASET_TEMPLATE } from "../lib/default-template"
 import { useDeleteTemplate } from "../mutations/use-delete-template"
 import { useTemplate } from "../queries/use-template"
-import { useTemplates } from "../queries/use-templates"
+import { useTemplatePage } from "../queries/use-templates"
+import { Pager } from "@/shared/components/pager"
 
 const NEW = "new"
 
 export function TemplatesPage() {
   const list = useListState("name")
-  const templates = useTemplates(list.query || undefined)
+  const page = useTemplatePage(list.page, list.size, list.query || undefined)
+  const templates = { ...page, data: page.data?.data }
   const [selected, setSelected] = useState<string | null>(null)
   const selectedId = selected && selected !== NEW ? Number(selected) : null
   const template = useTemplate(selectedId)
@@ -69,6 +71,7 @@ export function TemplatesPage() {
           })}
         </ItemGroup>
       )}
+      {page.data && <Pager meta={page.data.meta} onPage={list.setPage} onSize={list.setSize} />}
       {selected === null && (
         <Empty>
           <EmptyHeader>

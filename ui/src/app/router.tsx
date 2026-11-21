@@ -13,6 +13,12 @@ import { RunsPage } from "@/features/flows/pages/runs-page"
 import { DatasetBuilderPage } from "@/features/datasets/pages/dataset-builder-page"
 import { SavedDatasetsPage } from "@/features/datasets/pages/saved-datasets-page"
 import { TemplatesPage } from "@/features/templates/pages/templates-page"
+import { DepartmentsPage } from "@/features/admin/pages/departments-page"
+import { PersonnelPage } from "@/features/admin/pages/personnel-page"
+import { ProjectsPage } from "@/features/admin/pages/projects-page"
+import { SkillsPage } from "@/features/admin/pages/skills-page"
+import { TrainingRecordsPage } from "@/features/admin/pages/training-records-page"
+import { TrainingsPage } from "@/features/admin/pages/trainings-page"
 import { SurveyBuilderPage } from "@/features/surveys/pages/survey-builder-page"
 import { SurveyFillPage } from "@/features/surveys/pages/survey-fill-page"
 import { SurveyResultsPage } from "@/features/surveys/pages/survey-results-page"
@@ -53,6 +59,13 @@ export const router = createBrowserRouter([
       { path: "surveys/new", element: <SurveyBuilderPage /> },
       { path: "surveys/:surveyId", element: <SurveyResultsPage /> },
       { path: "surveys/:surveyId/edit", element: <SurveyBuilderPage /> },
+      { path: "admin", element: <Navigate to="/admin/personnel" replace /> },
+      { path: "admin/personnel", element: <PersonnelPage /> },
+      { path: "admin/departments", element: <DepartmentsPage /> },
+      { path: "admin/projects", element: <ProjectsPage /> },
+      { path: "admin/trainings", element: <TrainingsPage /> },
+      { path: "admin/training-records", element: <TrainingRecordsPage /> },
+      { path: "admin/skills", element: <SkillsPage /> },
       { path: "*", element: <NotFound /> },
     ],
   },

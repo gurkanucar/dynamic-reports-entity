@@ -14,6 +14,6 @@ export const datasetsApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(definition),
     })
-    await saveResponseAsFile(response, fileName)
+    await saveResponseAsFile(response, fileName, fileName)   // named after the dataset
   },
 }

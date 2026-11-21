@@ -33,7 +33,8 @@ export function FlowDetailPage() {
   const flowId = Number(useParams().flowId)
   const flow = useFlow(flowId)
   const [page, setPage] = useState(1)
-  const runs = useFlowRuns(flowId, page)
+  const [size, setSize] = useState(20)
+  const runs = useFlowRuns(flowId, page, size)
   const start = useStartRun()
   const remove = useDeleteFlow()
   const navigate = useNavigate()
@@ -110,7 +111,7 @@ export function FlowDetailPage() {
         <CardContent className="flex flex-col gap-3">
           {runs.isError && <ErrorAlert error={runs.error} />}
           {runs.data && <RunsTable runs={runs.data.data} onSelect={setSelectedRun} />}
-          <Pager meta={runs.data?.meta} onPage={setPage} />
+          <Pager meta={runs.data?.meta} onPage={setPage} onSize={(next) => { setSize(next); setPage(1) }} />
         </CardContent>
       </Card>
       <RunSheet runId={selectedRun} onClose={() => setSelectedRun(null)} />

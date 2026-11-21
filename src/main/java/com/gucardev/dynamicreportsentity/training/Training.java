@@ -29,6 +29,10 @@ public class Training {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    @DatasetHidden
+    private long version;
+
     @Column(nullable = false)
     private String name;
 
@@ -43,4 +47,16 @@ public class Training {
     /** Internal remarks of the training team: never dataset-ready. */
     @DatasetHidden
     private String internalNotes;
+
+    Training(String name) {
+        this.name = name;
+    }
+
+    void define(String name, String category, Integer validityMonths, boolean mandatory, String internalNotes) {
+        this.name = name;
+        this.category = category;
+        this.validityMonths = validityMonths;
+        this.mandatory = mandatory;
+        this.internalNotes = internalNotes;
+    }
 }

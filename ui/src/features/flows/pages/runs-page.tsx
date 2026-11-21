@@ -23,7 +23,7 @@ export function RunsPage() {
   const [statuses, setStatuses] = useState<RunStatus[]>([])
   const [triggers, setTriggers] = useState<string[]>([])
   const list = useListState("-createdAt")
-  const runs = useRuns(statuses, list.page, { q: list.query || undefined, trigger: triggers, sort: list.sort })
+  const runs = useRuns(statuses, list.page, { q: list.query || undefined, trigger: triggers, sort: list.sort, size: list.size })
   const [selected, setSelected] = useState<number | null>(null)
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -47,7 +47,7 @@ export function RunsPage() {
         <RunsTable runs={runs.data.data} showFlow onSelect={setSelected} sort={list.sort} onSort={list.setSort}
           filtered={statuses.length > 0 || triggers.length > 0 || list.query !== ""} />
       )}
-      <Pager meta={runs.data?.meta} onPage={list.setPage} />
+      <Pager meta={runs.data?.meta} onPage={list.setPage} onSize={list.setSize} />
       <RunSheet runId={selected} onClose={() => setSelected(null)} />
     </div>
   )

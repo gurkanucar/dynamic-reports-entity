@@ -194,7 +194,7 @@ function Responses({ survey }: { survey: SurveyResponse }) {
   const [statuses, setStatuses] = useState<FollowStatus[]>([])
   const [priorities, setPriorities] = useState<Priority[]>([])
   const responses = useSurveyResponses(survey.id, list.page, { status: statuses, priority: priorities,
-    q: list.query || undefined, sort: list.sort })
+    q: list.query || undefined, sort: list.sort, size: list.size })
   const [open, setOpen] = useState<number | null>(null)
   const tracking = survey.settings.tracking
   const questions = survey.definition.fields.filter((field) => field.type !== "section")
@@ -272,7 +272,7 @@ function Responses({ survey }: { survey: SurveyResponse }) {
           </CardContent>
         </Card>
       )}
-      <Pager meta={responses.data?.meta} onPage={list.setPage} />
+      <Pager meta={responses.data?.meta} onPage={list.setPage} onSize={list.setSize} />
       <ResponseSheet survey={survey} responseId={open} onClose={() => setOpen(null)} />
     </div>
   )

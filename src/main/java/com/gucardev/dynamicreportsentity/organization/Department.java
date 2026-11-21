@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -27,6 +28,9 @@ public class Department {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Version
+    private long version;
 
     @DatasetField(label = "Name")
     @Column(nullable = false)
@@ -47,4 +51,15 @@ public class Department {
     @DatasetReference(target = "Personnel", label = "Manager",
             inverse = "managedDepartments", inverseLabel = "Managed Departments")
     private Long managerId;
+
+    Department(String name) {
+        this.name = name;
+    }
+
+    void define(String name, String costCenter, Long parentId, Long managerId) {
+        this.name = name;
+        this.costCenter = costCenter;
+        this.parentId = parentId;
+        this.managerId = managerId;
+    }
 }

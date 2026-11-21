@@ -31,6 +31,9 @@ public class ProjectAssignment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    private long version;
+
     @DatasetReference(target = "Project", inverse = "assignments", inverseLabel = "Assignments")
     @Column(nullable = false)
     private Long projectId;
@@ -47,4 +50,16 @@ public class ProjectAssignment {
 
     @DatasetField(label = "Assigned On")
     private LocalDate assignedOn;
+
+    ProjectAssignment(Long projectId, Long personnelId) {
+        this.projectId = projectId;
+        this.personnelId = personnelId;
+    }
+
+    void define(Long personnelId, String role, Integer allocationPercent, LocalDate assignedOn) {
+        this.personnelId = personnelId;
+        this.role = role;
+        this.allocationPercent = allocationPercent;
+        this.assignedOn = assignedOn;
+    }
 }

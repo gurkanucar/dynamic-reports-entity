@@ -15,6 +15,13 @@ const SECTIONS: Record<string, string> = {
   "approval-groups": "Onay grupları",
   templates: "Mail şablonları",
   surveys: "Anketler",
+  admin: "Kayıtlar",
+}
+
+/** Second level of /admin/... */
+const ADMIN_PAGES: Record<string, string> = {
+  personnel: "Personel", departments: "Departmanlar", projects: "Projeler", trainings: "Eğitimler",
+  "training-records": "Eğitim kayıtları", skills: "Beceriler",
 }
 
 interface Crumb {
@@ -37,7 +44,8 @@ export function AppBreadcrumb() {
 
   if (!section || !SECTIONS[section]) return null
   const crumbs: Crumb[] = [{ label: SECTIONS[section], to: id ? `/${section}` : undefined }]
-  if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : section === "surveys" ? "Yeni anket" : "Yeni veri seti" })
+  if (section === "admin" && id && ADMIN_PAGES[id]) crumbs.push({ label: ADMIN_PAGES[id] })
+  else if (id === "new") crumbs.push({ label: section === "flows" ? "Yeni akış" : section === "surveys" ? "Yeni anket" : "Yeni veri seti" })
   else if (surveyId) {
     crumbs.push({ label: survey.data?.title ?? `#${surveyId}`, to: action ? `/surveys/${surveyId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })

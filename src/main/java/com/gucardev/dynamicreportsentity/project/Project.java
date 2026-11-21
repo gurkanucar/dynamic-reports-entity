@@ -28,6 +28,9 @@ public class Project {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    private long version;
+
     @DatasetField(label = "Code")
     @Column(nullable = false, unique = true)
     private String code;
@@ -49,4 +52,19 @@ public class Project {
 
     @DatasetReference(target = "Department", label = "Owning Department", inverse = "projects", inverseLabel = "Projects")
     private Long departmentId;
+
+    Project(String code) {
+        this.code = code;
+    }
+
+    void define(String code, String name, String status, BigDecimal budget, LocalDate startDate, LocalDate endDate,
+                Long departmentId) {
+        this.code = code;
+        this.name = name;
+        this.status = status;
+        this.budget = budget;
+        this.startDate = startDate;
+        this.endDate = endDate;
+        this.departmentId = departmentId;
+    }
 }

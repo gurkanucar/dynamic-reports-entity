@@ -16,7 +16,7 @@ import { useFlows } from "../queries/use-flows"
 
 export function FlowsPage() {
   const list = useListState("-updatedAt")
-  const flows = useFlows(list.page, { q: list.query || undefined, sort: list.sort })
+  const flows = useFlows(list.page, { q: list.query || undefined, sort: list.sort, size: list.size })
   const navigate = useNavigate()
   const newDataset = (
     <>
@@ -73,7 +73,7 @@ export function FlowsPage() {
               </TableBody>
             </Table>
           </div>
-          <Pager meta={flows.data.meta} onPage={list.setPage} />
+          <Pager meta={flows.data.meta} onPage={list.setPage} onSize={list.setSize} />
         </>
       )}
     </div>

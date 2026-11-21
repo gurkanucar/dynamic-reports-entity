@@ -3,10 +3,10 @@ import { surveysApi } from "../api/surveys.api"
 import { surveyKeys } from "./survey.keys"
 
 export function useSurveys(scope: "mine" | "open", page = 1,
-  filters: { q?: string; status?: import("../types/survey.dto").SurveyStatus[]; sort?: string } = {}) {
+  filters: { q?: string; status?: import("../types/survey.dto").SurveyStatus[]; sort?: string; size?: number } = {}) {
   return useQuery({
     queryKey: [...surveyKeys.list(scope, page), filters],
-    queryFn: () => surveysApi.list(scope, page, 20, filters),
+    queryFn: () => surveysApi.list(scope, page, filters.size ?? 20, filters),
     placeholderData: keepPreviousData,
   })
 }
@@ -39,10 +39,10 @@ export function useResponseNotes(id: number, responseId: number | null) {
     enabled: responseId !== null })
 }
 
-export function useSurveyResponses(id: number, page: number, filters?: Partial<import("../types/survey.dto").ResponseFilters>) {
+export function useSurveyResponses(id: number, page: number, filters?: Partial<import("../types/survey.dto").ResponseFilters> & { size?: number }) {
   return useQuery({
     queryKey: [...surveyKeys.responses(id, page), filters ?? null],
-    queryFn: () => surveysApi.responses(id, page, 20, filters),
+    queryFn: () => surveysApi.responses(id, page, filters?.size ?? 20, filters),
     placeholderData: keepPreviousData,
   })
 }

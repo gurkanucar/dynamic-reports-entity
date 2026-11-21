@@ -64,19 +64,21 @@ def must(result, what):
 # ---- saved datasets: simple → complex ------------------------------------------------------------------
 
 DATASETS = [
-    (ADMIN, "aktif_personel", "Aktif personel listesi", "Ad, departman, e-posta ve işe giriş tarihi", {
+    # Sırayla: 2 basit, birkaç orta, sonra platformun sınırlarını gösteren karmaşık örnekler. Açıklamanın başı
+    # (Basit / Orta / Karmaşık / Sınır testi) neyi gösterdiğini söyler.
+    (ADMIN, "aktif_personel", "Aktif personel listesi", "Basit · tek tablo, tek filtre ve sıralama: ad, departman, e-posta ve işe giriş", {
         "root": "Personnel",
         "columns": [{"field": "fullName", "label": "Ad soyad"}, {"field": "department.name", "label": "Departman"},
                     {"field": "email", "label": "E-posta"}, {"field": "hireDate", "label": "İşe giriş"}],
         "where": {"field": "active", "operator": "EQ", "value": True},
         "sort": [{"field": "department.name"}, {"field": "fullName"}]}),
-    (ALICE, "son_bir_yilda_ise_girenler", "Son 1 yılda işe girenler", "Yeni çalışanlar ve yöneticileri", {
-        "root": "Personnel",
-        "columns": [{"field": "fullName", "label": "Ad soyad"}, {"field": "department.name", "label": "Departman"},
-                    {"field": "manager.fullName", "label": "Yönetici"}, {"field": "hireDate", "label": "İşe giriş"}],
-        "where": {"field": "hireDate", "operator": "LAST_N_DAYS", "value": 365},
-        "sort": [{"field": "hireDate", "direction": "DESC"}]}),
-    (ADMIN, "departman_kadrosu", "Departman kadrosu", "Departman başına aktif çalışan (en az 2 kişi)", {
+    (BOB, "proje_portfoyu", "Proje portföyü", "Basit · filtre yok, bütçeye göre sıralı proje listesi (Haftalık proje raporu akışı kullanır)", {
+        "root": "Project",
+        "columns": [{"field": "code", "label": "Kod"}, {"field": "name", "label": "Proje"},
+                    {"field": "status", "label": "Durum"}, {"field": "budget", "label": "Bütçe"},
+                    {"field": "department.name", "label": "Sahip departman"}],
+        "sort": [{"field": "budget", "direction": "DESC"}]}),
+    (ADMIN, "departman_kadrosu", "Departman kadrosu", "Orta · gruplama + COUNT/MIN + HAVING: departman başına aktif çalışan (en az 2 kişi)", {
         "root": "Personnel",
         "columns": [{"field": "department.name", "label": "Departman"},
                     {"aggregate": "COUNT", "label": "Aktif çalışan"},
@@ -85,7 +87,7 @@ DATASETS = [
         "having": {"aggregate": "COUNT", "operator": "GTE", "value": 2},
         "sort": [{"aggregate": "COUNT", "direction": "DESC"}]}),
     (ALICE, "egitim_yenileme_takvimi", "Eğitim yenileme takvimi (60 gün)",
-     "Önümüzdeki 60 günde yenilenmesi gereken zorunlu eğitimler", {
+     "Orta · iki ilişki derin yol + göreli tarih (NEXT_N_DAYS 60): yaklaşan zorunlu yenilemeler", {
         "root": "TrainingRecord",
         "columns": [{"field": "personnel.fullName", "label": "Çalışan"},
                     {"field": "personnel.department.name", "label": "Departman"},
@@ -93,7 +95,7 @@ DATASETS = [
         "where": {"conditions": [{"field": "training.mandatory", "operator": "EQ", "value": True},
                                  {"field": "nextRenewalDate", "operator": "NEXT_N_DAYS", "value": 60}]},
         "sort": [{"field": "nextRenewalDate"}]}),
-    (ALICE, "suresi_gecen_egitimler", "Süresi geçmiş zorunlu eğitimler", "Yenileme tarihi geçmiş aktif çalışanlar", {
+    (ALICE, "suresi_gecen_egitimler", "Süresi geçmiş zorunlu eğitimler", "Orta · üç koşullu VE filtresi + LAST_N_DAYS: yenilemesi geçmiş aktif çalışanlar (eğitim uyum akışı kullanır)", {
         "root": "TrainingRecord",
         "columns": [{"field": "personnel.fullName", "label": "Çalışan"},
                     {"field": "personnel.department.name", "label": "Departman"},
@@ -102,19 +104,34 @@ DATASETS = [
                                  {"field": "personnel.active", "operator": "EQ", "value": True},
                                  {"field": "nextRenewalDate", "operator": "LAST_N_DAYS", "value": 3650}]},
         "sort": [{"field": "nextRenewalDate"}]}),
-    (BOB, "proje_portfoyu", "Proje portföyü", "Projeler, durum ve bütçe; büyükten küçüğe", {
-        "root": "Project",
-        "columns": [{"field": "code", "label": "Kod"}, {"field": "name", "label": "Proje"},
-                    {"field": "status", "label": "Durum"}, {"field": "budget", "label": "Bütçe"},
-                    {"field": "department.name", "label": "Sahip departman"}],
-        "sort": [{"field": "budget", "direction": "DESC"}]}),
-    (BOB, "proje_kapasitesi", "Proje kapasitesi", "Proje ve rol başına kişi sayısı ve toplam yüzde", {
+    (BOB, "proje_kapasitesi", "Proje kapasitesi", "Orta · iki alana göre gruplama + SUM: proje ve rol başına kişi ve toplam yüzde", {
         "root": "ProjectAssignment",
         "columns": [{"field": "project.name", "label": "Proje"}, {"field": "role", "label": "Rol"},
                     {"aggregate": "COUNT", "label": "Kişi"},
                     {"field": "allocationPercent", "aggregate": "SUM", "label": "Toplam %"}],
         "sort": [{"field": "project.name"}, {"field": "role"}]}),
-    (ADMIN, "departman_360", "Departman 360", "Alt ekipler, beceriler, eğitim kategorileri, şehirler ve projeler", {
+    (ALICE, "egitim_basari_ozeti", "Eğitim başarı özeti", "Orta · gruplama + AVG/MIN, toplu değere göre sıralama: eğitim başına katılım ve puan", {
+        "root": "TrainingRecord",
+        "columns": [{"field": "training.name", "label": "Eğitim"}, {"field": "training.category", "label": "Kategori"},
+                    {"aggregate": "COUNT", "label": "Katılım"},
+                    {"field": "score", "aggregate": "AVG", "label": "Ortalama puan"},
+                    {"field": "score", "aggregate": "MIN", "label": "En düşük puan"}],
+        "sort": [{"field": "score", "aggregate": "AVG", "direction": "DESC"}]}),
+    (ADMIN, "maas_ozeti", "Maaş özeti (yönetim)", "Orta · yetki gerektiren alan (SALARY_VIEW): departman başına ortalama ve en yüksek maaş", {
+        "root": "Personnel",
+        "columns": [{"field": "department.name", "label": "Departman"}, {"aggregate": "COUNT", "label": "Kişi"},
+                    {"field": "salary", "aggregate": "AVG", "label": "Ortalama maaş"},
+                    {"field": "salary", "aggregate": "MAX", "label": "En yüksek maaş"}],
+        "where": {"field": "active", "operator": "EQ", "value": True},
+        "sort": [{"field": "salary", "aggregate": "AVG", "direction": "DESC"}]}),
+    (CAROL, "ekibimin_egitimleri", "Ekibimin eğitimleri", "Karmaşık · satır güvenliği (yalnızca kendi departmanı) + nesne LIST'i (son 3 geçilen eğitim, filtreli ve sıralı)", {
+        "root": "Personnel",
+        "columns": [{"field": "fullName", "label": "Ad soyad"},
+                    {"field": "trainingRecords", "aggregate": "LIST", "label": "Son eğitimler",
+                     "fields": ["completedOn", "training.name", "score"],
+                     "where": {"field": "status", "operator": "EQ", "value": "PASSED"}, "order": "DESC", "limit": 3}],
+        "sort": [{"field": "fullName"}]}),
+    (ADMIN, "departman_360", "Departman 360", "Karmaşık · altı LIST kolonu, 3 seviye to-many yollar (members.trainingRecords.training.category)", {
         "root": "Department",
         "columns": [{"field": "name", "label": "Departman"}, {"field": "parent.name", "label": "Bağlı olduğu"},
                     {"field": "manager.fullName", "label": "Yönetici"},
@@ -125,38 +142,128 @@ DATASETS = [
                     {"field": "members.profile.city", "aggregate": "LIST", "label": "Şehirler"},
                     {"field": "projects.code", "aggregate": "LIST", "label": "Projeler"}],
         "sort": [{"field": "name"}]}),
-    (ADMIN, "maas_ozeti", "Maaş özeti (yönetim)", "Departman başına ortalama ve en yüksek maaş; maaş yetkisi gerekir", {
-        "root": "Personnel",
-        "columns": [{"field": "department.name", "label": "Departman"}, {"aggregate": "COUNT", "label": "Kişi"},
-                    {"field": "salary", "aggregate": "AVG", "label": "Ortalama maaş"},
-                    {"field": "salary", "aggregate": "MAX", "label": "En yüksek maaş"}],
-        "where": {"field": "active", "operator": "EQ", "value": True},
-        "sort": [{"field": "salary", "aggregate": "AVG", "direction": "DESC"}]}),
-    (CAROL, "ekibimin_egitimleri", "Ekibimin eğitimleri", "Her kişinin son 3 geçtiği eğitim (yalnızca kendi ekibi)", {
-        "root": "Personnel",
-        "columns": [{"field": "fullName", "label": "Ad soyad"},
-                    {"field": "trainingRecords", "aggregate": "LIST", "label": "Son eğitimler",
-                     "fields": ["completedOn", "training.name", "score"],
-                     "where": {"field": "status", "operator": "EQ", "value": "PASSED"}, "order": "DESC", "limit": 3}],
-        "sort": [{"field": "fullName"}]}),
-    (ADMIN, "beceri_envanteri", "Beceri envanteri", "Her beceriye sahip kişi sayısı, kategoriye göre", {
-        "root": "PersonnelSkill",
-        "columns": [{"field": "skill.category", "label": "Kategori"}, {"field": "skill.name", "label": "Beceri"},
-                    {"aggregate": "COUNT", "label": "Kişi"}],
-        "sort": [{"field": "skill.category"}, {"aggregate": "COUNT", "direction": "DESC"}]}),
-    (BOB, "departman_butceleri", "Departman proje bütçeleri", "Departman başına proje sayısı ve toplam bütçe", {
-        "root": "Project",
-        "columns": [{"field": "department.name", "label": "Departman"}, {"aggregate": "COUNT", "label": "Proje"},
-                    {"field": "budget", "aggregate": "SUM", "label": "Toplam bütçe"},
-                    {"field": "budget", "aggregate": "MAX", "label": "En büyük proje"}],
-        "sort": [{"field": "budget", "aggregate": "SUM", "direction": "DESC"}]}),
-    (ALICE, "egitim_basari_ozeti", "Eğitim başarı özeti", "Eğitim başına katılım, geçme ve ortalama puan", {
-        "root": "TrainingRecord",
-        "columns": [{"field": "training.name", "label": "Eğitim"}, {"field": "training.category", "label": "Kategori"},
-                    {"aggregate": "COUNT", "label": "Katılım"},
-                    {"field": "score", "aggregate": "AVG", "label": "Ortalama puan"},
-                    {"field": "score", "aggregate": "MIN", "label": "En düşük puan"}],
-        "sort": [{"field": "score", "aggregate": "AVG", "direction": "DESC"}]}),
+
+  # --- karmaşık: tarih grupları (çeyrek) + COUNT_DISTINCT + koşullu sayım
+  (ADMIN, "ise_alim_trendi", "İşe alım trendi (çeyreklik)",
+   "Karmaşık · tarih grubu (YEAR+QUARTER), COUNT_DISTINCT ve HAVING: hangi çeyrekte kaç kişi, kaç farklı departmana alındı", {
+    "root": "Personnel",
+    "columns": [{"field": "hireDate", "dateGroup": "YEAR", "label": "Yıl"},
+                {"field": "hireDate", "dateGroup": "QUARTER", "label": "Çeyrek"},
+                {"aggregate": "COUNT", "label": "İşe giren"},
+                {"field": "department.id", "aggregate": "COUNT_DISTINCT", "label": "Departman sayısı"},
+                {"field": "hireDate", "aggregate": "MIN", "label": "İlk giriş"},
+                {"field": "hireDate", "aggregate": "MAX", "label": "Son giriş"}],
+    "where": {"field": "hireDate", "operator": "GTE", "value": "2018-01-01"},
+    "having": {"aggregate": "COUNT", "operator": "GTE", "value": 1},
+    "sort": [{"field": "hireDate", "dateGroup": "YEAR", "direction": "DESC"},
+             {"field": "hireDate", "dateGroup": "QUARTER", "direction": "DESC"}]}),
+  # --- karmaşık: mevsimsellik
+  (ALICE, "egitim_mevsimselligi", "Eğitim mevsimselliği",
+   "Karmaşık · MONTH_OF_YEAR ile yıllar üstü mevsimsellik: hangi ay daha çok eğitim tamamlanıyor, puanlar nasıl", {
+    "root": "TrainingRecord",
+    "columns": [{"field": "completedOn", "dateGroup": "MONTH_OF_YEAR", "label": "Ay"},
+                {"field": "training.category", "label": "Kategori"},
+                {"aggregate": "COUNT", "label": "Tamamlanan"},
+                {"field": "personnel.id", "aggregate": "COUNT_DISTINCT", "label": "Kişi"},
+                {"field": "score", "aggregate": "AVG", "label": "Ortalama puan"}],
+    "where": {"field": "status", "operator": "EQ", "value": "PASSED"},
+    "sort": [{"field": "completedOn", "dateGroup": "MONTH_OF_YEAR"}, {"field": "training.category"}]}),
+  # --- karmaşık: EXISTS / NOT_EXISTS + LIST + 3 ilişki derin yol
+  (ADMIN, "projesiz_yetenekler", "Projesi olmayan yüksek performanslılar",
+   "Karmaşık · EXISTS (puanı 90+ eğitim) + NOT_EXISTS (proje ataması) + LIST (beceriler) + 3 seviye yol (yönetici → departman → üst departman)", {
+    "root": "Personnel",
+    "columns": [{"field": "fullName", "label": "Ad soyad"}, {"field": "department.name", "label": "Departman"},
+                {"field": "manager.fullName", "label": "Yönetici"},
+                {"field": "manager.department.parent.name", "label": "Yöneticinin üst birimi"},
+                {"field": "skills.skill.name", "aggregate": "LIST", "label": "Beceriler"},
+                {"field": "trainingRecords", "aggregate": "LIST", "label": "En iyi 2 eğitim",
+                 "fields": ["training.name", "score"], "where": {"field": "score", "operator": "GTE", "value": 90},
+                 "order": "DESC", "limit": 2}],
+    "where": {"conditions": [
+        {"field": "active", "operator": "EQ", "value": True},
+        {"relation": "trainingRecords", "operator": "EXISTS",
+         "match": {"field": "score", "operator": "GTE", "value": 90}},
+        {"relation": "projectAssignments", "operator": "NOT_EXISTS"}]},
+    "sort": [{"field": "department.name"}, {"field": "fullName"}]}),
+  # --- karmaşık: alan ↔ toplu değer karşılaştırması
+  (ALICE, "ortalamanin_altindakiler", "Eğitim ortalamasının altında kalanlar",
+   "Karmaşık · alan ile toplu değer karşılaştırma (score < o eğitimin AVG puanı) + VE/VEYA iç içe koşul", {
+    "root": "TrainingRecord",
+    "columns": [{"field": "personnel.fullName", "label": "Çalışan"},
+                {"field": "personnel.department.name", "label": "Departman"},
+                {"field": "training.name", "label": "Eğitim"}, {"field": "score", "label": "Puan"},
+                {"field": "completedOn", "label": "Tamamlandı"}, {"field": "status", "label": "Durum"}],
+    "where": {"conditions": [
+        {"field": "score", "operator": "LT", "otherField": "training.records.score", "otherAggregate": "AVG"},
+        {"logic": "OR", "conditions": [
+            {"field": "training.mandatory", "operator": "EQ", "value": True},
+            {"field": "status", "operator": "IN", "value": ["FAILED", "IN_PROGRESS"]}]},
+        {"field": "personnel.active", "operator": "EQ", "value": True}]},
+    "sort": [{"field": "score"}, {"field": "personnel.fullName"}]}),
+  # --- karmaşık: alan ↔ alan
+  (ADMIN, "yoneticisinden_kidemli", "Yöneticisinden kıdemli çalışanlar",
+   "Karmaşık · iki alanı karşılaştırır (hireDate < manager.hireDate) ve yöneticinin bilgilerini aynı satıra getirir", {
+    "root": "Personnel",
+    "columns": [{"field": "fullName", "label": "Çalışan"}, {"field": "hireDate", "label": "İşe giriş"},
+                {"field": "manager.fullName", "label": "Yönetici"}, {"field": "manager.hireDate", "label": "Yönetici girişi"},
+                {"field": "department.name", "label": "Departman"}],
+    "where": {"conditions": [{"field": "hireDate", "operator": "LT", "otherField": "manager.hireDate"},
+                             {"field": "active", "operator": "EQ", "value": True}]},
+    "sort": [{"field": "hireDate"}]}),
+  # --- karmaşık: HAVING on SUM, kapasite aşımı
+  (BOB, "asiri_tahsis", "Tam dolu / aşırı tahsisli çalışanlar",
+   "Karmaşık · kişi başına toplam proje payı ≥ %100 (HAVING SUM) + kaç projede, hangi projeler (LIST)", {
+    "root": "ProjectAssignment",
+    "columns": [{"field": "personnel.fullName", "label": "Çalışan"},
+                {"field": "personnel.department.name", "label": "Departman"},
+                {"field": "allocationPercent", "aggregate": "SUM", "label": "Toplam %"},
+                {"field": "project.id", "aggregate": "COUNT_DISTINCT", "label": "Proje sayısı"},
+                {"field": "project.code", "aggregate": "LIST", "label": "Projeler"}],
+    "where": {"field": "project.status", "operator": "IN", "value": ["ACTIVE", "PLANNED"]},
+    "having": {"field": "allocationPercent", "aggregate": "SUM", "operator": "GTE", "value": 100},
+    "sort": [{"field": "allocationPercent", "aggregate": "SUM", "direction": "DESC"}]}),
+  # --- karmaşık: perRoot ile birden çok to-many toplam
+  (ADMIN, "departman_karnesi", "Departman karnesi",
+   "Karmaşık · perRoot: her departman için kişi, proje bütçesi, eğitim ortalaması ve kişi başı beceri ayrı ayrı toplanır (şişmez)", {
+    "root": "Department",
+    "perRoot": True,
+    "columns": [{"field": "name", "label": "Departman"}, {"field": "manager.fullName", "label": "Yönetici"},
+                {"field": "members.id", "aggregate": "COUNT", "label": "Çalışan"},
+                {"field": "projects.budget", "aggregate": "SUM", "label": "Proje bütçesi"},
+                {"field": "projects.id", "aggregate": "COUNT", "label": "Proje"},
+                {"field": "members.trainingRecords.score", "aggregate": "AVG", "label": "Eğitim ort."},
+                {"field": "members.skills.skill.name", "aggregate": "COUNT_DISTINCT", "label": "Farklı beceri"}],
+    "sort": [{"field": "name"}]}),
+  # --- karmaşık: büyük dökümler (Excel sınırı)
+  (ADMIN, "egitim_dokumu_tam", "Tüm eğitim kayıtları (tam döküm)",
+   "Sınır testi · hiç filtre yok: bulk veride ~228.000 satır. Ekranda sayfalı; Excel'e akışla yazılır (export sınırı 1.000.000, akışta 100.000 satır)", {
+    "root": "TrainingRecord",
+    "columns": [{"field": "personnel.fullName", "label": "Çalışan"}, {"field": "personnel.username", "label": "Kullanıcı"},
+                {"field": "personnel.department.name", "label": "Departman"},
+                {"field": "personnel.department.parent.name", "label": "Üst birim"},
+                {"field": "personnel.manager.fullName", "label": "Yönetici"},
+                {"field": "training.name", "label": "Eğitim"}, {"field": "training.category", "label": "Kategori"},
+                {"field": "training.mandatory", "label": "Zorunlu"}, {"field": "completedOn", "label": "Tamamlandı"},
+                {"field": "nextRenewalDate", "label": "Yenileme"}, {"field": "score", "label": "Puan"},
+                {"field": "status", "label": "Durum"}],
+    "sort": [{"field": "personnel.department.name"}, {"field": "personnel.fullName"}, {"field": "completedOn"}]}),
+  # --- karmaşık: riskli projeler, iç içe OR/AND, BETWEEN, NEXT_N_DAYS, IS_NULL
+  (BOB, "riskli_projeler", "Riskli projeler",
+   "Karmaşık · iç içe VE/VEYA, BETWEEN, NEXT_N_DAYS, IS_NULL ve to-many sayım (perRoot): bitişi yaklaşan, yöneticisiz ya da büyük bütçeli beklemedeki projeler", {
+    "root": "Project",
+    "perRoot": True,
+    "columns": [{"field": "code", "label": "Kod"}, {"field": "name", "label": "Proje"}, {"field": "status", "label": "Durum"},
+                {"field": "budget", "label": "Bütçe"}, {"field": "endDate", "label": "Bitiş"},
+                {"field": "department.name", "label": "Departman"},
+                {"field": "assignments.id", "aggregate": "COUNT", "label": "Ekip"},
+                {"field": "assignments.allocationPercent", "aggregate": "SUM", "label": "Toplam %"}],
+    "where": {"logic": "OR", "conditions": [
+        {"conditions": [{"field": "status", "operator": "EQ", "value": "ACTIVE"},
+                        {"field": "endDate", "operator": "NEXT_N_DAYS", "value": 120}]},
+        {"conditions": [{"field": "status", "operator": "EQ", "value": "ON_HOLD"},
+                        {"field": "budget", "operator": "BETWEEN", "value": [100000, 100000000]}]},
+        {"field": "department.manager.id", "operator": "IS_NULL"}]},
+    "sort": [{"field": "endDate"}]}),
 ]
 
 # ---- mail templates ----------------------------------------------------------------------------------------
@@ -260,10 +367,19 @@ def main():
         sys.exit(1)
 
     print("Saved datasets")
-    existing = {d["name"] for d in must(call("GET", "/api/saved-datasets", ADMIN), "list datasets")["data"]}
+    existing = {d["name"]: d for d in must(call("GET", "/api/saved-datasets", ADMIN), "list datasets")["data"]}
+    for name in OBSOLETE_DATASETS:
+        if name in existing:
+            status, _ = call("DELETE", f"/api/saved-datasets/{name}", existing[name]["createdBy"])
+            print(f"  − {name} (removed: too similar to another example) HTTP {status}")
     for owner, name, label, description, definition in DATASETS:
         if name in existing:
-            print(f"  · {name} (exists)")
+            if existing[name].get("description") != description or existing[name].get("definition") != definition:
+                status, _ = call("PUT", f"/api/saved-datasets/{name}", existing[name]["createdBy"], {
+                    "name": name, "label": label, "description": description, "definition": definition})
+                print(f"  ~ {name} (updated) HTTP {status}")
+            else:
+                print(f"  · {name} (exists)")
             continue
         must(call("POST", "/api/saved-datasets", owner, {"name": name, "label": label, "description": description,
                                                         "definition": definition}), f"dataset {name}")
@@ -859,6 +975,8 @@ def flow_with_survey_step(survey_id):
 
 
 # ---- cleanup: flows that showed the same thing as others (one dataset, one mail) ---------------------------
+
+OBSOLETE_DATASETS = ["son_bir_yilda_ise_girenler", "beceri_envanteri", "departman_butceleri"]
 
 OBSOLETE_FLOWS = ["Aktif personel listesi", "Eğitim yenileme hatırlatması", "Geciken eğitimler için toplu kayıt",
                   "Yeni işe alım karşılama", "Departman 360 (aylık)", "Maaş özeti (yönetim)", "Ekibimin eğitim durumu",

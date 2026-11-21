@@ -24,10 +24,11 @@ function useDebounced<T>(value: T, delay: number): T {
  * Search text, sort and page of a server-side list (docs/REST API Tasarım Rehberi.md, 7). Changing the search or the
  * sort goes back to page 1; `query` is what to send (debounced, at least 2 characters).
  */
-export function useListState(defaultSort: string) {
+export function useListState(defaultSort: string, defaultSize = 20) {
   const [search, setSearchText] = useState("")
   const [sort, setSortValue] = useState(defaultSort)
   const [page, setPage] = useState(1)
+  const [size, setSizeValue] = useState(defaultSize)
   const debounced = useDebounced(search.trim(), 300)
   const query = debounced.length >= 2 ? debounced : ""
   // a new search starts on page 1 (adjusted while rendering, not in an effect)
@@ -44,6 +45,9 @@ export function useListState(defaultSort: string) {
     setSort: (next: string) => { setSortValue(next); setPage(1) },
     page,
     setPage,
+    /** Rows per page (20 / 50 / 100); changing it goes back to page 1. */
+    size,
+    setSize: (next: number) => { setSizeValue(next); setPage(1) },
     /** Call after changing another filter. */
     resetPage: () => setPage(1),
   }

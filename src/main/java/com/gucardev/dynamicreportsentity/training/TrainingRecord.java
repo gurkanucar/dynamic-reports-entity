@@ -3,6 +3,7 @@ package com.gucardev.dynamicreportsentity.training;
 import com.gucardev.dynamicreportsentity.platform.dataset.DatasetField;
 import com.gucardev.dynamicreportsentity.platform.dataset.DatasetReference;
 import com.gucardev.dynamicreportsentity.platform.dataset.DatasetEntity;
+import com.gucardev.dynamicreportsentity.platform.dataset.DatasetHidden;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -38,6 +39,10 @@ public class TrainingRecord {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    @DatasetHidden
+    private long version;
+
     /*
      * Classic approach:  @ManyToOne Personnel personnel;   (couples this module to personnel)
      * Our approach:      just the ID + "this ID points at Personnel" for the dataset engine.
@@ -61,4 +66,19 @@ public class TrainingRecord {
 
     @DatasetField(label = "Status")
     private String status;
+
+    TrainingRecord(Long personnelId, Long trainingId) {
+        this.personnelId = personnelId;
+        this.trainingId = trainingId;
+    }
+
+    void define(Long personnelId, Long trainingId, LocalDate completedOn, LocalDate nextRenewalDate, Integer score,
+                String status) {
+        this.personnelId = personnelId;
+        this.trainingId = trainingId;
+        this.completedOn = completedOn;
+        this.nextRenewalDate = nextRenewalDate;
+        this.score = score;
+        this.status = status;
+    }
 }

@@ -9,6 +9,9 @@ import { useCurrentUser } from "@/features/auth/queries/use-current-user"
 import { errorMessage } from "@/shared/api/http-client"
 import { ErrorAlert } from "@/shared/components/error-alert"
 import { PageHeader } from "@/shared/components/page-header"
+import { Pager, pageLocally } from "@/shared/components/pager"
+import { SearchInput } from "@/shared/components/search-input"
+import { useListState } from "@/shared/lib/list-state"
 import { GroupDialog } from "../components/group-dialog"
 import { useDeleteApprovalGroup } from "../mutations/use-delete-approval-group"
 import { useApprovalGroups } from "../queries/use-approval-groups"
@@ -20,6 +23,11 @@ export function ApprovalGroupsPage() {
   const remove = useDeleteApprovalGroup()
   const admin = useCurrentUser().data?.authorities.includes("PLATFORM_ADMIN") ?? false
   const [editing, setEditing] = useState<{ group: ApprovalGroupResponse | null } | null>(null)
+  const list = useListState("name", 20)
+  const needle = list.search.trim().toLocaleLowerCase("tr")
+  const matching = (groups.data ?? []).filter((group) => !needle || group.name.toLocaleLowerCase("tr").includes(needle)
+    || group.members.some((member) => member.username.toLocaleLowerCase("tr").includes(needle)))
+  const { rows, meta } = pageLocally(matching, list.page, list.size)
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
@@ -27,11 +35,12 @@ export function ApprovalGroupsPage() {
         actions={admin && (
           <Button onClick={() => setEditing({ group: null })}><PlusIcon data-icon="inline-start" />Yeni grup</Button>
         )} />
+      <SearchInput value={list.search} onChange={(value) => { list.setSearch(value); list.setPage(1) }} placeholder="Grup veya üye ara…" />
       {groups.isPending && <Skeleton className="h-32 w-full" />}
       {groups.isError && <ErrorAlert error={groups.error} />}
       {groups.data?.length === 0 && <p className="text-sm text-muted-foreground">Henüz grup yok.</p>}
       <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {groups.data?.map((group) => (
+        {rows.map((group) => (
           <Card key={group.id} className="min-w-0">
             <CardHeader>
               <CardTitle className="truncate">{group.name}</CardTitle>
@@ -54,6 +63,7 @@ export function ApprovalGroupsPage() {
           </Card>
         ))}
       </div>
+      {groups.data && <Pager meta={meta} onPage={list.setPage} onSize={list.setSize} />}
       {editing && (
         <GroupDialog key={editing.group?.id ?? "new"} group={editing.group} open
           onOpenChange={(open) => !open && setEditing(null)} />

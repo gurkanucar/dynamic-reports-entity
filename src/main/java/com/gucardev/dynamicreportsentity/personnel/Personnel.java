@@ -36,6 +36,9 @@ public class Personnel {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    private long version;
+
     /** Login name; links the authenticated user to their personnel record. */
     @DatasetField(label = "Username")
     @Column(unique = true)
@@ -69,4 +72,33 @@ public class Personnel {
     /** Self-reference: manager.fullName, directReports.fullName */
     @DatasetReference(target = "Personnel", label = "Manager", inverse = "directReports", inverseLabel = "Direct Reports")
     private Long managerId;
+
+    public Personnel(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /** Salary and national id are passed only by users who may see them; null keeps the current value. */
+    public void define(String username, String fullName, String email, java.time.LocalDate hireDate, boolean active,
+                       Long departmentId, Long managerId) {
+        this.username = username;
+        this.fullName = fullName;
+        this.email = email;
+        this.hireDate = hireDate;
+        this.active = active;
+        this.departmentId = departmentId;
+        this.managerId = managerId;
+    }
+
+    public void sensitive(BigDecimal salary, String nationalId, boolean salaryAllowed, boolean nationalIdAllowed) {
+        if (salaryAllowed) {
+            this.salary = salary;
+        }
+        if (nationalIdAllowed) {
+            this.nationalId = nationalId;
+        }
+    }
+
+    public void clearManager() {
+        this.managerId = null;
+    }
 }

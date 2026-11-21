@@ -59,7 +59,7 @@ export function SurveysPage() {
 function MySurveys() {
   const list = useListState("-updatedAt")
   const [statuses, setStatuses] = useState<SurveyStatus[]>([])
-  const surveys = useSurveys("mine", list.page, { q: list.query || undefined, status: statuses, sort: list.sort })
+  const surveys = useSurveys("mine", list.page, { q: list.query || undefined, status: statuses, sort: list.sort, size: list.size })
   const filtered = list.query !== "" || statuses.length > 0
   const remove = useDeleteSurvey()
   const navigate = useNavigate()
@@ -169,7 +169,7 @@ function MySurveys() {
           </Table>
         </CardContent>
       </Card>
-      <Pager meta={surveys.data.meta} onPage={list.setPage} />
+      <Pager meta={surveys.data.meta} onPage={list.setPage} onSize={list.setSize} />
       <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -192,7 +192,8 @@ function MySurveys() {
 }
 
 function OpenSurveys() {
-  const surveys = useSurveys("open")
+  const list = useListState("-updatedAt")
+  const surveys = useSurveys("open", list.page, { size: list.size })
   if (surveys.isPending) return <Skeleton className="h-32 w-full" />
   if (surveys.isError) return <ErrorAlert error={surveys.error} />
   if (surveys.data.data.length === 0) {
@@ -207,6 +208,7 @@ function OpenSurveys() {
     )
   }
   return (
+    <div className="flex flex-col gap-3">
     <ItemGroup className="gap-2">
       {surveys.data.data.map((survey) => (
         <Item key={survey.id} variant="outline" asChild>
@@ -226,5 +228,7 @@ function OpenSurveys() {
         </Item>
       ))}
     </ItemGroup>
+    <Pager meta={surveys.data.meta} onPage={list.setPage} onSize={list.setSize} />
+    </div>
   )
 }

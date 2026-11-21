@@ -42,4 +42,19 @@ public class PersonnelProfile {
 
     @DatasetField(label = "Emergency Contact")
     private String emergencyContact;
+
+    public PersonnelProfile(Long personnelId) {
+        this.personnelId = personnelId;
+    }
+
+    public void define(LocalDate birthDate, String bloodType, String city, String emergencyContact) {
+        this.birthDate = birthDate;
+        this.bloodType = bloodType;
+        this.city = city;
+        this.emergencyContact = emergencyContact;
+    }
+
+    public boolean isEmpty() {
+        return birthDate == null && bloodType == null && city == null && emergencyContact == null;
+    }
 }

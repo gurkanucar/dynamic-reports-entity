@@ -40,7 +40,7 @@ export function ApprovalsPage() {
   const list = useListState("-createdAt")
   const groups = useApprovalGroups()
   const requests = useApprovalRequests(scope, FILTERS[filter], list.page, {
-    q: list.query || undefined, sort: list.sort, groupId: group === ALL_GROUPS ? [] : [Number(group)],
+    q: list.query || undefined, sort: list.sort, size: list.size, groupId: group === ALL_GROUPS ? [] : [Number(group)],
   })
   const selected = params.get("request") ? Number(params.get("request")) : null
   const open = (id: number | null) => setParams(id === null ? {} : { request: String(id) })
@@ -134,7 +134,7 @@ export function ApprovalsPage() {
           ))}
         </CardContent>
       </Card>
-      <Pager meta={requests.data?.meta} onPage={list.setPage} />
+      <Pager meta={requests.data?.meta} onPage={list.setPage} onSize={list.setSize} />
       <DecisionDialog requestId={selected} onClose={() => open(null)}
         intent={params.get("decision") === "approve" || params.get("decision") === "reject"
           ? params.get("decision") as "approve" | "reject" : null} />

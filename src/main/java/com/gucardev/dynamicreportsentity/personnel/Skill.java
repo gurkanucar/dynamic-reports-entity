@@ -23,10 +23,22 @@ public class Skill {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @jakarta.persistence.Version
+    private long version;
+
     @DatasetField(label = "Name")
     @Column(nullable = false, unique = true)
     private String name;
 
     @DatasetField(label = "Category")
     private String category;
+
+    public Skill(String name) {
+        this.name = name;
+    }
+
+    public void define(String name, String category) {
+        this.name = name;
+        this.category = category;
+    }
 }
