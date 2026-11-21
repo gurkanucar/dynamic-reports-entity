@@ -7,7 +7,11 @@ import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetColumn;
 import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetInfo;
 import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetService;
 import com.gucardev.dynamicreportsentity.platform.flow.draft.FlowDraftChecker;
+import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
+import com.gucardev.dynamicreportsentity.platform.survey.Survey;
+import com.gucardev.dynamicreportsentity.platform.survey.SurveyDefinition;
+import com.gucardev.dynamicreportsentity.platform.survey.SurveyService;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplate;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplateService;
 import org.springframework.scheduling.support.CronExpression;
@@ -48,18 +52,21 @@ class FlowAssistant implements Drafter {
     private final SavedDatasetService datasets;
     private final MailTemplateService templates;
     private final ApprovalService approvals;
+    private final SurveyService surveys;
     private final CatalogDescriber catalog;
     private final AssistantProperties properties;
     private final Clock clock;
     private final String prompt;
 
     FlowAssistant(ChatClient chat, FlowDraftChecker checker, SavedDatasetService datasets, MailTemplateService templates,
-                  ApprovalService approvals, CatalogDescriber catalog, AssistantProperties properties, Clock clock) {
+                  ApprovalService approvals, SurveyService surveys, CatalogDescriber catalog,
+                  AssistantProperties properties, Clock clock) {
         this.chat = chat;
         this.checker = checker;
         this.datasets = datasets;
         this.templates = templates;
         this.approvals = approvals;
+        this.surveys = surveys;
         this.catalog = catalog;
         this.properties = properties;
         this.clock = clock;
@@ -97,6 +104,7 @@ class FlowAssistant implements Drafter {
                     Map<String, Object> draft = new LinkedHashMap<>();
                     draft.put("flow", ToolLoop.JSON.treeToValue(arguments.get("flow"), Map.class));
                     draft.put("schedules", list(arguments, "schedules"));
+                    draft.put("surveyTriggers", list(arguments, "surveyTriggers"));
                     draft.put("newTemplates", list(arguments, "newTemplates"));
                     return new ToolLoop.Done(new SuggestionResult(said, ToolLoop.text(arguments.get("flow"), "name"),
                             ToolLoop.text(arguments, "explanation"), null, List.of(), draft, iteration, model));
@@ -117,6 +125,7 @@ class FlowAssistant implements Drafter {
                 .replace("{{DATASETS}}", describeDatasets())
                 .replace("{{TEMPLATES}}", describeTemplates())
                 .replace("{{GROUPS}}", describeGroups())
+                .replace("{{SURVEYS}}", describeSurveys(viewer))
                 .replace("{{CATALOG}}", catalog.describe(viewer));
     }
 
@@ -152,6 +161,21 @@ class FlowAssistant implements Drafter {
                 ZoneId.of(schedule.path("timeZone").asString("Europe/Istanbul"));
             } catch (DateTimeException e) {
                 problems.add("schedules: unknown timeZone '" + schedule.path("timeZone").asString() + "'.");
+            }
+        }
+        Set<Long> ownSurveys = surveys.list("mine", viewer, 1, 100).getContent().stream()
+                .map(listed -> listed.survey().getId()).collect(Collectors.toSet());
+        for (JsonNode trigger : arguments.path("surveyTriggers")) {
+            long surveyId = trigger.path("surveyId").asLong(-1);
+            if (!ownSurveys.contains(surveyId)) {
+                problems.add("surveyTriggers: surveyId " + trigger.path("surveyId") + " is not one of the listed surveys.");
+            }
+            if (trigger.hasNonNull("filter")) {
+                try {
+                    JsonLogic.check(ToolLoop.JSON.treeToValue(trigger.get("filter"), Object.class));
+                } catch (JsonLogic.InvalidRuleException e) {
+                    problems.add("surveyTriggers: filter is not valid JSON Logic: " + e.getMessage());
+                }
             }
         }
         ObjectNode flow = (ObjectNode) arguments.get("flow").deepCopy();
@@ -224,6 +248,21 @@ class FlowAssistant implements Drafter {
                 .collect(Collectors.joining("\n"));
     }
 
+    /** The user's surveys with their question ids, so a flow can react to responses and read the answers. */
+    private String describeSurveys(Actor viewer) {
+        List<Survey> own = surveys.list("mine", viewer, 1, 30).getContent().stream()
+                .map(SurveyService.Listed::survey).toList();
+        if (own.isEmpty()) {
+            return "(none)";
+        }
+        return own.stream().map(survey -> "- id " + survey.getId() + ": " + survey.getTitle() + " ("
+                + survey.getStatus().name().toLowerCase() + "); questions: "
+                + survey.definition().answerableFields().stream().map(field -> field.id() + " (" + field.type()
+                        + (field.options() == null ? "" : ": " + field.options().stream()
+                        .map(SurveyDefinition.Option::id).collect(Collectors.joining("|"))) + ")")
+                .collect(Collectors.joining(", "))).collect(Collectors.joining("\n"));
+    }
+
     private static List<Map<String, Object>> tools() {
         Map<String, Object> flow = Map.of("type", "object", "description", "The flow as described in the system prompt.",
                 "properties", Map.of(
@@ -238,7 +277,12 @@ class FlowAssistant implements Drafter {
                 Map.of("ref", Map.of("type", "string"), "name", Map.of("type", "string"),
                         "subject", Map.of("type", "string"), "bodyHtml", Map.of("type", "string")),
                 "required", List.of("ref", "name", "subject", "bodyHtml")));
-        Map<String, Object> draft = Map.of("flow", flow, "schedules", schedules, "newTemplates", newTemplates);
+        Map<String, Object> surveyTriggers = Map.of("type", "array", "items", Map.of("type", "object", "properties",
+                Map.of("surveyId", Map.of("type", "integer"), "filter", Map.of("type", "object",
+                        "description", "optional JSON Logic over {trigger}; only matching responses start the flow")),
+                "required", List.of("surveyId")));
+        Map<String, Object> draft = Map.of("flow", flow, "schedules", schedules, "surveyTriggers", surveyTriggers,
+                "newTemplates", newTemplates);
         Map<String, Object> submit = new LinkedHashMap<>(draft);
         submit.put("explanation", Map.of("type", "string",
                 "description", "For the user, in their language: what the flow does, when, and what to check"));

@@ -19,7 +19,8 @@ you write the template: a subject and an HTML body with Mustache placeholders. Y
 # What a template sees
 ```
 flow.name                      the flow's name
-run.id, run.date (YYYY-MM-DD), run.startedAt, run.trigger (manual|schedule|webhook|kafka)
+run.id, run.date (YYYY-MM-DD), run.startedAt, run.trigger (manual|schedule|webhook|kafka|event)
+trigger....                     what started the run: a webhook body, a Kafka message or a survey response
 steps.<key>....                the output of an earlier step, by its key
 ```
 Outputs by step type:
@@ -29,6 +30,8 @@ Outputs by step type:
 - approval step: `decision` (approved|rejected|timeout), `decidedBy`, `comment`, `groupName`, `title`.
 - webhook (HTTP request) step: `status`, `body`.
 - filter step: `count`, `total`, `items`.
+- a survey response (flows started by a survey): `trigger.surveyTitle`, `trigger.respondent`, `trigger.responseId`,
+  `trigger.text.<question id>` (the answer as people read it), `trigger.labels.<question id>` (the question).
 
 Unless the user names other step keys, assume the dataset step is called `dataset`, so a table is:
 ```

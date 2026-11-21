@@ -1,4 +1,4 @@
-package com.gucardev.dynamicreportsentity.platform.flow.core;
+package com.gucardev.dynamicreportsentity.platform.api;
 
 import org.junit.jupiter.api.Test;
 import tools.jackson.databind.json.JsonMapper;

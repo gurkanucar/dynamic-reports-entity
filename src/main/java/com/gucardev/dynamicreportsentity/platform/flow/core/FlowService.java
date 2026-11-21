@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
+
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepCheck;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepType;

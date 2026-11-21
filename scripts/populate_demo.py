@@ -494,7 +494,148 @@ def main():
                 print(f"  ✓ {decision} {request['title']}: HTTP {status}")
     # alice started "Geciken eğitimler" herself: she may not approve her own request (allowSelfApproval false),
     # so it stays pending for the other members of İK yöneticileri.
+    populate_surveys(groups)
     print("Done. Leftover approvals stay pending, so 'Onaylarım' has something to decide.")
+
+
+
+# ---- surveys: a satisfaction survey with answers, a request form that starts a flow, a draft ---------------
+
+def choice(id_, label, type_="singleChoice", options=(), **extra):
+    return {"id": id_, "type": type_, "label": label, "options": [{"id": o, "label": l} for o, l in options], **extra}
+
+
+SURVEYS = [
+    (ADMIN, {
+        "title": "Çalışan memnuniyeti 2026", "status": "published", "anonymous": True, "oneResponsePerUser": False,
+        "description": "Çalışma ortamımızı iyileştirmek için görüşleriniz önemli. Anonimdir, 3 dakika sürer.",
+        "definition": {"submitLabel": "Gönder", "successMessage": "Teşekkürler! Görüşleriniz anonim olarak kaydedildi.",
+                       "rules": [], "fields": [
+            {"id": "general", "type": "section", "label": "Genel"},
+            choice("department", "Departmanınız", "dropdown", [("it", "Bilgi Teknolojileri"), ("hr", "İnsan Kaynakları"),
+                   ("finance", "Finans"), ("sales", "Satış")], required=True),
+            {"id": "satisfaction", "type": "rating", "label": "İşinizden ne kadar memnunsunuz?", "required": True, "max": 5},
+            {"id": "whyLow", "type": "longText", "label": "Memnuniyetinizi düşüren en önemli şey nedir?",
+             "visibleWhen": {"<=": [{"var": "satisfaction"}, 2]}},
+            choice("benefits", "En değerli bulduğunuz yan haklar", "multipleChoice", [("remote", "Uzaktan çalışma"),
+                   ("health", "Özel sağlık sigortası"), ("training", "Eğitim bütçesi"), ("meal", "Yemek kartı")]),
+            {"id": "recommend", "type": "nps", "label": "Şirketimizi çalışma yeri olarak önerir misiniz?", "required": True},
+            {"id": "suggestion", "type": "longText", "label": "Eklemek istedikleriniz"},
+        ]},
+    }),
+    (CAROL, {
+        "title": "Ekipman talebi", "status": "published", "anonymous": False, "oneResponsePerUser": False,
+        "description": "Bilgisayar, telefon ve çevre birimi taleplerinizi buradan iletin. 20.000 TL üstü talepler onaya gider.",
+        "definition": {"submitLabel": "Talebi gönder", "successMessage": "Talebiniz alındı; BT ekibi sizinle iletişime geçecek.",
+                       "fields": [
+            choice("item", "Ne lazım?", "dropdown", [("laptop", "Dizüstü bilgisayar"), ("monitor", "Monitör"),
+                   ("phone", "Telefon"), ("headset", "Kulaklık"), ("other", "Diğer")], required=True),
+            {"id": "itemOther", "type": "shortText", "label": "Lütfen belirtin", "required": True,
+             "visibleWhen": {"==": [{"var": "item"}, "other"]}},
+            {"id": "quantity", "type": "number", "label": "Adet", "required": True, "min": 1, "max": 50, "width": "half"},
+            {"id": "amount", "type": "number", "label": "Tahmini tutar (TL)", "required": True, "min": 0, "width": "half"},
+            {"id": "neededBy", "type": "date", "label": "Ne zamana lazım?", "required": True},
+            {"id": "reason", "type": "longText", "label": "Gerekçe",
+             "help": "20.000 TL üstü taleplerde zorunlu; onaylayan kişi bunu okur."},
+        ], "rules": [{"id": "reasonForBig", "message": "20.000 TL üstü taleplerde gerekçe yazılmalı.",
+                      "logic": {"or": [{"<=": [{"var": "amount"}, 20000]}, {"!!": {"var": "reason"}}]}}]},
+    }),
+    (ALICE, {
+        "title": "Ofise dönüş tercihleri", "status": "draft", "anonymous": False, "oneResponsePerUser": True,
+        "description": "Hibrit çalışma düzenini planlamak için.",
+        "definition": {"rules": [], "fields": [
+            choice("days", "Haftada kaç gün ofiste olmak istersiniz?", "singleChoice",
+                   [("1", "1 gün"), ("2", "2 gün"), ("3", "3 gün"), ("5", "Her gün")], required=True),
+            choice("weekdays", "Hangi günler?", "multipleChoice", [("mon", "Pazartesi"), ("tue", "Salı"),
+                   ("wed", "Çarşamba"), ("thu", "Perşembe"), ("fri", "Cuma")]),
+            choice("commute", "Ulaşım", "dropdown", [("car", "Araç"), ("public", "Toplu taşıma"), ("shuttle", "Servis")]),
+        ]},
+    }),
+]
+
+
+def populate_surveys(groups):
+    import random
+    rng = random.Random(42)
+    print("Surveys")
+    ids = {}
+    for owner in (ADMIN, ALICE, CAROL):
+        for item in must(call("GET", "/api/surveys?scope=mine&page=1&size=100", owner), "surveys")["data"]:
+            ids.setdefault(item["title"], item["id"])
+    created = set()
+    for owner, survey in SURVEYS:
+        if survey["title"] in ids:
+            print(f"  · {survey['title']} (exists)")
+            continue
+        ids[survey["title"]] = must(call("POST", "/api/surveys", owner, survey), survey["title"])["data"]["id"]
+        created.add(survey["title"])
+        print(f"  + {survey['title']} ({owner})")
+
+    # the request form starts a flow: big amounts go to the purchasing board, then IT gets a mail
+    flow_name = "Ekipman talebi onayı"
+    request_id = ids["Ekipman talebi"]
+    existing = {f["name"] for f in must(call("GET", "/api/flows?page=1&size=100", CAROL), "flows")["data"]}
+    if flow_name not in existing:
+        template = must(call("POST", "/api/mail-templates", CAROL, {
+            "name": "Ekipman talebi bildirimi", "description": "Anket yanıtından gelen ekipman talebi",
+            "subject": "Ekipman talebi #{{trigger.responseId}}: {{trigger.text.item}}",
+            "bodyHtml": STYLE + """
+<div class="wrap">
+  <h1>Yeni ekipman talebi</h1>
+  <p class="meta">{{trigger.respondent}} · {{trigger.submittedAt}}</p>
+  <table class="data">
+    <tr><th>Talep</th><td>{{trigger.text.item}} {{trigger.text.itemOther}}</td></tr>
+    <tr><th>Adet</th><td>{{trigger.text.quantity}}</td></tr>
+    <tr><th>Tutar</th><td>{{trigger.text.amount}} TL</td></tr>
+    <tr><th>Ne zaman</th><td>{{trigger.text.neededBy}}</td></tr>
+    <tr><th>Gerekçe</th><td>{{trigger.text.reason}}{{^trigger.text.reason}}—{{/trigger.text.reason}}</td></tr>
+    <tr><th>Onay</th><td>{{steps.onay.decision}}{{^steps.onay.decision}}gerekmedi{{/steps.onay.decision}}</td></tr>
+  </table>
+  """ + FOOTER + "\n</div>"}), "template")["data"]["id"]
+        flow = must(call("POST", "/api/flows", CAROL, {
+            "name": flow_name, "description": "“Ekipman talebi” anketinin her yanıtında: 20.000 TL üstü kurul onayına, "
+                                              "sonra BT'ye mail.",
+            "steps": [
+                {"type": "condition", "key": "buyuk", "expression": {">": [{"var": "trigger.answers.amount"}, 20000]}},
+                {"type": "approval", "key": "onay", "groupId": groups["Satın alma kurulu"],
+                 "title": "Ekipman: {{trigger.text.item}} × {{trigger.text.quantity}} — {{trigger.text.amount}} TL",
+                 "description": "Talep eden: {{trigger.respondent}}\nGerekçe: {{trigger.text.reason}}", "timeoutHours": 48},
+                mail_step("bt_maili", template, ["bt@example.com"]),
+            ],
+            "edges": [{"from": "buyuk", "to": "onay", "when": "true"}, {"from": "buyuk", "to": "bt_maili", "when": "false"},
+                      {"from": "onay", "to": "bt_maili", "when": "approved"}]}), flow_name)["data"]["id"]
+        must(call("POST", f"/api/flows/{flow}/triggers", CAROL,
+                  {"type": "event", "enabled": True, "topic": f"survey:{request_id}"}), "survey trigger")
+        print(f"  + flow {flow_name} (starts on every response)")
+
+    if "Çalışan memnuniyeti 2026" in created:
+        survey_id = ids["Çalışan memnuniyeti 2026"]
+        notes = ["Toplantılar çok uzun.", "Esnek çalışma çok iyi.", "Ekipman yenilenmeli.", "", "", "Kariyer yolu belirsiz."]
+        for n in range(24):
+            satisfaction = rng.choice([2, 3, 4, 4, 5, 5, 3, 1])
+            answers = {"department": rng.choice(["it", "it", "hr", "finance", "sales"]), "satisfaction": satisfaction,
+                       "benefits": rng.sample(["remote", "health", "training", "meal"], rng.randint(1, 3)),
+                       "recommend": max(0, min(10, satisfaction * 2 + rng.randint(-1, 1))),
+                       "suggestion": rng.choice(notes)}
+            if satisfaction <= 2:
+                answers["whyLow"] = rng.choice(["İş yükü çok fazla.", "Yöneticimle iletişim zayıf.", "Maaş beklentimin altında."])
+            call("POST", f"/api/surveys/{survey_id}/responses", rng.choice([ALICE, BOB, CAROL, ADMIN]), {"answers": answers})
+        print("  ⇢ 24 responses to Çalışan memnuniyeti 2026")
+    if "Ekipman talebi" in created:
+        requests = [
+            (ALICE, {"item": "monitor", "quantity": 2, "amount": 9000, "neededBy": "2026-12-05"}),
+            (BOB, {"item": "laptop", "quantity": 3, "amount": 135000, "neededBy": "2026-12-20",
+                   "reason": "Yeni katılan üç geliştirici için."}),
+            (ADMIN, {"item": "other", "itemOther": "Toplantı odası kamerası", "quantity": 1, "amount": 28000,
+                     "neededBy": "2027-01-10", "reason": "Hibrit toplantılarda ses ve görüntü sorunu."}),
+        ]
+        for user, answers in requests:
+            status, _ = call("POST", f"/api/surveys/{request_id}/responses", user, {"answers": answers})
+            print(f"  ⇢ Ekipman talebi from {user}: HTTP {status}")
+        # a response the rule refuses: big amount without a reason
+        status, body = call("POST", f"/api/surveys/{request_id}/responses", ALICE,
+                            {"answers": {"item": "laptop", "quantity": 1, "amount": 60000, "neededBy": "2026-12-01"}})
+        print(f"  ✗ refused as expected: HTTP {status} {body.get('errors', [{}])[0].get('message') if isinstance(body, dict) else ''}")
 
 
 if __name__ == "__main__":

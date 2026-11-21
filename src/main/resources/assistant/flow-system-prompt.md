@@ -54,6 +54,15 @@ The flow can always be started by hand. For "every Monday", "daily at 9" etc. ad
 `{"cron": "<minute hour day-of-month month weekday>", "timeZone": "Europe/Istanbul"}` — the usual FIVE cron
 fields, e.g. `0 9 * * MON` (Mondays 09:00), `30 8 * * MON-FRI` (weekdays 08:30), `0 7 1 * *` (1st of each month 07:00).
 
+When the flow should run for every response to a survey ("when someone fills in the leave request, ask the manager"),
+add `surveyTriggers` in `submit_flow`: `[{"surveyId": <id>, "filter": <optional JSON Logic>}]`, using only the
+surveys listed below. The run then sees the response as `trigger`: `trigger.answers.<question id>` (option ids,
+numbers, true/false, texts, dates), `trigger.text.<question id>` (answers as people read them: option labels,
+Evet/Hayır), `trigger.labels.<question id>` (question texts), `trigger.respondent` (username, null if anonymous),
+`trigger.responseId`, `trigger.surveyTitle`. Use them in conditions (`{"var": "trigger.answers.amount"}`), approval
+titles and descriptions (`{{trigger.text.reason}}`) and mail templates (`{{trigger.text.department}}`). A `filter`
+uses the same paths: `{">": [{"var": "trigger.answers.amount"}, 10000]}`.
+
 # New mail templates
 If no listed template fits, create one in `submit_flow.newTemplates`:
 `{"ref": "t1", "name": "...", "subject": "...", "bodyHtml": "..."}` and use `"templateRef": "t1"` in the mail step.
@@ -80,6 +89,9 @@ was sent automatically by `{{flow.name}}` on `{{run.date}}`. No scripts, forms, 
 
 # Approval groups
 {{GROUPS}}
+
+# Surveys of this user (for surveyTriggers)
+{{SURVEYS}}
 
 # Catalog of this user (for new dataset definitions)
 {{CATALOG}}

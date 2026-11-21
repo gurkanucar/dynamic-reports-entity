@@ -1,7 +1,10 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.api.JsonLogic;
+
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowEvents;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,12 +33,13 @@ import java.util.Optional;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * Event triggers of flows: webhooks (an HTTP call signed with the trigger's secret) and Kafka topics. Visible and
+ * Event triggers of flows: webhooks (an HTTP call signed with the trigger's secret), Kafka topics and events of other
+ * modules ({@link FlowEvents}, e.g. survey responses). Visible and
  * changeable by whoever may see the flow. The run acts as the flow owner, like scheduled runs.
  */
 @Slf4j
 @Service
-public class TriggerService {
+public class TriggerService implements FlowEvents {
 
     /** A trigger as entered by the user. {@code filter}: optional JSON Logic over {@code {trigger}}. */
     public record TriggerInput(FlowTrigger.Type type, boolean enabled, String topic, Object filter) {
@@ -154,6 +158,11 @@ public class TriggerService {
                         + " is not allowed (flows.kafka.allowed-topics)."));
             }
         }
+        if (input.type() == FlowTrigger.Type.EVENT && (input.topic() == null
+                || !input.topic().strip().matches(FlowEvents.SOURCE_PATTERN))) {
+            problems.add(new FieldProblem("topic", "INVALID_FORMAT",
+                    "An event trigger needs its source as <module>:<id>, e.g. survey:42."));
+        }
         if (input.filter() != null) {
             try {
                 JsonLogic.check(input.filter());
@@ -215,6 +224,19 @@ public class TriggerService {
             Delivery delivery = deliver(trigger, topic + ":" + partition + ":" + offset, payload);
             log.debug("Kafka {}:{}:{} for trigger {}: {}", topic, partition, offset, trigger.getId(), delivery.status());
         }
+    }
+
+    @Override
+    public int publish(String source, String eventKey, Object payload) {
+        int started = 0;
+        for (FlowTrigger trigger : triggers.findByTypeAndEnabledTrueAndTopic(FlowTrigger.Type.EVENT, source)) {
+            Delivery delivery = deliver(trigger, eventKey, payload);
+            log.debug("Event {} {} for trigger {}: {}", source, eventKey, trigger.getId(), delivery.status());
+            if (delivery.runId() != null) {
+                started++;
+            }
+        }
+        return started;
     }
 
     private Delivery deliver(FlowTrigger trigger, String eventKey, Object payload) {

@@ -1,4 +1,4 @@
-package com.gucardev.dynamicreportsentity.platform.flow.core;
+package com.gucardev.dynamicreportsentity.platform.api;
 
 import java.math.BigDecimal;
 import java.math.MathContext;
@@ -11,7 +11,7 @@ import java.util.Set;
 
 /**
  * A small, dependency-free evaluator for <a href="https://jsonlogic.com">JSON Logic</a>, the expression language of
- * flow conditions and filters. Only the operators listed in {@link #OPERATORS} exist: no code, no reflection, no I/O,
+ * flow conditions and filters and of survey rules. Only the operators listed in {@link #OPERATORS} exist: no code, no reflection, no I/O,
  * and evaluation depth is bounded, so a rule written by a business user cannot do anything but compute a value.
  * <p>
  * Rules and data are plain JSON values (maps, lists, strings, numbers, booleans, null). Examples:
@@ -28,7 +28,8 @@ public final class JsonLogic {
             "var", "missing", "missing_some", "if", "?:",
             "==", "===", "!=", "!==", "!", "!!", "or", "and",
             ">", ">=", "<", "<=", "max", "min", "+", "-", "*", "/", "%",
-            "in", "cat", "substr", "merge", "map", "filter", "reduce", "all", "some", "none");
+            "in", "cat", "substr", "merge", "map", "filter", "reduce", "all", "some", "none",
+            "length", "startsWith", "endsWith", "lower", "upper", "trim");
 
     private static final int MAX_DEPTH = 64;
 
@@ -167,6 +168,15 @@ public final class JsonLogic {
             case "cat" -> String.join("", values.stream().map(JsonLogic::text).toList());
             case "substr" -> substring(values);
             case "merge" -> merge(values);
+            case "length" -> (long) (arg(values, 0) instanceof Collection<?> collection ? collection.size()
+                    : text(arg(values, 0)).length());
+            case "startsWith" -> text(arg(values, 0)).toLowerCase(java.util.Locale.ROOT)
+                    .startsWith(text(arg(values, 1)).toLowerCase(java.util.Locale.ROOT));
+            case "endsWith" -> text(arg(values, 0)).toLowerCase(java.util.Locale.ROOT)
+                    .endsWith(text(arg(values, 1)).toLowerCase(java.util.Locale.ROOT));
+            case "lower" -> text(arg(values, 0)).toLowerCase(java.util.Locale.ROOT);
+            case "upper" -> text(arg(values, 0)).toUpperCase(java.util.Locale.ROOT);
+            case "trim" -> text(arg(values, 0)).strip();
             default -> throw new InvalidRuleException("Unknown operator '" + operator + "'");
         };
     }
@@ -184,7 +194,7 @@ public final class JsonLogic {
     }
 
     /** Dotted path lookup through maps and lists (numeric segments index lists). */
-    static Object lookup(Object data, String path) {
+    public static Object lookup(Object data, String path) {
         Object current = data;
         for (String segment : path.split("\\.")) {
             if (current instanceof Map<?, ?> map) {
@@ -347,7 +357,7 @@ public final class JsonLogic {
         };
     }
 
-    static boolean looseEquals(Object left, Object right) {
+    public static boolean looseEquals(Object left, Object right) {
         if (left == null || right == null) {
             return left == right;
         }

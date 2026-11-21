@@ -126,7 +126,11 @@ class RunStore {
             return Optional.empty();
         }
         Instant now = clock.instant();
-        TriggerType type = trigger.getType() == FlowTrigger.Type.KAFKA ? TriggerType.KAFKA : TriggerType.WEBHOOK;
+        TriggerType type = switch (trigger.getType()) {
+            case KAFKA -> TriggerType.KAFKA;
+            case WEBHOOK -> TriggerType.WEBHOOK;
+            case EVENT -> TriggerType.EVENT;
+        };
         FlowRun run = newRun(flow, type, type.name().toLowerCase() + ":" + trigger.getId(), null, PRIORITY_SCHEDULE,
                 now, payload == null ? null : FlowDefinition.toJson(payload));
         if (eventKey != null) {
@@ -161,7 +165,7 @@ class RunStore {
         event(run.getId(), now, "run_queued", null, switch (trigger) {
             case MANUAL -> "Started by " + triggeredBy;
             case SCHEDULE -> "Started by schedule " + scheduleId;
-            case WEBHOOK, KAFKA -> "Started by " + triggeredBy;
+            case WEBHOOK, KAFKA, EVENT -> "Started by " + triggeredBy;
         });
         return run;
     }

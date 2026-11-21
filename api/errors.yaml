@@ -49,6 +49,10 @@ http:
   NOT_A_WEBHOOK:           { status: 409, message: "Only webhook triggers have a secret." }
   INVALID_SIGNATURE:       { status: 401, message: "X-Signature is missing or not the HMAC-SHA256 of the body." }
   PAYLOAD_TOO_LARGE:       { status: 400, message: "The webhook body is larger than flows.webhook.max-payload-size." }
+  # ---- surveys (/api/surveys) ---------------------------------------------------------------------
+  SURVEY_NOT_FOUND:        { status: 404, message: "No survey with this id (or not yours to manage; drafts are the owner's only)." }
+  SURVEY_CLOSED:           { status: 409, message: "The survey takes no responses (draft, closed or past its deadline)." }
+  ALREADY_ANSWERED:        { status: 409, message: "The survey takes one response per user and you have answered it." }
   # ---- approvals -----------------------------------------------------------------------------------
   APPROVAL_GROUP_NOT_FOUND: { status: 404, message: "The approval group does not exist." }
   GROUP_NAME_TAKEN:        { status: 409, message: "Another approval group already has this name." }
@@ -86,6 +90,15 @@ field:
   KAFKA_DISABLED: "Kafka is not enabled (flows.kafka.enabled)."
   TOPIC_NOT_ALLOWED: "The topic is outside flows.kafka.allowed-topics."
   TRIGGER_TYPE_FIXED: "The type of a trigger cannot change."
+  DUPLICATE_ID: "Two questions, options or rules of a survey share an id."
+  UNKNOWN_TYPE: "Unknown survey question type."
+  UNKNOWN_FIELD_REFERENCE: "A survey condition or rule reads a question that does not exist (or comes later)."
+  NOT_ALLOWED: "The property does not apply to this question type."
+  TOO_MANY: "Above the limit (100 questions, 100 options, 50 rules)."
+  RULE_FAILED: "A survey response breaks one of the survey's rules (rules.<id>); the message is the rule's."
+  UNKNOWN_OPTION: "The answer is not one of the question's options."
+  INVALID_DATE: "Not a date in YYYY-MM-DD form."
+  INVALID_NUMBER: "Not a number."
   UNKNOWN_USER: "No such user."
   DUPLICATE_MEMBER: "The user is already a member."
   EDGE_UNKNOWN_STEP: "The edge refers to a step that does not exist."

@@ -4,5 +4,7 @@ public enum TriggerType {
     MANUAL,
     SCHEDULE,
     WEBHOOK,
-    KAFKA
+    KAFKA,
+    /** An event of another module of the application, e.g. a survey response ({@link FlowEvents}). */
+    EVENT
 }

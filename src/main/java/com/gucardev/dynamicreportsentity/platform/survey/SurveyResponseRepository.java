@@ -1,0 +1,34 @@
+package com.gucardev.dynamicreportsentity.platform.survey;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Stream;
+
+interface SurveyResponseRepository extends JpaRepository<SurveyResponse, Long> {
+
+    Page<SurveyResponse> findBySurveyId(long surveyId, Pageable pageable);
+
+    Stream<SurveyResponse> streamBySurveyIdOrderById(long surveyId);
+
+    long countBySurveyId(long surveyId);
+
+    @Query("select r.surveyId, count(r) from SurveyResponse r where r.surveyId in :ids group by r.surveyId")
+    List<Object[]> countBySurveyIds(@Param("ids") Collection<Long> ids);
+
+    /** The surveys among {@code ids} this user has answered (named or with their respondent key). */
+    @Query("select distinct r.surveyId from SurveyResponse r where r.surveyId in :ids"
+            + " and (r.respondent = :username or r.respondentKey in :keys)")
+    List<Long> answeredAmong(@Param("ids") Collection<Long> ids, @Param("username") String username,
+                             @Param("keys") Collection<String> keys);
+
+    @Modifying
+    @Query("delete from SurveyResponse r where r.surveyId = :surveyId")
+    int deleteBySurveyId(@Param("surveyId") long surveyId);
+}

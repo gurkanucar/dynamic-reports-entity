@@ -1,0 +1,115 @@
+openapi: 3.1.0
+info:
+  title: Surveys API
+  version: 1.0.0
+  description: |
+    Surveys and request forms (docs/REST API Tasarım Rehberi.md): `{data, meta}` envelopes, RFC 9457 problems with a
+    `code` (api/errors.yaml), 1-based paging, ETag / If-Match on changes.
+
+    A survey's `definition` holds its questions (`fields`) and `rules`. `visibleWhen` (on a question) and `logic` (of a
+    rule) are JSON Logic over the answers (`{"var": "<question id>"}`), evaluated on the server: hidden questions are
+    dropped, required ones checked, answers typed, then every rule must be true.
+
+    Every accepted response is published to flows as an event under the source `survey:<id>`: a flow trigger
+    `{"type": "event", "topic": "survey:42"}` starts a run with `trigger = {surveyId, surveyTitle, responseId,
+    respondent, submittedAt, answers, text, labels}`.
+paths:
+  /api/surveys:
+    get:
+      summary: "scope=mine (default): surveys I own (admins: all); scope=open: surveys I can answer now"
+      parameters:
+        - { name: scope, in: query, schema: { type: string, enum: [mine, open] } }
+        - { name: page, in: query, schema: { type: integer, minimum: 1 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+      responses: { "200": { description: "Page of SurveyListItem" } }
+    post:
+      summary: Create a survey
+      requestBody: { content: { application/json: { schema: { $ref: "#/components/schemas/SurveyRequest" } } } }
+      responses:
+        "201": { description: Created (ETag, Location) }
+        "422": { description: "VALIDATION_FAILED: errors[].field like definition.fields[2].options" }
+  /api/surveys/{id}:
+    get: { summary: The survey (owner or admin), responses: { "200": { description: SurveyView with ETag }, "404": { description: SURVEY_NOT_FOUND } } }
+    put:
+      summary: Replace (If-Match required)
+      responses: { "200": { description: SurveyView }, "412": { description: VERSION_MISMATCH }, "428": { description: IF_MATCH_REQUIRED } }
+    delete: { summary: Delete with its responses, responses: { "204": { description: Deleted } } }
+  /api/surveys/{id}/form:
+    get:
+      summary: "What a respondent sees: published surveys for everyone, drafts for the owner (preview). Rules come without their logic."
+      responses: { "200": { description: "FormView: definition, open, closedReason (draft|closed|deadline_passed|answered), alreadyAnswered" } }
+  /api/surveys/{id}/responses:
+    post:
+      summary: Send a response
+      requestBody: { content: { application/json: { schema: { type: object, properties: { answers: { type: object } }, required: [answers] } } } }
+      responses:
+        "201": { description: "{responseId, submittedAt, successMessage}" }
+        "409": { description: "SURVEY_CLOSED / ALREADY_ANSWERED" }
+        "422": { description: "VALIDATION_FAILED: answers.<id> (REQUIRED, OUT_OF_RANGE, UNKNOWN_OPTION, ...) or rules.<id> (RULE_FAILED, the rule's message)" }
+    get:
+      summary: Responses, newest first (owner or admin)
+      responses: { "200": { description: "Page of {id, surveyVersion, respondent, submittedAt, answers, display}" } }
+  /api/surveys/{id}/responses/export:
+    get:
+      summary: All responses as an Excel file (answers as people read them; numbers as numbers)
+      responses: { "200": { description: .xlsx, content: { application/vnd.openxmlformats-officedocument.spreadsheetml.sheet: {} } } }
+  /api/surveys/{id}/summary:
+    get:
+      summary: "Per question: answered, counts per option / star / score, average, latest text answers"
+      responses: { "200": { description: Summary } }
+  /api/survey-checks:
+    post:
+      summary: "Checks a definition, and answers to it when given, without saving (the builder's \"try it\")"
+      requestBody: { content: { application/json: { schema: { type: object, properties: { definition: { type: object }, answers: { type: object } }, required: [definition] } } } }
+      responses: { "200": { description: "{valid, problems: FieldProblem[]}" } }
+  /api/survey-suggestions:
+    post:
+      summary: "The survey assistant (see assistant-api.yaml); draft = {title, description, definition, assumptions, suggestions}"
+      responses: { "202": { description: Accepted; poll Location } }
+components:
+  schemas:
+    SurveyRequest:
+      type: object
+      required: [title, status, definition]
+      properties:
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 2000 }
+        status: { type: string, enum: [draft, published, closed] }
+        anonymous: { type: boolean, description: Responses do not record who sent them }
+        oneResponsePerUser: { type: boolean }
+        closesAt: { type: string, format: date-time }
+        definition:
+          type: object
+          properties:
+            submitLabel: { type: string, maxLength: 60 }
+            successMessage: { type: string, maxLength: 1000 }
+            fields:
+              type: array
+              maxItems: 100
+              items:
+                type: object
+                required: [id, type, label]
+                properties:
+                  id: { type: string, pattern: "^[a-zA-Z][a-zA-Z0-9_]{0,39}$" }
+                  type: { type: string, enum: [shortText, longText, email, phone, number, singleChoice, multipleChoice, dropdown, date, rating, nps, yesNo, section] }
+                  label: { type: string, maxLength: 500 }
+                  help: { type: string }
+                  placeholder: { type: string }
+                  required: { type: boolean }
+                  options: { type: array, items: { type: object, properties: { id: { type: string }, label: { type: string } } } }
+                  min: { type: number }
+                  max: { type: number }
+                  minLength: { type: integer }
+                  maxLength: { type: integer }
+                  visibleWhen: { description: JSON Logic over earlier answers }
+                  width: { type: string, enum: [full, half] }
+            rules:
+              type: array
+              maxItems: 50
+              items:
+                type: object
+                required: [id, message, logic]
+                properties:
+                  id: { type: string }
+                  message: { type: string, maxLength: 300 }
+                  logic: { description: "JSON Logic over all answers; false refuses the response" }

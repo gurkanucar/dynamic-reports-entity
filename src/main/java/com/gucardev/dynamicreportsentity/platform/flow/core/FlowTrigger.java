@@ -36,7 +36,9 @@ public class FlowTrigger {
     /** In JSON as {@code webhook} / {@code kafka} (snake_case enums, API guideline). */
     public enum Type {
         @JsonProperty("webhook") WEBHOOK,
-        @JsonProperty("kafka") KAFKA
+        @JsonProperty("kafka") KAFKA,
+        /** An event of another module ({@code topic} is its source, e.g. {@code survey:42}). */
+        @JsonProperty("event") EVENT
     }
 
     @Id
@@ -55,7 +57,7 @@ public class FlowTrigger {
 
     private boolean enabled;
 
-    /** KAFKA: the topic listened on. */
+    /** KAFKA: the topic listened on; EVENT: the source ({@code survey:42}). */
     @Column(length = 249)
     private String topic;
 
@@ -93,7 +95,7 @@ public class FlowTrigger {
 
     void define(boolean enabled, String topic, String filterJson, Instant now) {
         this.enabled = enabled;
-        this.topic = type == Type.KAFKA ? topic : null;
+        this.topic = type == Type.KAFKA || type == Type.EVENT ? topic : null;
         this.filterJson = filterJson;
         this.updatedAt = now;
     }

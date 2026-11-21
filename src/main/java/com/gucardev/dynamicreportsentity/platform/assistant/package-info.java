@@ -1,6 +1,6 @@
 /**
  * Assistant: turns a business user's request in plain language into a draft (a dataset definition, a styled mail
- * template or a whole flow), by talking to any OpenAI-compatible chat API (OpenRouter, a company-hosted vLLM/Ollama,
+ * template, a survey or a whole flow), by talking to any OpenAI-compatible chat API (OpenRouter, a company-hosted vLLM/Ollama,
  * ...). Drafts are never saved here: the user reviews and fine-tunes them in the editors.
  * <ul>
  *   <li><b>What leaves the company:</b> the user's messages and <i>metadata</i>: the catalog they may use (entity,
@@ -15,7 +15,7 @@
  */
 @ApplicationModule(id = "assistant", displayName = "Assistant",
         allowedDependencies = {"api", "identity", "dataset", "dataset :: query", "dataset :: catalog",
-                "dataset :: saved", "notification", "approval", "flow :: draft"})
+                "dataset :: saved", "notification", "approval", "flow :: draft", "survey"})
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
 import org.springframework.modulith.ApplicationModule;
