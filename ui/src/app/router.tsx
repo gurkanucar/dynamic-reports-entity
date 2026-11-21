@@ -4,6 +4,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { useCurrentUser } from "@/features/auth/queries/use-current-user"
 import { ApprovalGroupsPage } from "@/features/approvals/pages/approval-groups-page"
 import { ApprovalsPage } from "@/features/approvals/pages/approvals-page"
+import { DashboardPage } from "@/features/dashboard/pages/dashboard-page"
 import { LoginPage } from "@/features/auth/pages/login-page"
 import { FlowDetailPage } from "@/features/flows/pages/flow-detail-page"
 import { FlowEditorPage } from "@/features/flows/pages/flow-editor-page"
@@ -29,7 +30,7 @@ export const router = createBrowserRouter([
   {
     element: <RequireSession><AppLayout /></RequireSession>,
     children: [
-      { index: true, element: <Navigate to="/datasets" replace /> },
+      { index: true, element: <DashboardPage /> },
       { path: "datasets", element: <SavedDatasetsPage /> },
       { path: "datasets/new", element: <DatasetBuilderPage /> },
       { path: "datasets/:name", element: <DatasetBuilderPage /> },

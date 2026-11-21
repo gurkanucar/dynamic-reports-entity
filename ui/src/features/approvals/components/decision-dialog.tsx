@@ -17,7 +17,15 @@ import { useApprovalRequest } from "../queries/use-approval-request"
 import { ApprovalStatusBadge } from "./approval-status-badge"
 
 /** Details of one request with approve / reject; read-only once decided or when the user may not decide. */
-export function DecisionDialog({ requestId, onClose }: { requestId: number | null; onClose: () => void }) {
+/**
+ * One request; `intent` comes from the mail's "Onayla" / "Reddet" button and puts that decision first (rejecting
+ * asks for a reason). The decision is still a click here: mail scanners open links on their own.
+ */
+export function DecisionDialog({ requestId, intent, onClose }: {
+  requestId: number | null
+  intent?: "approve" | "reject" | null
+  onClose: () => void
+}) {
   const request = useApprovalRequest(requestId)
   const decide = useDecideApproval()
   const [comment, setComment] = useState("")
@@ -62,8 +70,12 @@ export function DecisionDialog({ requestId, onClose }: { requestId: number | nul
             )}
             {data.canDecide && (
               <Field>
-                <FieldLabel htmlFor="decision-comment">Yorum (isteğe bağlı)</FieldLabel>
-                <Textarea id="decision-comment" maxLength={1000} value={comment} onChange={(e) => setComment(e.target.value)} />
+                <FieldLabel htmlFor="decision-comment">
+                  {intent === "reject" ? "Reddetme gerekçesi" : "Yorum (isteğe bağlı)"}
+                </FieldLabel>
+                <Textarea id="decision-comment" maxLength={1000} value={comment} autoFocus={intent === "reject"}
+                  placeholder={intent === "reject" ? "Talep edene neden reddettiğinizi yazın" : undefined}
+                  onChange={(e) => setComment(e.target.value)} />
               </Field>
             )}
             {data.status === "pending" && !data.canDecide && (
@@ -74,10 +86,12 @@ export function DecisionDialog({ requestId, onClose }: { requestId: number | nul
         )}
         {data?.canDecide && (
           <DialogFooter>
-            <Button variant="outline" disabled={decide.isPending} onClick={() => submit(false)}>
+            <Button variant={intent === "reject" ? "destructive" : "outline"} disabled={decide.isPending}
+              onClick={() => submit(false)}>
               <XIcon data-icon="inline-start" />Reddet
             </Button>
-            <Button disabled={decide.isPending} onClick={() => submit(true)}>
+            <Button variant={intent === "reject" ? "outline" : "default"} disabled={decide.isPending}
+              autoFocus={intent === "approve"} onClick={() => submit(true)}>
               {decide.isPending ? <Spinner data-icon="inline-start" /> : <CheckIcon data-icon="inline-start" />}Onayla
             </Button>
           </DialogFooter>

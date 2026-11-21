@@ -1,7 +1,8 @@
 import {
-  CheckCheckIcon, DatabaseIcon, HistoryIcon, LogOutIcon, MailIcon, MonitorIcon, MoonIcon, SunIcon, UsersIcon,
+  CheckCheckIcon, DatabaseIcon, LayoutDashboardIcon, HistoryIcon, LogOutIcon, MailIcon, MonitorIcon, MoonIcon, SunIcon, UsersIcon,
   WorkflowIcon,
 } from "lucide-react"
+import { useEffect } from "react"
 import { NavLink, Outlet, useLocation } from "react-router"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarInset,
-  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, useSidebar,
 } from "@/components/ui/sidebar"
 import { useLogout } from "@/features/auth/mutations/use-logout"
 import { useCurrentUser } from "@/features/auth/queries/use-current-user"
@@ -18,6 +19,7 @@ import { Separator } from "@/components/ui/separator"
 import { AppBreadcrumb } from "./app-breadcrumb"
 
 const NAVIGATION = [
+  { to: "/", label: "Pano", icon: LayoutDashboardIcon, end: true },
   { to: "/datasets", label: "Veri setleri", icon: DatabaseIcon },
   { to: "/flows", label: "Akışlar", icon: WorkflowIcon },
   { to: "/runs", label: "Çalışmalar", icon: HistoryIcon },
@@ -31,7 +33,8 @@ export function AppLayout() {
   const logout = useLogout()
   const location = useLocation()
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={sidebarRemembered()}>
+      <CloseSidebarOnNavigate />
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <div className="flex items-center gap-2 px-1 py-1.5 group-data-[collapsible=icon]:px-0">
@@ -47,7 +50,7 @@ export function AppLayout() {
               <SidebarMenu className="gap-1">
                 {NAVIGATION.map((item) => (
                   <SidebarMenuItem key={item.to}>
-                    <SidebarMenuButton asChild tooltip={item.label} isActive={location.pathname.startsWith(item.to)}>
+                    <SidebarMenuButton asChild tooltip={item.label} isActive={item.end ? location.pathname === item.to : location.pathname.startsWith(item.to)}>
                       <NavLink to={item.to}>
                         <item.icon />
                         <span>{item.label}</span>
@@ -74,7 +77,8 @@ export function AppLayout() {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="flex h-12 items-center gap-2 border-b px-4">
+        {/* sticky: the sidebar toggle stays reachable on long pages (the flow editor) */}
+        <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="mr-1 data-[orientation=vertical]:h-4" />
           <AppBreadcrumb />
@@ -86,6 +90,21 @@ export function AppLayout() {
       </SidebarInset>
     </SidebarProvider>
   )
+}
+
+/** The sidebar's last state ("sidebar_state" cookie, written by the sidebar itself); open when never set. */
+function sidebarRemembered(): boolean {
+  return !document.cookie.split("; ").includes("sidebar_state=false")
+}
+
+/** On phones the sidebar is a drawer: close it once a page is chosen. */
+function CloseSidebarOnNavigate() {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const { pathname } = useLocation()
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false)
+  }, [pathname, isMobile, setOpenMobile])
+  return null
 }
 
 const THEMES = [
@@ -125,7 +144,7 @@ export function NotFound() {
   return (
     <div className="flex flex-col items-start gap-2">
       <p>Sayfa bulunamadı.</p>
-      <Button asChild variant="outline"><NavLink to="/datasets">Ana sayfa</NavLink></Button>
+      <Button asChild variant="outline"><NavLink to="/">Ana sayfa</NavLink></Button>
     </div>
   )
 }

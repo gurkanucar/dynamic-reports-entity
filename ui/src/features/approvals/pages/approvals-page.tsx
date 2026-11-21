@@ -86,7 +86,9 @@ export function ApprovalsPage() {
           <Pager meta={requests.data?.meta} onPage={setPage} />
         </CardContent>
       </Card>
-      <DecisionDialog requestId={selected} onClose={() => open(null)} />
+      <DecisionDialog requestId={selected} onClose={() => open(null)}
+        intent={params.get("decision") === "approve" || params.get("decision") === "reject"
+          ? params.get("decision") as "approve" | "reject" : null} />
     </div>
   )
 }

@@ -17,7 +17,7 @@ export function LoginPage() {
   const location = useLocation()
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
-  const target = (location.state as { from?: string } | null)?.from ?? "/datasets"
+  const target = (location.state as { from?: string } | null)?.from ?? "/"
 
   if (user.data) return <Navigate to={target} replace />
 

@@ -155,13 +155,14 @@ export function AssistantChat({ kind, title, description, model, examples, place
         </MessageScrollerProvider>
       </CardContent>
       <CardFooter>
-        <form onSubmit={submit} className="w-full">
+        <form onSubmit={submit} className="@container/chat w-full">
           <InputGroup>
             <InputGroupTextarea placeholder={current ? placeholder.change : placeholder.empty}
               value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown} maxLength={4000} rows={2} />
             <InputGroupAddon align="block-end">
-              <span className="flex items-center gap-1 text-xs text-muted-foreground max-sm:hidden">
-                <Kbd>Enter</Kbd> gönderir · <KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup> yeni satır
+              {/* only when there is room: in narrow panels it would wrap word by word */}
+              <span className="hidden items-center gap-1 text-xs whitespace-nowrap text-muted-foreground @md/chat:flex">
+                <Kbd>Enter</Kbd> gönder · <KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup> yeni satır
               </span>
               <InputGroupButton type="submit" size="sm" className="ml-auto" disabled={busy || !input.trim()}>
                 <SendIcon data-icon="inline-start" />Gönder

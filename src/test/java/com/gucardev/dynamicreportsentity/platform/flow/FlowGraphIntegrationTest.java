@@ -304,6 +304,11 @@ class FlowGraphIntegrationTest {
         assertThat(RecordingMailSender.SENT.getFirst().getSubject()).startsWith("Onay bekliyor: Approve Graph flow");
 
         long requestId = pendingRequest(BOB);
+        // a card with "Onayla" / "Reddet" buttons that open the request with that decision (styles inlined)
+        assertThat(RecordingMailSender.html(RecordingMailSender.SENT.getFirst())).contains(
+                "/approvals?request=" + requestId + "&amp;decision=approve",
+                "/approvals?request=" + requestId + "&amp;decision=reject", "Onayınız bekleniyor", "style=\"")
+                .doesNotContain("<style");
         JsonNode forBob = json(mvc.get().uri("/api/approval-requests/" + requestId).with(BOB).exchange()).get("data");
         assertThat(forBob.get("canDecide").asBoolean()).isTrue();
         assertThat(forBob.get("source").get("type").asString()).isEqualTo("flow-step");
