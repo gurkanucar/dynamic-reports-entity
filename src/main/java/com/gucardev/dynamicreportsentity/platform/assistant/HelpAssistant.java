@@ -30,7 +30,7 @@ class HelpAssistant implements Drafter {
     /** Pages a link may point at. */
     private static final List<Pattern> PAGES = List.of(
             Pattern.compile("/"),
-            Pattern.compile("/(datasets|datasets/new|flows|flows/new|runs|approvals|approval-groups|templates|templates/new|surveys|surveys/new)"),
+            Pattern.compile("/(datasets|datasets/new|flows|flows/new|flows/import|runs|approvals|approval-groups|templates|templates/new|surveys|surveys/new)"),
             Pattern.compile("/(datasets|templates)/" + Ids.PATTERN),
             Pattern.compile("/(flows|surveys)/" + Ids.PATTERN + "(/edit)?"));
     private static final Pattern ADMIN_PAGES =

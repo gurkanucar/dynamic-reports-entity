@@ -1,4 +1,4 @@
-import { PlusIcon, WorkflowIcon } from "lucide-react"
+import { PlusIcon, UploadIcon, WorkflowIcon } from "lucide-react"
 import { Link, useNavigate } from "react-router"
 import { Button } from "@/components/ui/button"
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
@@ -27,7 +27,10 @@ export function FlowsPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title="Akışlar" description="Elle, zamanlamayla, webhook, Kafka ya da anket yanıtıyla başlayan iş akışları."
-        actions={newDataset} />
+        actions={<>
+          <Button variant="outline" asChild><Link to="/flows/import"><UploadIcon data-icon="inline-start" />İçe aktar</Link></Button>
+          {newDataset}
+        </>} />
       <SearchInput value={list.search} onChange={list.setSearch} placeholder="Akış adı veya açıklama ara…" />
       {flows.isPending && <Skeleton className="h-40 w-full" />}
       {flows.isError && <ErrorAlert error={flows.error} title="Akışlar yüklenemedi" />}

@@ -197,7 +197,7 @@ class FlowApiIntegrationTest {
         assertThat(mail.getSubject()).isEqualTo("Weekly headcount (7 rows)");
         assertThat(RecordingMailSender.html(mail)).contains("<h1>Weekly headcount</h1>", "<td>Finance</td>");
         String csv = RecordingMailSender.attachments(mail).get("headcount.csv");
-        assertThat(csv).startsWith("﻿Department,Headcount\r\n").contains("Software Development,");
+        assertThat(csv).startsWith("﻿Department;Headcount\r\n").contains("Software Development;");
 
         // the file can be downloaded from the run
         JsonNode file = run.get("files").get(0);

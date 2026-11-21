@@ -269,3 +269,59 @@ tr.agent-highlight::after { top: 0.25rem; left: auto; right: 0.5rem; }
 @media (prefers-reduced-motion: reduce) {
   .agent-highlight, .agent-highlight::after { animation: none; }
 }
+
+/* The browser agent at work (shared/components/agent-glow.tsx): a turning gradient frame with a soft glow. */
+@property --agent-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.agent-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+  --agent-gradient: conic-gradient(from var(--agent-angle), #ff3b5c, #ff9f43, #ffd166, #a66cff, #4d8bff, #00c2a8, #ff3b5c);
+}
+.agent-glow-on { opacity: 1; }
+.agent-glow-frame,
+.agent-glow-haze {
+  position: absolute;
+  inset: 0;
+  background: var(--agent-gradient);
+  animation: agent-spin 4s linear infinite;
+  /* only the edges: the inside of the frame is cut out */
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+}
+.agent-glow-frame { padding: 4px; }
+.agent-glow-haze { padding: 26px; filter: blur(26px); opacity: 0.7; }
+.agent-glow-label {
+  position: absolute;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.375rem 0.875rem;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--background) 82%, transparent);
+  backdrop-filter: blur(8px);
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--primary) 35%, transparent), 0 8px 30px -6px color-mix(in oklab, #a66cff 55%, transparent);
+  animation: agent-label 0.3s ease-out;
+}
+@keyframes agent-spin { to { --agent-angle: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .agent-glow-frame, .agent-glow-haze { animation: none; }
+}

@@ -12,6 +12,7 @@ import type { RunStatus } from "@/features/flows/types/flow.dto"
 import { currentPage } from "@/features/help/lib/current-page"
 import { surveysApi } from "@/features/surveys/api/surveys.api"
 import { errorMessage } from "@/shared/api/http-client"
+import { startAgentWork } from "@/shared/lib/agent-activity"
 import { agentNotice, highlight, type AgentFocus } from "@/shared/lib/agent-highlight"
 
 /**
@@ -49,6 +50,7 @@ const PAGES: { path: string; label: string; admin?: boolean }[] = [
   { path: "/datasets/new", label: "Yeni veri seti (asistanlı)" },
   { path: "/flows", label: "Akışlar" },
   { path: "/flows/new", label: "Yeni akış (asistanlı)" },
+  { path: "/flows/import", label: "Akış içe aktar (JSON dosyasından, bağımlılıkları eşleştirerek)" },
   { path: "/runs", label: "Çalışmalar: akışların çalışma geçmişi" },
   { path: "/surveys", label: "Anketler" },
   { path: "/surveys/new", label: "Yeni anket (asistanlı)" },
@@ -65,6 +67,36 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 const DETAIL_PAGES = [new RegExp(`^/(datasets|templates)/${UUID}$`), new RegExp(`^/(flows|surveys)/${UUID}(/edit)?$`),
   new RegExp(`^/s/${UUID}$`), /^\/templates\/new$/]
 const RUN_STATUSES: RunStatus[] = ["queued", "running", "completed", "failed", "cancelled"]
+
+/** What the glow says while a tool runs. */
+const WORKING: Record<string, string> = {
+  get_current_page: "sayfaya bakıyor", list_pages: "sayfalara bakıyor", open_page: "sayfa açıyor",
+  point_at: "gösteriyor", ask_platform_help: "yardıma soruyor", search_flows: "akışları arıyor",
+  start_flow: "akışı başlatıyor", list_runs: "çalışmalara bakıyor", list_saved_datasets: "veri setlerine bakıyor",
+  run_saved_dataset: "veri setini çalıştırıyor", list_my_approvals: "onaylara bakıyor", show_approval: "talebi açıyor",
+  decide_approval: "karar veriyor", list_surveys: "anketlere bakıyor",
+}
+
+/**
+ * The page an agent means, in whatever form it says it: "/runs", "runs", "http://host/runs/", or a page's name
+ * ("Çalışmalar"). Only paths of this app come out; anything else is null.
+ */
+function resolvePage(raw: string, pages: { path: string; label: string }[]): string | null {
+  let value = raw.trim()
+  if (!value) return null
+  try {
+    const url = new URL(value, window.location.origin)
+    if (url.origin !== window.location.origin) return null
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value) || value.startsWith("/") || /^[\w-]+(\/|$)/.test(value)) value = url.pathname
+  } catch {
+    // not a URL: maybe a name
+  }
+  const path = ("/" + value.replace(/^\/+/, "")).replace(/\/+$/, "") || "/"
+  if (pages.some((page) => page.path === path) || DETAIL_PAGES.some((page) => page.test(path))) return path
+  const name = raw.trim().toLocaleLowerCase("tr")
+  return pages.find((page) => page.label.toLocaleLowerCase("tr").startsWith(name)
+    || page.label.toLocaleLowerCase("tr").split(":")[0] === name)?.path ?? null
+}
 
 const text = (value: unknown, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "")
 const int = (value: unknown, min: number, max: number, fallback: number) =>
@@ -121,14 +153,14 @@ function tools(user: SessionUser, page: Page): ModelContextTool[] {
     },
     {
       name: "open_page",
-      description: "Opens a page of the platform in this tab and points at it: a path from list_pages or a detail "
-        + "page (/datasets/<id>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit, /templates/<id>; "
-        + "ids are UUIDs).",
-      inputSchema: schema({ path: { type: "string", description: "e.g. /runs or /flows/<id>" } }, ["path"]),
+      description: "Opens a page of the platform for the user and shows it with a highlight. Always use this instead "
+        + "of changing the address bar: it keeps the user's session and shows them what you did. Accepts a path from "
+        + "list_pages (/runs), a full address of this site, a page name (\"Çalışmalar\") or a detail page "
+        + "(/datasets/<id>, /flows/<id>, /flows/<id>/edit, /surveys/<id>, /surveys/<id>/edit, /templates/<id>; ids are UUIDs).",
+      inputSchema: schema({ path: { type: "string", description: "e.g. /runs, Çalışmalar or /flows/<id>" } }, ["path"]),
       execute: safely(async (input) => {
-        const target = text(input.path).split(/[?#]/)[0]
-        const known = pages.some((item) => item.path === target) || DETAIL_PAGES.some((item) => item.test(target))
-        if (!known) return { error: `Unknown page ${target}; use list_pages.` }
+        const target = resolvePage(text(input.path, 300).split(/[?#]/)[0], pages)
+        if (!target) return { error: `Unknown page ${text(input.path)}; call list_pages for the pages that exist.` }
         page.go(target)
         agentNotice("Asistan bir sayfa açtı", target)
         return { opened: target, shown: await highlight({ target: "page", label: "Asistan burada" }) }
@@ -348,10 +380,23 @@ export function useWebMcp(user: SessionUser | null | undefined) {
       refresh: () => queryClient.invalidateQueries(),
       path: () => latest.current.path,
     })
-    for (const tool of registered) {
+    for (const plain of registered) {
+      // while a tool runs the screen glows, so the user sees the agent at work
+      const tool: ModelContextTool = { ...plain, execute: async (input) => {
+        console.info(`[WebMCP] ${plain.name}`, input)   // tells whether an agent uses the tools or drives the page itself
+        const done = startAgentWork(WORKING[plain.name] ?? plain.name)
+        try {
+          return await plain.execute(input)
+        } finally {
+          done()
+        }
+      } }
       Promise.resolve()
         .then(() => context.registerTool(tool, { signal: controller.signal }))
-        .catch((error) => console.warn(`WebMCP: ${tool.name} not registered`, error))
+        .catch((error) => {
+          // unregistered on purpose (sign-out, React re-running the effect in development): nothing to report
+          if (!controller.signal.aborted) console.warn(`WebMCP: ${tool.name} not registered`, error)
+        })
     }
     return () => {
       controller.abort()

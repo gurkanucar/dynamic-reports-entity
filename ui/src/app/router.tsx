@@ -12,6 +12,7 @@ import { FlowsPage } from "@/features/flows/pages/flows-page"
 import { RunsPage } from "@/features/flows/pages/runs-page"
 import { DatasetBuilderPage } from "@/features/datasets/pages/dataset-builder-page"
 import { SavedDatasetsPage } from "@/features/datasets/pages/saved-datasets-page"
+import { FlowImportPage } from "@/features/flows/pages/flow-import-page"
 import { TemplateEditorPage } from "@/features/templates/pages/template-editor-page"
 import { TemplatesPage } from "@/features/templates/pages/templates-page"
 import { DepartmentsPage } from "@/features/admin/pages/departments-page"
@@ -50,6 +51,7 @@ export const router = createBrowserRouter([
       { path: "reports", element: <Navigate to="/datasets/new" replace /> },   // old links
       { path: "flows", element: <FlowsPage /> },
       { path: "flows/new", element: <FlowEditorPage /> },
+      { path: "flows/import", element: <FlowImportPage /> },
       { path: "flows/:flowId", element: <FlowDetailPage /> },
       { path: "flows/:flowId/edit", element: <FlowEditorPage /> },
       { path: "approvals", element: <ApprovalsPage /> },

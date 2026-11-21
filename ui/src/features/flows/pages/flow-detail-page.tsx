@@ -1,4 +1,6 @@
-import { PencilIcon, PlayIcon, Trash2Icon } from "lucide-react"
+import { DownloadIcon, PencilIcon, PlayIcon, Trash2Icon } from "lucide-react"
+import { downloadBundle, exportFlow } from "../transfer/flow-bundle"
+import { useCurrentUser } from "@/features/auth/queries/use-current-user"
 import { useMemo, useState } from "react"
 import { Link, useNavigate, useParams } from "react-router"
 import { toast } from "sonner"
@@ -31,6 +33,8 @@ import { useFlowRuns } from "../queries/use-flow-runs"
 
 export function FlowDetailPage() {
   const flowId = useParams().flowId ?? ""
+  const user = useCurrentUser().data
+  const [exporting, setExporting] = useState(false)
   const flow = useFlow(flowId)
   const [page, setPage] = useState(1)
   const [size, setSize] = useState(20)
@@ -77,6 +81,22 @@ export function FlowDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+            <Button variant="outline" title="Akışı, kullandığı şablon, grup, anket ve veri setleriyle JSON olarak indirir"
+              disabled={exporting} onClick={async () => {
+                setExporting(true)
+                try {
+                  const bundle = await exportFlow(flowId, user?.username ?? null)
+                  downloadBundle(bundle)
+                  toast.success("Akış dışa aktarıldı", { description: bundle.missing.length
+                    ? `${bundle.missing.length} kayıt eklenemedi (erişim yok); içe aktarırken eşleştirilir.` : undefined })
+                } catch (error) {
+                  toast.error("Dışa aktarılamadı", { description: errorMessage(error) })
+                } finally {
+                  setExporting(false)
+                }
+              }}>
+              {exporting ? <Spinner data-icon="inline-start" /> : <DownloadIcon data-icon="inline-start" />}Dışa aktar
+            </Button>
             <Button variant="outline" asChild>
               <Link to={`/flows/${flowId}/edit`}><PencilIcon data-icon="inline-start" />Düzenle</Link>
             </Button>

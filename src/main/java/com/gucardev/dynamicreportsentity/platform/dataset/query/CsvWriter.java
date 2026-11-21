@@ -4,8 +4,14 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.List;
 
-/** Minimal RFC 4180 CSV writer that also neutralises spreadsheet formula injection. */
+/**
+ * Minimal CSV writer (RFC 4180 quoting) that also neutralises spreadsheet formula injection. Fields are separated by
+ * a semicolon: Excel with Turkish (and most European) settings expects it, and with a comma it puts every row into a
+ * single column. Files start with a UTF-8 BOM (written by the caller) so Excel reads Turkish letters right.
+ */
 final class CsvWriter {
+
+    static final char SEPARATOR = ';';
 
     private final Writer out;
 
@@ -16,7 +22,7 @@ final class CsvWriter {
     void writeRow(List<?> values) throws IOException {
         for (int i = 0; i < values.size(); i++) {
             if (i > 0) {
-                out.write(',');
+                out.write(SEPARATOR);
             }
             out.write(cell(values.get(i)));
         }
@@ -36,7 +42,7 @@ final class CsvWriter {
         if (value instanceof CharSequence && !text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) {
             text = "'" + text;
         }
-        if (text.indexOf(',') >= 0 || text.indexOf('"') >= 0 || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
+        if (text.indexOf(SEPARATOR) >= 0 || text.indexOf(',') >= 0 || text.indexOf('"') >= 0 || text.indexOf('\n') >= 0 || text.indexOf('\r') >= 0) {
             text = '"' + text.replace("\"", "\"\"") + '"';
         }
         return text;

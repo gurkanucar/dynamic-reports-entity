@@ -1,4 +1,4 @@
-import { http, saveResponseAsFile } from "@/shared/api/http-client"
+import { http, saveResponseAsFile, downloadUrl } from "@/shared/api/http-client"
 import { queryString } from "@/shared/lib/list-state"
 import type { Envelope } from "@/shared/types/api.types"
 import type {
@@ -34,11 +34,14 @@ export const flowsApi = {
   cancel: async (runId: string) =>
     (await http.send<Envelope<RunSummaryResponse>>("POST", `/api/flow-runs/${runId}/cancel`)).data,
 
-  /** Opens the presigned S3 URL; streams through the API when the store has none. */
+  /**
+   * Downloads through the presigned S3 URL (signed as an attachment, so the page stays); streams through the API
+   * when the store has none. Asking for the link first turns an expired file into a message instead of an error page.
+   */
   async downloadFile(fileId: string) {
     const link = (await http.get<Envelope<DownloadLinkResponse>>(`/api/flow-files/${fileId}/download-link`)).data
     if (link.url) {
-      window.open(link.url, "_blank", "noopener")
+      downloadUrl(link.url, link.fileName)
       return
     }
     await saveResponseAsFile(await http.raw(`/api/flow-files/${fileId}/download`), link.fileName)

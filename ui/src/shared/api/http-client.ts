@@ -112,6 +112,22 @@ export async function saveResponseAsFile(response: Response, fallbackName: strin
   setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
+/**
+ * Downloads a file the server sends as an attachment (a presigned object-store URL, an export endpoint) without
+ * leaving the page. A same-tab link is used, never window.open: after an await the click no longer counts as the
+ * user's, and pop-up blockers silently drop new windows.
+ */
+export function downloadUrl(url: string, fileName?: string) {
+  const link = document.createElement("a")
+  link.href = url
+  if (fileName) link.download = fileName   // honoured on our own origin; the server's Content-Disposition elsewhere
+  link.rel = "noopener"
+  link.style.display = "none"
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const fields = error.errors.map((e) => `${e.field}: ${e.message}`).join("\n")

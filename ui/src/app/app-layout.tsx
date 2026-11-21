@@ -19,6 +19,7 @@ import {
 import { useLogout } from "@/features/auth/mutations/use-logout"
 import { useCurrentUser } from "@/features/auth/queries/use-current-user"
 import { HelpChat } from "@/features/help/components/help-chat"
+import { AgentGlow } from "@/shared/components/agent-glow"
 import { useWebMcp } from "./web-mcp"
 import { Separator } from "@/components/ui/separator"
 import { AppBreadcrumb } from "./app-breadcrumb"
@@ -181,6 +182,7 @@ export function AppLayout() {
           <Outlet />
         </div>
         <HelpChat />
+        <AgentGlow />
       </SidebarInset>
     </SidebarProvider>
   )

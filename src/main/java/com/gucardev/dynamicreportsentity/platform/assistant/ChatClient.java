@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import tools.jackson.databind.JsonNode;
@@ -59,21 +60,71 @@ class ChatClient {
         body.put("tool_choice", "auto");
         body.put("temperature", properties.temperature());
         body.put("usage", Map.of("include", true));   // OpenRouter: dataset tokens and cost; others ignore it
-        String response;
+        String reasoning = properties.reasoning() == null ? "" : properties.reasoning().strip().toLowerCase(java.util.Locale.ROOT);
+        if (reasoning.equals("off") || reasoning.equals("none")) {
+            body.put("reasoning", Map.of("enabled", false));   // OpenRouter; sent only when configured
+        } else if (!reasoning.isEmpty()) {
+            body.put("reasoning", Map.of("effort", reasoning));
+        }
+        String json = JSON.writeValueAsString(body);
         try {
-            response = http.post().uri("/chat/completions")
+            return parse(send(json));
+        } catch (AssistantException e) {
+            if (!"ASSISTANT_CONNECTION_LOST".equals(e.code())) {
+                throw e;
+            }
+            log.info("Assistant connection lost ({}); trying once more", e.getMessage());
+            return parse(send(json));   // a dropped connection is usually gone on the second try
+        }
+    }
+
+    /**
+     * One request. A model that is still writing when {@code assistant.request-timeout} runs out is reported as
+     * ASSISTANT_TIMEOUT (not retried: it would only time out again); a connection the network dropped as
+     * ASSISTANT_CONNECTION_LOST, which {@link #complete} retries once.
+     */
+    private String send(String json) {
+        try {
+            return http.post().uri("/chat/completions")
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
-                    .body(JSON.writeValueAsString(body))
+                    .body(json)
                     .retrieve()
                     .body(String.class);
         } catch (RestClientResponseException e) {
             throw upstreamError(e.getStatusCode().value(), e.getResponseBodyAsString());
         } catch (ResourceAccessException e) {
+            if (timedOut(e)) {
+                throw timeout();
+            }
             throw new AssistantException(502, "ASSISTANT_UNAVAILABLE",
                     "The AI service could not be reached: " + e.getMostSpecificCause().getMessage());
+        } catch (RestClientException e) {
+            // the answer was cut off while it was being read: the read timeout closed the stream, or the network did
+            if (timedOut(e)) {
+                throw timeout();
+            }
+            throw new AssistantException(502, "ASSISTANT_CONNECTION_LOST",
+                    "The connection to the AI service broke off: " + e.getMostSpecificCause().getMessage());
         }
-        return parse(response);
+    }
+
+    private AssistantException timeout() {
+        return new AssistantException(504, "ASSISTANT_TIMEOUT", "The AI service did not answer within "
+                + properties.requestTimeout().toSeconds() + " s. Ask for a smaller change, or raise "
+                + "assistant.request-timeout (ASSISTANT_REQUEST_TIMEOUT).");
+    }
+
+    /** Read timeouts show up as HttpTimeoutException, or as a stream the timeout handler cancelled. */
+    static boolean timedOut(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            String message = String.valueOf(cause.getMessage()).toLowerCase(java.util.Locale.ROOT);
+            if (cause instanceof java.net.http.HttpTimeoutException || cause instanceof java.net.SocketTimeoutException
+                    || message.contains("timed out") || message.contains("cancelled")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Reply parse(String response) {

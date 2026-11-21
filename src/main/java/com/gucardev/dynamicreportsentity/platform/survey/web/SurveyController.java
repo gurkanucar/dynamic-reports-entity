@@ -225,10 +225,19 @@ class SurveyController {
     ResponseEntity<StreamingResponseBody> export(@PathVariable UUID id, Authentication authentication) {
         Actor viewer = Actor.of(authentication);
         Survey survey = surveys.get(id, viewer);   // 404 before the stream starts
-        String fileName = "anket-" + id + "-yanitlar.xlsx";
+        String fileName = slug(survey.getTitle()) + "-yanitlar.xlsx";
         StreamingResponseBody body = out -> SurveyExport.write(survey, viewer, surveys, out);
         return ResponseEntity.ok().contentType(XLSX)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, org.springframework.http.ContentDisposition.attachment()
+                        .filename(fileName, java.nio.charset.StandardCharsets.UTF_8).build().toString())
                 .body(body);
+    }
+
+    /** "Yeni çalışan ekipman listesi" -> "yeni-calisan-ekipman-listesi", for file names. */
+    static String slug(String title) {
+        String plain = java.text.Normalizer.normalize(title.toLowerCase(java.util.Locale.forLanguageTag("tr"))
+                .replace('ı', 'i'), java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "");
+        String slug = plain.replaceAll("[^a-z0-9]+", "-").replaceAll("^-|-$", "");
+        return slug.isEmpty() ? "anket" : slug.length() > 60 ? slug.substring(0, 60) : slug;
     }
 }

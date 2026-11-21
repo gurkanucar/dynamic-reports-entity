@@ -1,19 +1,12 @@
-import { CheckIcon, SendIcon, SparklesIcon } from "lucide-react"
-import { useState, type FormEvent, type KeyboardEvent } from "react"
+import { CheckIcon, SparklesIcon } from "lucide-react"
+import { useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group"
-import { Bubble, BubbleContent } from "@/components/ui/bubble"
-import { Kbd, KbdGroup } from "@/components/ui/kbd"
-import { Message, MessageContent } from "@/components/ui/message"
-import {
-  MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider,
-  MessageScrollerViewport,
-} from "@/components/ui/message-scroller"
-import { Spinner } from "@/components/ui/spinner"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ChatThread, type ThreadEntry } from "./chat-thread"
 import { cn } from "@/lib/utils"
 import { errorMessage } from "@/shared/api/http-client"
+import { assistantErrorMessage } from "../lib/assistant-errors"
 import { useCreateSuggestion } from "../mutations/use-create-suggestion"
 import type { AssistantKind, ChatMessage, CreateSuggestionRequest, SuggestionReplyDto, SuggestionResponse } from "../types/assistant.dto"
 import type { ChatEntry } from "../types/assistant.types"
@@ -53,7 +46,7 @@ export function AssistantChat({ kind, title, description, model, examples, place
   const receive = (data: SuggestionResponse) => {
     if (data.status === "failed" || !data.reply) {
       setEntries((list) => [...list, { id: `${data.id}`, role: "assistant", failed: true,
-        content: data.error?.message ?? "Asistan cevap veremedi." }])
+        content: assistantErrorMessage(data.error, "Asistan cevap veremedi.") }])
       return
     }
     const reply = data.reply
@@ -81,100 +74,33 @@ export function AssistantChat({ kind, title, description, model, examples, place
     })
   }
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    send(input)
-  }
-  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault()
-      send(input)
-    }
-  }
+  const thread: ThreadEntry[] = entries.map((entry) => ({
+    id: entry.id, role: entry.role, content: entry.content, failed: entry.failed,
+    extra: entry.reply && (
+      <div className="flex flex-col gap-2">
+        {entry.reply.title && <span className="text-xs font-medium text-muted-foreground">{entry.reply.title}</span>}
+        <DraftNotes draft={entry.reply.draft} onSuggest={entry === entries.at(-1) && !busy ? send : undefined} />
+        <Button variant="secondary" size="sm" className="self-start" onClick={() => onApply(entry.reply!)}>
+          <CheckIcon data-icon="inline-start" />Bu öneriyi tekrar uygula
+        </Button>
+      </div>
+    ),
+  }))
 
   return (
     <Card className={cn("flex min-h-[24rem] flex-col", className)}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><SparklesIcon />{title}</CardTitle>
+        <CardTitle className="flex items-center gap-2"><SparklesIcon className="text-primary" />{title}</CardTitle>
         <CardDescription>
           {description}
           {model && <Badge variant="outline" className="ml-1">{model}</Badge>}
         </CardDescription>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-hidden p-0">
-        <MessageScrollerProvider>
-          <MessageScroller>
-            <MessageScrollerViewport>
-              <MessageScrollerContent className="gap-3 px-(--card-spacing) py-1">
-                {entries.length === 0 && (
-                  <MessageScrollerItem>
-                    <div className="flex flex-col gap-2">
-                      {examples.map((example) => (
-                        <Button key={example} variant="outline" size="sm"
-                          className="h-auto justify-start py-2 whitespace-normal text-left" onClick={() => send(example)}>
-                          {example}
-                        </Button>
-                      ))}
-                    </div>
-                  </MessageScrollerItem>
-                )}
-                {entries.map((entry) => (
-                  <MessageScrollerItem key={entry.id} messageId={entry.id} scrollAnchor={entry.role === "user"}>
-                    <Message align={entry.role === "user" ? "end" : "start"}>
-                      <MessageContent>
-                        <Bubble variant={entry.failed ? "destructive" : entry.role === "user" ? "default" : "muted"}>
-                          <BubbleContent className="flex flex-col gap-1">
-                            {entry.reply?.title && <span className="font-medium">{entry.reply.title}</span>}
-                            {entry.content && <p className="whitespace-pre-line">{entry.content}</p>}
-                          </BubbleContent>
-                        </Bubble>
-                        {entry.reply && <DraftNotes draft={entry.reply.draft}
-                          onSuggest={entry === entries.at(-1) && !busy ? send : undefined} />}
-                        {entry.reply && (
-                          <Button variant="secondary" size="sm" className="self-start" onClick={() => onApply(entry.reply!)}>
-                            <CheckIcon data-icon="inline-start" />Bu öneriyi tekrar uygula
-                          </Button>
-                        )}
-                      </MessageContent>
-                    </Message>
-                  </MessageScrollerItem>
-                ))}
-                {busy && (
-                  <MessageScrollerItem>
-                    <Message>
-                      <MessageContent>
-                        <Bubble variant="muted">
-                          <BubbleContent className="flex items-center gap-2 text-muted-foreground">
-                            <Spinner /><span className="shimmer">{busyLabel}</span>
-                          </BubbleContent>
-                        </Bubble>
-                      </MessageContent>
-                    </Message>
-                  </MessageScrollerItem>
-                )}
-              </MessageScrollerContent>
-            </MessageScrollerViewport>
-            <MessageScrollerButton />
-          </MessageScroller>
-        </MessageScrollerProvider>
+      <CardContent className="flex min-h-0 flex-1 flex-col">
+        <ChatThread entries={thread} busy={busy} busyLabel={busyLabel} examples={examples} onSend={send}
+          input={input} onInput={setInput} placeholder={current ? placeholder.change : placeholder.empty}
+          emptyTitle="Ne yapmak istersiniz?" emptyDescription="Yazın ya da bir örnekle başlayın." />
       </CardContent>
-      <CardFooter>
-        <form onSubmit={submit} className="@container/chat w-full">
-          <InputGroup>
-            <InputGroupTextarea placeholder={current ? placeholder.change : placeholder.empty}
-              value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown} maxLength={4000} rows={2} />
-            <InputGroupAddon align="block-end">
-              {/* only when there is room: in narrow panels it would wrap word by word */}
-              <span className="hidden items-center gap-1 text-xs whitespace-nowrap text-muted-foreground @md/chat:flex">
-                <Kbd>Enter</Kbd> gönder · <KbdGroup><Kbd>Shift</Kbd><Kbd>Enter</Kbd></KbdGroup> yeni satır
-              </span>
-              <InputGroupButton type="submit" size="sm" className="ml-auto" disabled={busy || !input.trim()}>
-                <SendIcon data-icon="inline-start" />Gönder
-              </InputGroupButton>
-            </InputGroupAddon>
-          </InputGroup>
-        </form>
-      </CardFooter>
     </Card>
   )
 }

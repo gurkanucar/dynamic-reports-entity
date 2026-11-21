@@ -494,7 +494,7 @@ class DatasetApiIntegrationTest {
                      "where": {"field": "name", "operator": "EQ", "value": "Finance"}}
                     """))
                     .hasStatusOk().bodyText()
-                    .isEqualTo("﻿Department / Name,Members\r\nFinance,Jack Moore; Kate Hall; Liam Young\r\n");
+                    .isEqualTo("﻿Department / Name;Members\r\nFinance;\"Jack Moore; Kate Hall; Liam Young\"\r\n");
         }
     }
 
@@ -511,12 +511,12 @@ class DatasetApiIntegrationTest {
                     """);
 
             assertThat(result).hasStatusOk().hasContentType("text/csv;charset=UTF-8");
-            assertThat(result).bodyText().isEqualTo("﻿Personnel / Full Name,Manager\r\n"
-                    + "Carol White,\r\n"
-                    + "Dave Miller,Carol White\r\n"
-                    + "Erin Garcia,Carol White\r\n"
-                    + "Frank Wilson,Carol White\r\n"
-                    + "Quinn Baker,Carol White\r\n");
+            assertThat(result).bodyText().isEqualTo("﻿Personnel / Full Name;Manager\r\n"
+                    + "Carol White;\r\n"
+                    + "Dave Miller;Carol White\r\n"
+                    + "Erin Garcia;Carol White\r\n"
+                    + "Frank Wilson;Carol White\r\n"
+                    + "Quinn Baker;Carol White\r\n");
         }
     }
 

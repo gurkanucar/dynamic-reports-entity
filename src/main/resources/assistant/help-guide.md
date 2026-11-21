@@ -31,6 +31,12 @@ make one up: link a list page (/flows, /surveys, /datasets) instead of a record 
   has its own small assistant for its settings, and the schedule field can turn "her pazartesi 9'da" into cron.
   "Veri setinden akış oluştur" on /flows starts a flow from a saved dataset.
 - `/flows/<id>` **Akış detayı**: the flow's steps, triggers and its runs (paged); "Çalıştır" starts it manually.
+  "Dışa aktar" downloads the flow as a JSON file together with the mail templates, approval groups, surveys and
+  saved datasets it uses (webhook secrets are never included).
+- `/flows/import` **Akış içe aktar** ("İçe aktar" on /flows): pick or paste such a JSON file; every template, group,
+  survey and dataset is checked against this environment ("Aynısı var", "Aynı adla farklı içerik", "Bu ortamda yok")
+  and the user chooses to reuse an existing one or create a copy. Schedules and triggers come disabled unless switched
+  on; webhooks get new secrets. If saving fails, the records created for it are removed again.
 - `/runs` **Çalışmalar**: all runs: status (queued, running, completed, failed, cancelled; a run waiting for an approval or survey shows as running), trigger type,
   search, paging. A run shows each step's input/output and errors; running runs can be cancelled.
 - `/templates` **Mail şablonları**: the list of HTML mail templates (Mustache placeholders like {{name}}, tables from

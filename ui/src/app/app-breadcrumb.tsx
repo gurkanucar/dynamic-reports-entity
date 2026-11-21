@@ -37,7 +37,7 @@ interface Crumb {
  */
 export function AppBreadcrumb() {
   const [section, id, action] = useLocation().pathname.split("/").filter(Boolean)
-  const flowId = section === "flows" && id && id !== "new" ? id : ""
+  const flowId = section === "flows" && id && id !== "new" && id !== "import" ? id : ""
   const datasetName = section === "datasets" && id && id !== "new" ? decodeURIComponent(id) : undefined
   const flow = useFlow(flowId)
   const dataset = useSavedDataset(datasetName)
@@ -50,6 +50,7 @@ export function AppBreadcrumb() {
   const crumbs: Crumb[] = [{ label: SECTIONS[section], to: id ? `/${section}` : undefined }]
   if (section === "admin" && id && ADMIN_PAGES[id]) crumbs.push({ label: ADMIN_PAGES[id] })
   else if (id === "new") crumbs.push({ label: { flows: "Yeni akış", surveys: "Yeni anket", templates: "Yeni şablon" }[section] ?? "Yeni veri seti" })
+  else if (section === "flows" && id === "import") crumbs.push({ label: "İçe aktar" })
   else if (surveyId) {
     crumbs.push({ label: survey.data?.title ?? `#${shortId(surveyId)}`, to: action ? `/surveys/${surveyId}` : undefined })
     if (action === "edit") crumbs.push({ label: "Düzenle" })

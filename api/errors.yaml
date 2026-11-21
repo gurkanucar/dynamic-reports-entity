@@ -38,6 +38,10 @@ http:
   ASSISTANT_DISABLED:      { status: 503, message: "The dataset assistant is not configured." }
   LAST_MESSAGE_NOT_FROM_USER: { status: 422, message: "The last message must be the user's request." }
   SUGGESTION_NOT_FOUND:    { status: 404, message: "The suggestion does not exist or is not yours." }
+  # failures of a suggestion (in its "error", not as HTTP status of the poll)
+  ASSISTANT_TIMEOUT:       { status: 504, message: "The model did not answer within assistant.request-timeout." }
+  ASSISTANT_CONNECTION_LOST: { status: 502, message: "The connection to the AI service broke off (retried once)." }
+  ASSISTANT_UNAVAILABLE:   { status: 502, message: "The AI service could not be reached or failed." }
   # ---- mail templates ------------------------------------------------------------------------------
   TEMPLATE_NOT_FOUND:      { status: 404, message: "The mail template does not exist." }
   NOT_TEMPLATE_OWNER:      { status: 403, message: "Only the owner or a dataset admin may change the template." }

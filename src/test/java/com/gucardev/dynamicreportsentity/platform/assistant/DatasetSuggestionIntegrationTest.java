@@ -49,6 +49,8 @@ class DatasetSuggestionIntegrationTest {
     /** Every request body the app sent, with its Authorization header. */
     private static final List<Map.Entry<String, JsonNode>> REQUESTS = new CopyOnWriteArrayList<>();
     private static final HttpServer MODEL = startModel();
+    /** Status of a scripted answer that comes after the (shortened) request timeout. */
+    private static final int SLOW = -1;
 
     private static HttpServer startModel() {
         try {
@@ -57,6 +59,14 @@ class DatasetSuggestionIntegrationTest {
                 REQUESTS.add(Map.entry(String.valueOf(exchange.getRequestHeaders().getFirst("Authorization")),
                         JSON.readTree(exchange.getRequestBody().readAllBytes())));
                 Map.Entry<Integer, String> answer = ANSWERS.poll();
+                if (answer != null && answer.getKey() == SLOW) {   // a model still writing when the timeout hits
+                    try {
+                        Thread.sleep(2_500);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                    answer = Map.entry(200, answer.getValue());
+                }
                 if (answer == null) {
                     answer = Map.entry(500, "{\"error\":{\"message\":\"no scripted answer\"}}");
                 }
@@ -77,6 +87,7 @@ class DatasetSuggestionIntegrationTest {
     @DynamicPropertySource
     static void model(DynamicPropertyRegistry registry) {
         registry.add("assistant.base-url", () -> "http://localhost:" + MODEL.getAddress().getPort() + "/v1");
+        registry.add("assistant.request-timeout", () -> "2s");
     }
 
     private static final RequestPostProcessor ALICE = as("alice", "PLATFORM_USER");   // no SALARY_VIEW
@@ -396,5 +407,16 @@ class DatasetSuggestionIntegrationTest {
         String system = REQUESTS.getFirst().getValue().get("messages").get(0).get("content").asString();
         assertThat(system).contains("the page /flows (Akışlar)", "NOT an admin", "/approvals", "Onaylarım")
                 .doesNotContain("Software Development", "{{ADMIN}}", "{{PAGE}}");
+    }
+
+    @Test
+    void aModelThatAnswersTooLateIsReportedAsATimeoutNotAnInternalError() {
+        ANSWERS.add(Map.entry(SLOW, text("too late")));
+
+        JsonNode suggestion = ask(ALICE, "How many people work in each department?");
+
+        assertThat(suggestion.get("status").asString()).isEqualTo("failed");
+        assertThat(suggestion.get("error").get("code").asString()).isEqualTo("ASSISTANT_TIMEOUT");
+        assertThat(REQUESTS).hasSize(1);   // a timeout is not retried
     }
 }
