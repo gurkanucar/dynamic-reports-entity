@@ -1,8 +1,10 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepReference;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
 import jakarta.persistence.ElementCollection;
+import jakarta.persistence.Embeddable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -50,17 +52,16 @@ public class Flow {
     @Column(name = "definition_json", nullable = false, length = 200_000)
     private String definitionJson;
 
-    /** Mail templates used by the steps; a template in use cannot be deleted. */
+    /** What the steps use in other modules ({@link StepReference}): those modules ask before deleting it. */
     @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "flow_mail_template", joinColumns = @JoinColumn(name = "flow_id"))
-    @Column(name = "template_id", nullable = false)
-    private Set<Long> templateIds = new HashSet<>();
+    @CollectionTable(name = "flow_step_reference", joinColumns = @JoinColumn(name = "flow_id"))
+    private Set<Reference> references = new HashSet<>();
 
-    /** Approval groups used by the steps; a group in use cannot be deleted. */
-    @ElementCollection(fetch = FetchType.EAGER)
-    @CollectionTable(name = "flow_approval_group", joinColumns = @JoinColumn(name = "flow_id"))
-    @Column(name = "group_id", nullable = false)
-    private Set<Long> approvalGroupIds = new HashSet<>();
+    /** One {@link StepReference} as stored. */
+    @Embeddable
+    record Reference(@Column(name = "kind", nullable = false, length = 40) String kind,
+                     @Column(name = "ref_id", nullable = false, length = 100) String refId) {
+    }
 
     @Column(nullable = false)
     private Instant createdAt;
@@ -76,20 +77,13 @@ public class Flow {
         this.createdAt = now;
     }
 
-    void define(String name, String description, FlowDefinition definition, String editor, Instant now) {
+    void define(String name, String description, FlowDefinition definition, Set<StepReference> references,
+                String editor, Instant now) {
         this.name = name;
         this.description = description;
         this.definitionJson = definition.toJson();
-        this.templateIds.clear();
-        definition.steps().stream()
-                .filter(MailStep.class::isInstance)
-                .map(step -> ((MailStep) step).templateId())
-                .forEach(templateIds::add);
-        this.approvalGroupIds.clear();
-        definition.steps().stream()
-                .filter(ApprovalStep.class::isInstance)
-                .map(step -> ((ApprovalStep) step).groupId())
-                .forEach(approvalGroupIds::add);
+        this.references.clear();
+        references.forEach(reference -> this.references.add(new Reference(reference.kind(), reference.id())));
         this.updatedBy = editor;
         this.updatedAt = now;
     }

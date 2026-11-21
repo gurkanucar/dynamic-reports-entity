@@ -1,6 +1,6 @@
 -- =====================================================================================
--- Bulk data for PostgreSQL, a scaled-up version of src/main/resources/data-bulk.sql.
--- Run by perf/load-postgres.sh after the demo data (data.sql); psql variable "scale" = personnel
+-- Bulk data for PostgreSQL, a scaled-up version of src/main/resources/db/seed/h2/bulk/V900_2__bulk_data.sql.
+-- Run by perf/load-postgres.sh after the demo data (db/seed/h2/demo); psql variable "scale" = personnel
 -- count (default 1,000,000). With the default:
 --   500 teams, 1M personnel, 900k profiles, ~2.33M skill links, ~2.28M training records,
 --   20k projects, 1.25M project assignments  (~7.8M rows)

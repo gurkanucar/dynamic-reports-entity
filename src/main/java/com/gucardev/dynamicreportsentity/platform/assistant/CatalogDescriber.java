@@ -1,6 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.CatalogField;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.Navigation;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ReportCatalog;
@@ -23,7 +23,7 @@ class CatalogDescriber {
         this.catalog = catalog;
     }
 
-    String describe(ReportViewer viewer) {
+    String describe(Actor viewer) {
         StringBuilder text = new StringBuilder();
         for (ReportableEntity entity : catalog.entities()) {
             text.append("Entity ").append(entity.name()).append(" — \"").append(entity.label()).append("\"\n");

@@ -1,6 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.FieldProblem;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -16,8 +17,8 @@ import java.util.Set;
 /**
  * How a flow's steps follow each other.
  * <ul>
- *   <li><b>Sequential</b> (no edges): in list order. A {@code false} condition or an approval that was not given ends
- *       the run.</li>
+ *   <li><b>Sequential</b> (no edges): in list order, as long as each step's outcome lets it go on
+ *       ({@link FlowStep#continuesInSequence}: a {@code false} condition or an approval not given ends the run).</li>
  *   <li><b>Graph</b>: one start step (no incoming edge); after a step, the edge whose {@code when} equals the step's
  *       outcome is taken, else the edge without {@code when}; no edge = the run ends. The graph has no cycles and at
  *       most one edge per step and outcome, so exactly one path is active at a time (branches may join again).</li>
@@ -65,7 +66,7 @@ final class FlowGraph {
     /** The step after {@code key} for its {@code outcome}; empty = the run ends here. */
     Optional<FlowStep> next(String key, String outcome) {
         if (isSequential()) {
-            if (outcome != null && !outcome.equals("true") && !outcome.equals("approved")) {
+            if (!step(key).continuesInSequence(outcome)) {
                 return Optional.empty();   // a guard said no
             }
             int next = indexOf(key) + 1;

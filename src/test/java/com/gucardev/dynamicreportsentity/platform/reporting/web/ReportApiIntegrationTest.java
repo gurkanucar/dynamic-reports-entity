@@ -17,7 +17,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * End-to-end against the real modules and the demo data in data.sql.
+ * End-to-end against the real modules and the demo data in db/seed/h2/demo.
  * carol works in Software Development (people 5, 6, 7, 8, 19).
  */
 @SpringBootTest

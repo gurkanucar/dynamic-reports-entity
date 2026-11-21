@@ -1,6 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.reporting.catalog;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 
 /**
  * A reportable field of an entity.
@@ -13,7 +13,7 @@ import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
  */
 public record CatalogField(String name, String label, String column, FieldType type, String authority) {
 
-    public boolean isVisibleTo(ReportViewer viewer) {
+    public boolean isVisibleTo(Actor viewer) {
         return authority == null || viewer.hasAuthority(authority);
     }
 }

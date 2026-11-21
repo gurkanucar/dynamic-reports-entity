@@ -1,5 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.List;

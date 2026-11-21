@@ -13,7 +13,7 @@
  * </ul>
  */
 @ApplicationModule(id = "assistant", displayName = "Report assistant",
-        allowedDependencies = {"api", "reporting", "reporting :: query", "reporting :: catalog"})
+        allowedDependencies = {"api", "identity", "reporting", "reporting :: query", "reporting :: catalog"})
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
 import org.springframework.modulith.ApplicationModule;

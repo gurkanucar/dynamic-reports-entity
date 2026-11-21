@@ -1,6 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -65,7 +65,7 @@ public class SuggestionService {
         return settings;
     }
 
-    public ReportSuggestion request(SuggestionRequest request, ReportViewer viewer) {
+    public ReportSuggestion request(SuggestionRequest request, Actor viewer) {
         if (!properties.isUsable()) {
             throw new AssistantException(503, "ASSISTANT_DISABLED",
                     "The report assistant is not configured (assistant.enabled, assistant.model, assistant.api-key).");
@@ -86,7 +86,7 @@ public class SuggestionService {
         return suggestion;
     }
 
-    private void work(long id, SuggestionRequest request, ReportViewer viewer) {
+    private void work(long id, SuggestionRequest request, Actor viewer) {
         try {
             slots.acquire();
         } catch (InterruptedException e) {
@@ -111,7 +111,7 @@ public class SuggestionService {
     }
 
     /** The owner's suggestion; others' answer 404. A request older than the timeout is reported as timed out. */
-    public ReportSuggestion get(long id, ReportViewer viewer) {
+    public ReportSuggestion get(long id, Actor viewer) {
         ReportSuggestion suggestion = suggestions.findById(id)
                 .filter(found -> found.getOwner().equals(viewer.username()))
                 .orElseThrow(() -> new AssistantException(404, "SUGGESTION_NOT_FOUND",

@@ -1,8 +1,14 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequest;
-import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequestRepository;
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.ClaimedStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepResult;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingStepEnded;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.WaitingSteps;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,7 +20,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -40,17 +45,17 @@ class RunStore {
     private final RunEventRepository events;
     private final FlowScheduleRepository schedules;
     private final FlowRepository flows;
-    private final ApprovalRequestRepository approvals;
+    private final ApplicationEventPublisher publisher;
     private final FlowTriggerRepository triggers;
     private final TriggerEventRepository triggerEvents;
     private final FlowProperties properties;
     private final Clock clock;
 
     RunStore(FlowRunRepository runs, StepRunRepository steps, RunEventRepository events,
-             FlowScheduleRepository schedules, FlowRepository flows, ApprovalRequestRepository approvals,
+             FlowScheduleRepository schedules, FlowRepository flows, ApplicationEventPublisher publisher,
              FlowTriggerRepository triggers, TriggerEventRepository triggerEvents, FlowProperties properties,
              Clock clock) {
-        this.approvals = approvals;
+        this.publisher = publisher;
         this.triggers = triggers;
         this.triggerEvents = triggerEvents;
         this.runs = runs;
@@ -261,61 +266,49 @@ class RunStore {
         }
     }
 
-    // ---- approvals ------------------------------------------------------------------------------------
+    // ---- waiting steps ------------------------------------------------------------------------------
 
     /**
-     * Records a decision on an approval request and lets the run go on. Only members of the request's group may
-     * decide, and not the person who started the run or owns the flow unless the step allows it.
+     * Lets a waiting step go on with {@code outcome} ({@link WaitingSteps}). The run row is locked first, so a
+     * resume, a timeout and a cancel are applied one after the other; only the first one finds the step waiting.
      *
-     * @param memberOf the groups the deciding user belongs to
+     * @return false if the step no longer waits
+     * @throws WaitingSteps.NotWaitingYetException if the attempt that starts the wait has not finished yet
      */
     @Transactional
-    ApprovalRequest decide(long requestId, boolean approve, String comment, String user, Set<Long> memberOf) {
-        Long runId = approvals.findRunId(requestId).orElseThrow(() -> FlowException.notFound(
-                "APPROVAL_NOT_FOUND", "Approval request " + requestId + " does not exist."));
-        FlowRun run = runs.lock(runId).orElseThrow();
-        ApprovalRequest request = approvals.findById(requestId).orElseThrow();   // read after the lock: current
-        if (!memberOf.contains(request.getGroupId())) {
-            throw new FlowException(Kind.FORBIDDEN, "NOT_APPROVER",
-                    "Only members of '" + request.getGroupName() + "' may decide this request.");
+    boolean resume(long stepId, String outcome, Map<String, Object> extra, String eventType, String message) {
+        Locked locked = lockStep(stepId);
+        if (locked == null) {
+            return false;
         }
-        if (request.getStatus() != ApprovalRequest.Status.PENDING) {
-            throw new FlowException(Kind.CONFLICT, "APPROVAL_ALREADY_DECIDED",
-                    "The request is already " + request.getStatus().name().toLowerCase() + ".");
+        StepRun step = locked.step();
+        if (step.getStatus() == StepStatus.RUNNING || step.getStatus() == StepStatus.READY) {
+            throw new WaitingSteps.NotWaitingYetException(stepId);
         }
-        if (!request.isAllowSelfApproval() && request.isRequestedBy(user)) {
-            throw new FlowException(Kind.FORBIDDEN, "SELF_APPROVAL_FORBIDDEN",
-                    "You started this run or own the flow; someone else from the group has to decide.");
-        }
-        StepRun step = steps.findById(request.getStepRunId()).orElseThrow();
         if (step.getStatus() != StepStatus.WAITING) {
-            throw new FlowException(Kind.CONFLICT, "APPROVAL_NOT_READY", "The step is not waiting yet; try again.");
+            return false;
         }
         Instant now = clock.instant();
-        request.decide(approve, user, comment, now);
         Map<String, Object> output = new LinkedHashMap<>(FlowDefinition.outputFromJson(step.getOutputJson()));
-        output.put("decision", approve ? "approved" : "rejected");
-        output.put("decidedBy", user);
-        output.put("comment", comment);
-        output.put("decidedAt", now.toString());
-        event(run.getId(), now, approve ? "approval_approved" : "approval_rejected", step.getStepKey(),
-                user + (comment == null || comment.isBlank() ? "" : ": " + comment));
-        advance(run, step, output, approve ? "approved" : "rejected", now);
-        return request;
+        output.putAll(extra);
+        event(locked.run().getId(), now, eventType, step.getStepKey(), message);
+        advance(locked.run(), step, output, outcome, now);
+        return true;
     }
 
-    /** Approvals nobody decided in time take their {@code timeout} way; instances share the work (SKIP LOCKED). */
+    /**
+     * Waiting steps past their deadline take their {@code timeout} way (a safety net: the module a step waits for
+     * normally answers first). Instances share the work ({@code SKIP LOCKED}).
+     */
     @Transactional
     int timeOutWaitingSteps(Instant now, int limit) {
         List<Long> due = steps.lockDueWaiting(now, limit);
         for (Long stepId : due) {
             StepRun step = steps.findById(stepId).orElseThrow();
             FlowRun run = runs.findById(step.getRunId()).orElseThrow();
-            approvals.findByStepRunId(stepId).ifPresent(request -> request.timedOut(now));
-            Map<String, Object> output = new LinkedHashMap<>(FlowDefinition.outputFromJson(step.getOutputJson()));
-            output.put("decision", "timeout");
-            event(run.getId(), now, "approval_timed_out", step.getStepKey(), null);
-            advance(run, step, output, "timeout", now);
+            event(run.getId(), now, "step_wait_timed_out", step.getStepKey(), null);
+            publisher.publishEvent(new WaitingStepEnded(stepId, step.getStepType(), WaitingStepEnded.Reason.TIMED_OUT));
+            advance(run, step, Map.of(), "timeout", now);
         }
         return due.size();
     }
@@ -401,9 +394,12 @@ class RunStore {
             for (StepRun waiting : steps.findByRunIdAndStatus(runId, idle)) {
                 waiting.cancelled(now);
                 event(runId, now, "step_cancelled", waiting.getStepKey(), null);
+                if (idle == StepStatus.WAITING) {   // e.g. withdraw the approval request it waited for
+                    publisher.publishEvent(new WaitingStepEnded(waiting.getId(), waiting.getStepType(),
+                            WaitingStepEnded.Reason.CANCELLED));
+                }
             }
         }
-        approvals.findByRunIdAndStatus(runId, ApprovalRequest.Status.PENDING).forEach(request -> request.cancelled(now));
         if (steps.findByRunIdAndStatus(runId, StepStatus.RUNNING).isEmpty()) {
             run.cancelled(now);
             event(runId, now, "run_cancelled", null, null);

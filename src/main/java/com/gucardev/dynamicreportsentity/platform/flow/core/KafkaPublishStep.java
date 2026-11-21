@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * {@code flow-run-id} and {@code flow-step} headers. Output: {@code topic}, {@code partition}, {@code offset}.
  */
 public record KafkaPublishStep(
-        @NotBlank @Pattern(regexp = ReportStep.KEY_PATTERN, message = ReportStep.KEY_MESSAGE) String key,
+        @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
         @NotBlank @Size(max = 249) @Pattern(regexp = "[a-zA-Z0-9._-]+") String topic,
         @Size(max = 500) String messageKey,
         @NotBlank @Size(max = 100_000) String payload,

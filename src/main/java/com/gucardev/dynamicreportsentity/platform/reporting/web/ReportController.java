@@ -1,6 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.reporting.web;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.FieldType;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.IndexAdvisor;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ReportCatalog;
@@ -57,7 +57,7 @@ class ReportController {
      */
     @GetMapping("/catalog")
     public CatalogResponse catalog(Authentication authentication) {
-        ReportViewer viewer = viewer(authentication);
+        Actor viewer = viewer(authentication);
         List<CatalogResponse.Entity> entities = catalog.entities().stream()
                 .map(entity -> new CatalogResponse.Entity(entity.name(), entity.label(),
                         entity.fields().values().stream()
@@ -124,8 +124,8 @@ class ReportController {
         return indexAdvisor.advice();
     }
 
-    static ReportViewer viewer(Authentication authentication) {
-        return new ReportViewer(authentication.getName(), authentication.getAuthorities().stream()
+    static Actor viewer(Authentication authentication) {
+        return new Actor(authentication.getName(), authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet()));

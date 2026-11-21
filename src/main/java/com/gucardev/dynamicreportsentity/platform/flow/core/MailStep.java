@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -20,7 +22,7 @@ import java.util.List;
  * between handing the mail to the server and recording it, the retry sends it a second time (at least once).
  */
 public record MailStep(
-        @NotBlank @Pattern(regexp = ReportStep.KEY_PATTERN, message = ReportStep.KEY_MESSAGE) String key,
+        @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
         @NotNull Long templateId,
         @NotEmpty @Size(max = 50) List<@NotBlank @Email String> to,
         @Size(max = 50) List<@NotBlank @Email String> cc,

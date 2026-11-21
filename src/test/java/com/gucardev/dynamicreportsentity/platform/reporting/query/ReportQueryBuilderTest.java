@@ -4,7 +4,7 @@ import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedEx
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportField;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportReference;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportRowPolicy;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.Reportable;
 import com.gucardev.dynamicreportsentity.platform.reporting.RowRestriction;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ReportCatalog;
@@ -113,8 +113,8 @@ class ReportQueryBuilderTest {
     }
 
     private static final LocalDate TODAY = LocalDate.of(2026, 1, 15);
-    private static final ReportViewer USER = new ReportViewer("user", Set.of());
-    private static final ReportViewer FINANCE_USER = new ReportViewer("finance", Set.of("FINANCE"));
+    private static final Actor USER = new Actor("user", Set.of());
+    private static final Actor FINANCE_USER = new Actor("finance", Set.of("FINANCE"));
 
     private final ReportCatalog catalog = ReportCatalog.of(List.of(Customer.class, CustomerAccount.class,
             PurchaseOrder.class, OrderLine.class, Product.class, Tag.class, ProductTag.class, Warehouse.class));

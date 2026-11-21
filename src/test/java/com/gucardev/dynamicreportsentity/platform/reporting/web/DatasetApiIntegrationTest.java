@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 /**
- * Datasets end to end, on the demo data (data.sql). Every test uses its own dataset name: the context and
+ * Datasets end to end, on the demo data (db/seed/h2/demo). Every test uses its own dataset name: the context and
  * its database are shared with the other integration tests.
  */
 @SpringBootTest

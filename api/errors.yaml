@@ -50,7 +50,6 @@ http:
   NOT_APPROVER:            { status: 403, message: "You are not a member of the request's group." }
   SELF_APPROVAL_FORBIDDEN: { status: 403, message: "The person who started the run may not decide." }
   APPROVAL_ALREADY_DECIDED: { status: 409, message: "The request was already decided, timed out or cancelled." }
-  APPROVAL_NOT_READY:      { status: 409, message: "The step is not waiting yet; try again." }
 
 # Codes inside errors[] of a 422 VALIDATION_FAILED (field is a JSON path, e.g. steps[1].to[0])
 field:

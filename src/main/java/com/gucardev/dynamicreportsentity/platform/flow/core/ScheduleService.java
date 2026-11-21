@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.FieldProblem;
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.scheduling.support.CronExpression;
 import org.springframework.stereotype.Service;
@@ -38,12 +38,12 @@ public class ScheduleService {
         this.clock = clock;
     }
 
-    public List<FlowSchedule> list(long flowId, ReportViewer viewer) {
+    public List<FlowSchedule> list(long flowId, Actor viewer) {
         flows.get(flowId, viewer);
         return schedules.findByFlowIdOrderById(flowId);
     }
 
-    public FlowSchedule get(long id, ReportViewer viewer) {
+    public FlowSchedule get(long id, Actor viewer) {
         FlowSchedule schedule = schedules.findById(id).orElseThrow(() -> notFound(id));
         try {
             flows.get(schedule.getFlowId(), viewer);
@@ -54,7 +54,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public FlowSchedule create(long flowId, ScheduleInput input, ReportViewer viewer) {
+    public FlowSchedule create(long flowId, ScheduleInput input, Actor viewer) {
         flows.get(flowId, viewer);
         if (schedules.countByFlowId(flowId) >= properties.maxSchedulesPerFlow()) {
             throw new FlowException(Kind.CONFLICT, "SCHEDULE_LIMIT_REACHED",
@@ -67,7 +67,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public FlowSchedule update(long id, long expectedVersion, ScheduleInput input, ReportViewer viewer) {
+    public FlowSchedule update(long id, long expectedVersion, ScheduleInput input, Actor viewer) {
         FlowSchedule schedule = get(id, viewer);
         if (schedule.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -82,7 +82,7 @@ public class ScheduleService {
     }
 
     @Transactional
-    public void delete(long id, ReportViewer viewer) {
+    public void delete(long id, Actor viewer) {
         schedules.delete(get(id, viewer));
     }
 

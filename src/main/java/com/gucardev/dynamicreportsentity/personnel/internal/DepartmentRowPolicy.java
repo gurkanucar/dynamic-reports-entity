@@ -3,7 +3,7 @@ package com.gucardev.dynamicreportsentity.personnel.internal;
 import com.gucardev.dynamicreportsentity.personnel.Personnel;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportRowPolicy;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.RowRestriction;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -25,7 +25,7 @@ class DepartmentRowPolicy implements ReportRowPolicy {
     private final PersonnelRepository personnelRepository;
 
     @Override
-    public List<RowRestriction> restrictionsFor(ReportViewer viewer) {
+    public List<RowRestriction> restrictionsFor(Actor viewer) {
         if (viewer.hasAuthority(Personnel.ALL_DEPARTMENTS)) {
             return List.of();
         }

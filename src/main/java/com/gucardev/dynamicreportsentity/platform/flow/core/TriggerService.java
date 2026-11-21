@@ -1,8 +1,8 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.FieldProblem;
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
@@ -73,12 +73,12 @@ public class TriggerService {
 
     // ---- managing -------------------------------------------------------------------------------------
 
-    public List<FlowTrigger> list(long flowId, ReportViewer viewer) {
+    public List<FlowTrigger> list(long flowId, Actor viewer) {
         flows.get(flowId, viewer);
         return triggers.findByFlowIdOrderById(flowId);
     }
 
-    public FlowTrigger get(long id, ReportViewer viewer) {
+    public FlowTrigger get(long id, Actor viewer) {
         FlowTrigger trigger = triggers.findById(id).orElseThrow(() -> notFound(id));
         try {
             flows.get(trigger.getFlowId(), viewer);
@@ -89,7 +89,7 @@ public class TriggerService {
     }
 
     @Transactional
-    public FlowTrigger create(long flowId, TriggerInput input, ReportViewer viewer) {
+    public FlowTrigger create(long flowId, TriggerInput input, Actor viewer) {
         flows.get(flowId, viewer);
         if (triggers.countByFlowId(flowId) >= MAX_TRIGGERS_PER_FLOW) {
             throw new FlowException(Kind.CONFLICT, "TRIGGER_LIMIT_REACHED",
@@ -106,7 +106,7 @@ public class TriggerService {
     }
 
     @Transactional
-    public FlowTrigger update(long id, long expectedVersion, TriggerInput input, ReportViewer viewer) {
+    public FlowTrigger update(long id, long expectedVersion, TriggerInput input, Actor viewer) {
         FlowTrigger trigger = get(id, viewer);
         if (trigger.getVersion() != expectedVersion) {
             throw versionMismatch();
@@ -126,7 +126,7 @@ public class TriggerService {
 
     /** A new webhook secret; the old one stops working at once. */
     @Transactional
-    public FlowTrigger rotateSecret(long id, ReportViewer viewer) {
+    public FlowTrigger rotateSecret(long id, Actor viewer) {
         FlowTrigger trigger = get(id, viewer);
         if (trigger.getType() != FlowTrigger.Type.WEBHOOK) {
             throw new FlowException(Kind.CONFLICT, "NOT_A_WEBHOOK", "Only webhook triggers have a secret.");
@@ -136,7 +136,7 @@ public class TriggerService {
     }
 
     @Transactional
-    public void delete(long id, ReportViewer viewer) {
+    public void delete(long id, Actor viewer) {
         triggers.delete(get(id, viewer));
     }
 

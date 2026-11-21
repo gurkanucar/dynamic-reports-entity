@@ -85,7 +85,7 @@ class SecurityConfiguration {
     }
 
     /**
-     * Demo users only (password: "password"); usernames match personnel.username in data.sql.
+     * Demo users only (password: "password"); usernames match personnel.username in db/seed/h2/demo.
      * alice = HR, carol = Software Development, bob = IT with salary access, admin = everything.
      */
     @Bean

@@ -1,7 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
-import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalGroup;
-import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalRequest;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.core.Flow;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowDefinition;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowEdge;
@@ -9,11 +8,9 @@ import com.gucardev.dynamicreportsentity.platform.flow.core.FlowTrigger;
 import com.gucardev.dynamicreportsentity.platform.flow.core.StepStatus;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowRun;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowSchedule;
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunArtifact;
 import com.gucardev.dynamicreportsentity.platform.flow.core.RunEvent;
 import com.gucardev.dynamicreportsentity.platform.flow.core.StepRun;
-import com.gucardev.dynamicreportsentity.platform.flow.mail.MailTemplate;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.ArrayList;
@@ -87,33 +84,6 @@ final class FlowViews {
                 trigger.getWebhookToken() == null ? null : "/api/flow-hooks/" + trigger.getWebhookToken(),
                 time(trigger.getLastFiredAt()), trigger.getLastRunId(), trigger.getVersion(),
                 new UserRef(trigger.getCreatedBy()), time(trigger.getCreatedAt()), time(trigger.getUpdatedAt()));
-    }
-
-    // ---- approvals ------------------------------------------------------------------------------------
-
-    record GroupView(long id, String name, String description, List<ApprovalGroup.Member> members, long version,
-                     String updatedAt, UserRef updatedBy) {
-    }
-
-    static GroupView group(ApprovalGroup group) {
-        return new GroupView(group.getId(), group.getName(), group.getDescription(), List.copyOf(group.getMembers()),
-                group.getVersion(), time(group.getUpdatedAt()), new UserRef(group.getUpdatedBy()));
-    }
-
-    record GroupRef(long id, String name) {
-    }
-
-    record ApprovalView(long id, long runId, FlowRef flow, String stepKey, GroupRef group, String title,
-                        String description, String status, String requestedBy, UserRef runAs, String createdAt,
-                        String dueAt, String decidedBy, String decidedAt, String comment, boolean canDecide) {
-    }
-
-    static ApprovalView approval(ApprovalRequest request, boolean canDecide) {
-        return new ApprovalView(request.getId(), request.getRunId(), new FlowRef(request.getFlowId(), request.getFlowName()),
-                request.getStepKey(), new GroupRef(request.getGroupId(), request.getGroupName()), request.getTitle(),
-                request.getDescription(), value(request.getStatus()), request.getRequestedBy(),
-                new UserRef(request.getRunAs()), time(request.getCreatedAt()), time(request.getDueAt()),
-                request.getDecidedBy(), time(request.getDecidedAt()), request.getComment(), canDecide);
     }
 
     // ---- schedules ------------------------------------------------------------------------------------
@@ -210,24 +180,4 @@ final class FlowViews {
         return json == null ? null : JSON.readValue(json, Map.class);
     }
 
-    // ---- mail templates -------------------------------------------------------------------------------
-
-    record TemplateSummary(long id, String name, String description, UserRef owner, long version, String updatedAt) {
-    }
-
-    record TemplateDetail(long id, String name, String description, String subject, String bodyHtml, UserRef owner,
-                          long version, String createdAt, String updatedAt, UserRef updatedBy) {
-    }
-
-    static TemplateSummary summary(MailTemplate template) {
-        return new TemplateSummary(template.getId(), template.getName(), template.getDescription(),
-                new UserRef(template.getOwner()), template.getVersion(), time(template.getUpdatedAt()));
-    }
-
-    static TemplateDetail detail(MailTemplate template) {
-        return new TemplateDetail(template.getId(), template.getName(), template.getDescription(),
-                template.getSubject(), template.getBodyHtml(), new UserRef(template.getOwner()),
-                template.getVersion(), time(template.getCreatedAt()), time(template.getUpdatedAt()),
-                new UserRef(template.getUpdatedBy()));
-    }
 }

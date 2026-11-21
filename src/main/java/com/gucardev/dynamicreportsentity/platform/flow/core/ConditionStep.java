@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -15,7 +17,7 @@ import java.util.Set;
  * has rows": {@code {">": [{"var": "steps.report.rowCount"}, 0]}}).
  */
 public record ConditionStep(
-        @NotBlank @Pattern(regexp = ReportStep.KEY_PATTERN, message = ReportStep.KEY_MESSAGE) String key,
+        @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
         @NotNull Object expression,
         @Min(1) @Max(60) Integer timeoutSeconds,
         @Min(1) @Max(10) Integer maxAttempts) implements FlowStep {
@@ -32,6 +34,12 @@ public record ConditionStep(
     @JsonIgnore
     public Lane lane() {
         return Lane.LIGHT;
+    }
+
+    @Override
+    @JsonIgnore
+    public boolean continuesInSequence(String outcome) {
+        return "true".equals(outcome);
     }
 
     @Override

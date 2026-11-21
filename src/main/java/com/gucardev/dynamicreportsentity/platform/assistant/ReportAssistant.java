@@ -1,7 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.InvalidReportException;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.ReportDefinition;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.ReportExecutor;
@@ -65,7 +65,7 @@ class ReportAssistant {
         }
     }
 
-    SuggestionResult suggest(List<ChatMessage> conversation, Object currentDefinition, ReportViewer viewer) {
+    SuggestionResult suggest(List<ChatMessage> conversation, Object currentDefinition, Actor viewer) {
         List<Map<String, Object>> messages = new ArrayList<>();
         messages.add(message("system", promptTemplate
                 .replace("{{TODAY}}", LocalDate.now(clock).toString())
@@ -122,7 +122,7 @@ class ReportAssistant {
     }
 
     /** The report builder's verdict on a draft, as the requesting user; nothing is executed. */
-    private Check check(JsonNode draft, ReportViewer viewer) {
+    private Check check(JsonNode draft, Actor viewer) {
         if (draft == null || !draft.isObject()) {
             return new Check(null, null, "Missing 'definition' object.");
         }

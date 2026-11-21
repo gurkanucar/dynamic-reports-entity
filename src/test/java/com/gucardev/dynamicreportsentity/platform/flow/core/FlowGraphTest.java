@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flowapproval.TestSteps;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,7 +20,7 @@ class FlowGraphTest {
     }
 
     private static FlowStep approval(String key) {
-        return new ApprovalStep(key, 1L, "Approve?", null, null, null, null, null, null);
+        return TestSteps.approval(key);
     }
 
     private static FlowGraph graph(List<FlowStep> steps, FlowEdge... edges) {

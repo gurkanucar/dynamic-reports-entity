@@ -1,6 +1,6 @@
 package com.gucardev.dynamicreportsentity.platform.reporting.query;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.IndexAdvisor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.ArgumentPreparedStatementSetter;
@@ -61,12 +61,12 @@ public class ReportExecutor {
     }
 
     /** Validates the definition and checks permissions; throws before anything is executed. */
-    public ReportQuery prepare(ReportDefinition definition, ReportViewer viewer) {
+    public ReportQuery prepare(ReportDefinition definition, Actor viewer) {
         return queryBuilder.build(definition, viewer);
     }
 
     @Transactional(readOnly = true)
-    public ReportResult run(ReportDefinition definition, ReportViewer viewer, int page, Integer requestedSize,
+    public ReportResult run(ReportDefinition definition, Actor viewer, int page, Integer requestedSize,
                             boolean includeTotal) {
         int size = Math.clamp(requestedSize == null ? properties.defaultPageSize() : requestedSize,
                 1, properties.maxPageSize());

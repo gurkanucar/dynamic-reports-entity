@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.reporting;
 
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
+
 import java.util.List;
 
 /**
@@ -13,5 +15,5 @@ public interface ReportRowPolicy {
      * @return restrictions to enforce for this viewer; empty for unrestricted access
      * @throws ReportAccessDeniedException if the viewer may not see any rows at all
      */
-    List<RowRestriction> restrictionsFor(ReportViewer viewer);
+    List<RowRestriction> restrictionsFor(Actor viewer);
 }

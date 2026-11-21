@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
+
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -248,7 +250,7 @@ class ReportSuggestionIntegrationTest {
         if (current != null) {
             definitions.add(current.toString());
         }
-        var admin = new com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer("admin",
+        var admin = new Actor("admin",
                 java.util.Set.of("REPORT_RUN", "SALARY_VIEW", "ALL_DEPARTMENTS"));
         assertThat(definitions).hasSize(4);
         for (String definition : definitions) {

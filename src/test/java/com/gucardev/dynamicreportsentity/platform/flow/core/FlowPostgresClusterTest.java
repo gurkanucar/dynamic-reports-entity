@@ -1,6 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
 import com.gucardev.dynamicreportsentity.platform.flow.RecordingMailSender;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,8 +69,7 @@ class FlowPostgresClusterTest {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
-        registry.add("spring.sql.init.mode", () -> "never");
+        registry.add("spring.flyway.locations", () -> "classpath:db/migration/{vendor}");   // no demo data
         registry.add("storage.type", () -> "s3");
         registry.add("storage.s3.endpoint", () -> "http://" + S3.getHost() + ":" + S3.getMappedPort(9090));
         registry.add("storage.s3.bucket", () -> "cluster-test");

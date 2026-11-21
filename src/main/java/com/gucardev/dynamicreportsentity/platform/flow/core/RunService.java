@@ -1,7 +1,8 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowException.Kind;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.TriggerType;
+import com.gucardev.dynamicreportsentity.platform.api.ApiException.Kind;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -44,21 +45,21 @@ public class RunService {
      * Queues a run (answers at once); the engine picks it up on some instance. There is no per-user limit: runs
      * wait in the queue for a free slot, so many runs only take longer, they never overload the system.
      */
-    public FlowRun start(long flowId, ReportViewer user) {
+    public FlowRun start(long flowId, Actor user) {
         Flow flow = flows.get(flowId, user);
         FlowRun run = store.createRun(flow, TriggerType.MANUAL, user.username(), null, RunStore.PRIORITY_MANUAL);
         engine.wakeUp();
         return run;
     }
 
-    public FlowRun cancel(long runId, ReportViewer user) {
+    public FlowRun cancel(long runId, Actor user) {
         get(runId, user);
         FlowRun run = store.cancel(runId, user.username());
         engine.cancelLocal(runId);
         return run;
     }
 
-    public FlowRun get(long runId, ReportViewer user) {
+    public FlowRun get(long runId, Actor user) {
         FlowRun run = runs.findById(runId).orElseThrow(() -> notFound(runId));
         if (!canSee(run, user)) {
             throw notFound(runId);
@@ -75,7 +76,7 @@ public class RunService {
     }
 
     /** Newest first; {@code flowId} null = runs of every visible flow. */
-    public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, ReportViewer user, int page, int size) {
+    public Page<FlowRun> list(Long flowId, Collection<RunStatus> statuses, Actor user, int page, int size) {
         if (flowId != null) {
             flows.get(flowId, user);
         }
@@ -89,7 +90,7 @@ public class RunService {
     }
 
     /** A file of a visible run; 404 if not visible, 410 once it has expired. */
-    public RunArtifact file(long artifactId, ReportViewer user) {
+    public RunArtifact file(long artifactId, Actor user) {
         RunArtifact artifact = artifacts.find(artifactId).orElseThrow(() -> artifactNotFound(artifactId));
         try {
             get(artifact.getRunId(), user);
@@ -103,7 +104,7 @@ public class RunService {
         return artifact;
     }
 
-    static boolean canSee(FlowRun run, ReportViewer user) {
+    static boolean canSee(FlowRun run, Actor user) {
         return run.getRunAs().equals(user.username()) || run.getTriggeredBy().equals(user.username())
                 || user.hasAuthority(FlowService.ADMIN_AUTHORITY);
     }

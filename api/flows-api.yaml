@@ -530,8 +530,8 @@ paths:
       summary: Approve; the run continues on the step's `approved` edge
       description: &decide |
         403 NOT_APPROVER (not in the group), SELF_APPROVAL_FORBIDDEN (started the run). 409 APPROVAL_ALREADY_DECIDED,
-        APPROVAL_NOT_READY (the step is not waiting yet; retry). Decisions are serialised per run, so two
-        approvers clicking at once get one success and one 409.
+        Decisions lock the request, so two approvers clicking at once get one success and one 409. The flow goes on
+        shortly after (the decision reaches it as an event, after the commit).
       requestBody:
         required: false
         content:
@@ -1199,7 +1199,8 @@ components:
                     type: string
                     description: >-
                       run_queued, step_started, step_completed, step_retry_scheduled, step_released, step_failed,
-                      step_cancelled, step_waiting, approval_approved, approval_rejected, approval_timed_out,
+                      step_cancelled, step_waiting, step_wait_timed_out, approval_approved, approval_rejected,
+                      approval_timed_out,
                       cancel_requested, run_completed, run_failed, run_cancelled
                   stepKey: { type: [string, 'null'] }
                   message: { type: [string, 'null'] }
@@ -1302,15 +1303,20 @@ components:
 
     ApprovalRequest:
       type: object
-      required: [id, runId, flow, stepKey, group, title, description, status, requestedBy, runAs, createdAt, dueAt, decidedBy, decidedAt, comment, canDecide]
+      description: |
+        Owned by the approval module, which knows nothing about flows: `source` says what waits for the decision
+        (for flows `type: flow-step`, `id` = the step run).
+      required: [id, source, group, title, description, status, requestedBy, onBehalfOf, createdAt, dueAt, decidedBy, decidedAt, comment, canDecide]
       properties:
         id: { type: integer, format: int64 }
-        runId: { type: integer, format: int64 }
-        flow:
+        source:
           type: object
-          required: [id, name]
-          properties: { id: { type: integer, format: int64 }, name: { type: string } }
-        stepKey: { type: string }
+          required: [type, id, label, link]
+          properties:
+            type: { type: string, examples: [flow-step] }
+            id: { type: string }
+            label: { type: string, description: 'For people, e.g. "Orders · çalışma #12".' }
+            link: { type: [string, 'null'], description: 'UI path with more context, e.g. /flows/3.' }
         group:
           type: object
           required: [id, name]
@@ -1318,10 +1324,10 @@ components:
         title: { type: string }
         description: { type: [string, 'null'] }
         status: { $ref: '#/components/schemas/ApprovalStatus' }
-        requestedBy: { type: string, description: 'Who started the run (username, webhook:<id>, ...).' }
-        runAs: { $ref: '#/components/schemas/UserRef' }
+        requestedBy: { type: string, description: 'Who asked (username, webhook:<id>, ...).' }
+        onBehalfOf: { $ref: '#/components/schemas/UserRef' }
         createdAt: { type: string, format: date-time }
-        dueAt: { type: string, format: date-time }
+        dueAt: { type: string, format: date-time, description: 'Timed out by the approval module afterwards.' }
         decidedBy: { type: [string, 'null'] }
         decidedAt: { type: [string, 'null'], format: date-time }
         comment: { type: [string, 'null'] }

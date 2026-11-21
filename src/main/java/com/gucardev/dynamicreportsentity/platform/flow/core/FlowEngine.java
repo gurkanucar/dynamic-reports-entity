@@ -1,19 +1,17 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
-import com.gucardev.dynamicreportsentity.platform.reporting.query.InvalidReportException;
-import com.gucardev.dynamicreportsentity.platform.reporting.query.QueryCancelledException;
-import com.gucardev.dynamicreportsentity.platform.reporting.query.QueryHandle;
-import jakarta.mail.SendFailedException;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.ClaimedStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepResult;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepException;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepHandler;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.SmartLifecycle;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.data.domain.Limit;
-import org.springframework.mail.MailAuthenticationException;
-import org.springframework.mail.MailException;
-import org.springframework.mail.MailSendException;
 import org.springframework.stereotype.Component;
 
 import java.net.InetAddress;
@@ -50,7 +48,8 @@ import java.util.stream.Collectors;
  *       A claimed step belongs to its instance under a lease, renewed by the heartbeat; a step whose lease expires
  *       (instance died) is retried by any instance.</li>
  *   <li><b>Cancel and timeout.</b> The heartbeat stops local steps whose run was cancelled or whose time is up:
- *       queries through {@link QueryHandle} ({@code Statement.cancel()}), other work by interrupting it.</li>
+ *       work through the handler's {@link StepContext#onStop} callbacks (e.g. {@code Statement.cancel()}), other
+ *       work by interrupting it.</li>
  *   <li><b>Retries</b> with exponential backoff for errors another attempt may fix (database, mail server,
  *       timeouts); invalid definitions or missing permissions fail at once.</li>
  *   <li><b>Shutdown</b> hands running steps back without counting the attempt, so rolling deployments do not
@@ -248,8 +247,7 @@ public class FlowEngine implements SmartLifecycle {
         ClaimedStep claimed = execution.claimed;
         execution.begin();
         try {
-            StepResult result = handler.execute(
-                    new StepHandler.StepContext(claimed, execution.queryHandle, execution.deadline));
+            StepResult result = handler.execute(new Context(execution));
             execution.end();
             if (!store.complete(claimed.stepRunId(), claimed.token(), result)) {
                 log.warn("Flow run {} step '{}' finished after its lease was taken over; result dropped",
@@ -292,20 +290,6 @@ public class FlowEngine implements SmartLifecycle {
         return switch (error) {
             case StepException known -> new StepFailure(known.code(), known.getMessage(), known.retryable(), false,
                     false);
-            case InvalidReportException invalid -> StepFailure.permanent("INVALID_REPORT_DEFINITION",
-                    invalid.getMessage());
-            case ReportAccessDeniedException denied -> StepFailure.permanent("REPORT_ACCESS_DENIED",
-                    denied.getMessage());
-            case QueryCancelledException cancelled -> StepFailure.retryable("STEP_INTERRUPTED",
-                    "The query was stopped");
-            case MailAuthenticationException auth -> StepFailure.retryable("MAIL_SERVER_UNAVAILABLE",
-                    "The mail server rejected the login");
-            case MailSendException send when rejectsRecipients(send) -> StepFailure.permanent(
-                    "MAIL_RECIPIENT_REJECTED", "The mail server rejected a recipient: " + send.getMessage());
-            case MailSendException send -> StepFailure.retryable("MAIL_SERVER_UNAVAILABLE",
-                    "The e-mail could not be sent: " + send.getMessage());
-            case MailException mail -> StepFailure.permanent("MAIL_REJECTED",
-                    "The e-mail could not be built: " + mail.getMessage());
             case DataAccessException database -> StepFailure.retryable("DATABASE_ERROR",
                     "Database error (details in the server log)");
             case InterruptedException interrupted -> StepFailure.retryable("STEP_INTERRUPTED",
@@ -314,19 +298,6 @@ public class FlowEngine implements SmartLifecycle {
         };
     }
 
-    private static boolean rejectsRecipients(MailSendException exception) {
-        List<Throwable> roots = new java.util.ArrayList<>(List.of(exception));
-        roots.addAll(exception.getFailedMessages().values());
-        for (Throwable root : roots) {
-            for (Throwable cause = root; cause != null; cause = cause.getCause()) {
-                if (cause instanceof SendFailedException failed && failed.getInvalidAddresses() != null
-                        && failed.getInvalidAddresses().length > 0) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
 
     // ---- heartbeat ------------------------------------------------------------------------------------
 
@@ -410,12 +381,50 @@ public class FlowEngine implements SmartLifecycle {
 
     enum StopReason { CANCELLED, TIMEOUT, SHUTDOWN, LEASE_LOST }
 
+    /** What a handler sees of its attempt. */
+    private final class Context implements StepContext {
+
+        private final Execution execution;
+
+        Context(Execution execution) {
+            this.execution = execution;
+        }
+
+        @Override
+        public ClaimedStep step() {
+            return execution.claimed;
+        }
+
+        @Override
+        public Instant deadline() {
+            return execution.deadline;
+        }
+
+        @Override
+        public void onStop(Runnable action) {
+            execution.onStop(action);
+        }
+
+        @Override
+        public StoredFile storeFile(String fileName, String contentType, java.nio.file.Path file) {
+            ClaimedStep claimed = execution.claimed;
+            artifacts.deleteForStep(claimed.stepRunId());    // left by an earlier attempt
+            RunArtifact artifact = artifacts.save(claimed.runId(), claimed.stepRunId(), fileName, contentType, file);
+            return new StoredFile(artifact.getId(), artifact.getSizeBytes(), artifact.getExpiresAt());
+        }
+
+        @Override
+        public byte[] loadFile(long fileId) {
+            return artifacts.load(fileId);
+        }
+    }
+
     /** A step running on this instance. */
     static final class Execution {
 
         final ClaimedStep claimed;
-        final QueryHandle queryHandle = new QueryHandle();
         final Instant deadline;
+        private final List<Runnable> onStop = new java.util.concurrent.CopyOnWriteArrayList<>();
         private final boolean interruptible;
         volatile StopReason stopReason;
         private Thread thread;
@@ -436,11 +445,27 @@ public class FlowEngine implements SmartLifecycle {
             Thread.interrupted();
         }
 
+        /** Registers a stop action; runs it at once if the step was already stopped. */
+        synchronized void onStop(Runnable action) {
+            onStop.add(action);
+            if (stopReason != null) {
+                runQuietly(action);
+            }
+        }
+
+        private static void runQuietly(Runnable action) {
+            try {
+                action.run();
+            } catch (RuntimeException e) {
+                log.debug("A stop action of a flow step failed: {}", e.getMessage());
+            }
+        }
+
         synchronized void stop(StopReason reason) {
             if (stopReason == null) {
                 stopReason = reason;
             }
-            queryHandle.cancel();
+            onStop.forEach(Execution::runQuietly);
             if (interruptible && thread != null) {
                 thread.interrupt();
             }

@@ -2,7 +2,7 @@ package com.gucardev.dynamicreportsentity.platform.reporting.query;
 
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportRowPolicy;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.RowRestriction;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.CatalogField;
 import com.gucardev.dynamicreportsentity.platform.reporting.catalog.ColumnUsage;
@@ -74,7 +74,7 @@ public class ReportQueryBuilder {
     private final List<ReportRowPolicy> rowPolicies;
     private final SqlDialect dialect;
 
-    public ReportQuery build(ReportDefinition definition, ReportViewer viewer) {
+    public ReportQuery build(ReportDefinition definition, Actor viewer) {
         ReportableEntity root = catalog.entity(definition.root())
                 .orElseThrow(() -> new InvalidReportException("Unknown entity: " + definition.root()));
         return new Assembly(root, viewer, "t", new int[]{0}, null, null).assemble(definition);
@@ -83,7 +83,7 @@ public class ReportQueryBuilder {
     /** State of one query (the main one, or a nested child scope): the join tree grows while paths are resolved. */
     private final class Assembly {
 
-        private final ReportViewer viewer;
+        private final Actor viewer;
         private final String aliasPrefix;
         private final int[] scopeCounter;
         private final JoinNode root;
@@ -97,7 +97,7 @@ public class ReportQueryBuilder {
         private List<RowRestriction> restrictions;
         private int conditionCount;
 
-        Assembly(ReportableEntity rootEntity, ReportViewer viewer, String aliasPrefix, int[] scopeCounter,
+        Assembly(ReportableEntity rootEntity, Actor viewer, String aliasPrefix, int[] scopeCounter,
                  List<RowRestriction> restrictions, String rootLabel) {
             this.viewer = viewer;
             this.aliasPrefix = aliasPrefix;

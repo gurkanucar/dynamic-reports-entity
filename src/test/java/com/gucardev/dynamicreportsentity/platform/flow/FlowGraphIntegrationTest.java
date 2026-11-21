@@ -135,8 +135,13 @@ class FlowGraphIntegrationTest {
         return Map.of("type", "mail", "key", key, "templateId", template, "to", List.of(to));
     }
 
+    /** Without notifications: they are sent after the commit and could land in the next test's mailbox. */
     private Map<String, Object> approval(String key, long group) {
-        return Map.of("type", "approval", "key", key, "groupId", group,
+        return approval(key, group, false);
+    }
+
+    private Map<String, Object> approval(String key, long group, boolean notify) {
+        return Map.of("type", "approval", "key", key, "groupId", group, "notifyMembers", notify,
                 "title", "Approve {{flow.name}}", "description", "Run {{run.id}} needs a decision");
     }
 
@@ -218,6 +223,13 @@ class FlowGraphIntegrationTest {
         return list.get("data").get(0).get("id").asLong();
     }
 
+    /** Status of the approval request the run's step {@code ask} opened (the approval module knows it by step run). */
+    private String requestStatus(long runId) {
+        return jdbc.queryForObject("SELECT r.status FROM approval_request r WHERE r.source_type = 'flow-step'"
+                + " AND r.source_id = (SELECT CAST(s.id AS VARCHAR(100)) FROM flow_step_run s"
+                + " WHERE s.run_id = ? AND s.step_key = 'ask')", String.class, runId);
+    }
+
     private static String sign(String secret, byte[] body) throws Exception {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(secret.getBytes(UTF_8), "HmacSHA256"));
@@ -253,7 +265,7 @@ class FlowGraphIntegrationTest {
     void aGroupMemberApprovesAndTheRunGoesOn() throws Exception {
         long template = template();
         long group = group("bob", "admin");
-        long flow = flow(List.of(approval("ask", group), mail("ok", template, "ok@example.com"),
+        long flow = flow(List.of(approval("ask", group, true), mail("ok", template, "ok@example.com"),
                         mail("no", template, "no@example.com")),
                 List.of(Map.of("from", "ask", "to", "ok", "when", "approved"),
                         Map.of("from", "ask", "to", "no", "when", "rejected")));
@@ -268,6 +280,8 @@ class FlowGraphIntegrationTest {
         long requestId = pendingRequest(BOB);
         JsonNode forBob = json(mvc.get().uri("/api/approval-requests/" + requestId).with(BOB).exchange()).get("data");
         assertThat(forBob.get("canDecide").asBoolean()).isTrue();
+        assertThat(forBob.get("source").get("type").asString()).isEqualTo("flow-step");
+        assertThat(forBob.get("source").get("label").asString()).contains("#" + runId);
         assertThat(forBob.get("description").asString()).isEqualTo("Run " + runId + " needs a decision");
         // the person who started the run may not approve it, outsiders do not even see it
         assertThat(post("/api/approval-requests/" + requestId + "/approve", ADMIN, "{}"))
@@ -298,14 +312,23 @@ class FlowGraphIntegrationTest {
                 .hasStatusOk();
         assertThat(keys(await(rejected, "completed"))).containsExactly("ask:completed:rejected");
 
+        // the approval module owns the deadline: it times the request out and the step takes its timeout way
         long timedOut = start(flow);
         awaitWaiting(timedOut);
-        jdbc.update("UPDATE flow_step_run SET available_at = ? WHERE run_id = ? AND status = 'WAITING'",
-                Timestamp.from(Instant.now().minusSeconds(1)), timedOut);
+        jdbc.update("UPDATE approval_request SET due_at = ? WHERE status = 'PENDING'",
+                Timestamp.from(Instant.now().minusSeconds(1)));
         JsonNode run = await(timedOut, "completed");
         assertThat(keys(run)).containsExactly("ask:completed:timeout");
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE run_id = ?", String.class, timedOut))
-                .isEqualTo("TIMED_OUT");
+        assertThat(requestStatus(timedOut)).isEqualTo("TIMED_OUT");
+        assertThat(run.get("events").toString()).contains("approval_timed_out");
+
+        // the engine's own deadline is only a safety net; when it fires, the request is withdrawn
+        long safetyNet = start(flow);
+        awaitWaiting(safetyNet);
+        jdbc.update("UPDATE flow_step_run SET available_at = ? WHERE run_id = ? AND status = 'WAITING'",
+                Timestamp.from(Instant.now().minusSeconds(1)), safetyNet);
+        assertThat(keys(await(safetyNet, "completed"))).containsExactly("ask:completed:timeout");
+        await(() -> "CANCELLED".equals(requestStatus(safetyNet)), () -> "the withdrawn request");
         assertThat(recipients()).doesNotContain("after@example.com");
     }
 
@@ -317,8 +340,7 @@ class FlowGraphIntegrationTest {
 
         assertThat(mvc.post().uri("/api/flow-runs/" + runId + "/cancel").with(ADMIN).exchange()).hasStatusOk()
                 .bodyJson().extractingPath("$.data.status").isEqualTo("cancelled");
-        assertThat(jdbc.queryForObject("SELECT status FROM approval_request WHERE run_id = ?", String.class, runId))
-                .isEqualTo("CANCELLED");
+        await(() -> "CANCELLED".equals(requestStatus(runId)), () -> "the withdrawn request");
     }
 
     @Test

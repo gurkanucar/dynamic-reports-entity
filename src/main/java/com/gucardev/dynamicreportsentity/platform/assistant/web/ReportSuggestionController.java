@@ -5,7 +5,7 @@ import com.gucardev.dynamicreportsentity.platform.assistant.ChatMessage;
 import com.gucardev.dynamicreportsentity.platform.assistant.ReportSuggestion;
 import com.gucardev.dynamicreportsentity.platform.assistant.SuggestionService;
 import com.gucardev.dynamicreportsentity.platform.assistant.SuggestionService.SuggestionRequest;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -84,8 +84,8 @@ class ReportSuggestionController {
         return response.body(ApiResponse.of(SuggestionView.of(suggestion, suggestions.result(suggestion))));
     }
 
-    static ReportViewer viewer(Authentication authentication) {
-        return new ReportViewer(authentication.getName(), authentication.getAuthorities().stream()
+    static Actor viewer(Authentication authentication) {
+        return new Actor(authentication.getName(), authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority).filter(Objects::nonNull).collect(Collectors.toSet()));
     }
 }

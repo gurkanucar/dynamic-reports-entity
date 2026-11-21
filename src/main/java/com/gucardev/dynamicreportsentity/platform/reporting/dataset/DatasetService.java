@@ -1,7 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.reporting.dataset;
 
 import com.gucardev.dynamicreportsentity.platform.reporting.ReportAccessDeniedException;
-import com.gucardev.dynamicreportsentity.platform.reporting.ReportViewer;
+import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.InvalidReportException;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.ReportDefinition;
 import com.gucardev.dynamicreportsentity.platform.reporting.query.ReportExecutor;
@@ -128,7 +128,7 @@ public class DatasetService {
     }
 
     /** A SNAPSHOT dataset is built right away on this instance (or by the next scheduler run anywhere). */
-    public DatasetInfo create(DatasetRequest request, ReportViewer editor) {
+    public DatasetInfo create(DatasetRequest request, Actor editor) {
         String name = request.name();
         if (name == null || !NAME.matcher(name).matches()) {
             throw new InvalidReportException("Dataset name must be 2-40 lower case letters, digits or underscores, "
@@ -151,7 +151,7 @@ public class DatasetService {
         return get(name);
     }
 
-    public DatasetInfo update(String name, DatasetRequest request, ReportViewer editor) {
+    public DatasetInfo update(String name, DatasetRequest request, Actor editor) {
         validate(request, editor);
         String[] unused = new String[1];
         ReportDataset saved = change(name, dataset -> {
@@ -180,12 +180,12 @@ public class DatasetService {
         store.dropOlderThan(name, Long.MAX_VALUE);
     }
 
-    private void validate(DatasetRequest request, ReportViewer editor) {
+    private void validate(DatasetRequest request, Actor editor) {
         if (request.mode() == DatasetMode.LIVE && request.refreshEveryHours() != null) {
             throw new InvalidReportException("'refreshEveryHours' only applies to SNAPSHOT datasets");
         }
         executor.prepare(request.definition(), editor);                         // editor may use every field
-        executor.prepare(request.definition(), ReportViewer.system("dataset")); // valid as the refresh runs it
+        executor.prepare(request.definition(), Actor.system("dataset")); // valid as the refresh runs it
     }
 
     private void afterDefinitionChange(ReportDataset dataset) {
@@ -196,7 +196,7 @@ public class DatasetService {
 
     // ---- reading ----------------------------------------------------------------------------
 
-    public DatasetRows read(String name, ReportViewer reader, int page, Integer requestedSize, boolean includeTotal) {
+    public DatasetRows read(String name, Actor reader, int page, Integer requestedSize, boolean includeTotal) {
         ReportDataset dataset = load(name);
         ReportDefinition definition = definition(dataset);
         if (dataset.getMode() == DatasetMode.LIVE) {
@@ -231,9 +231,9 @@ public class DatasetService {
     }
 
     /** See the class comment: a snapshot is served only to readers who would get the very same report. */
-    private void guardSnapshot(ReportDataset dataset, ReportDefinition definition, ReportViewer reader) {
+    private void guardSnapshot(ReportDataset dataset, ReportDefinition definition, Actor reader) {
         ReportQuery forReader = executor.prepare(definition, reader);   // 403 for fields the reader may not use
-        ReportQuery forSystem = executor.prepare(definition, ReportViewer.system("dataset"));
+        ReportQuery forSystem = executor.prepare(definition, Actor.system("dataset"));
         if (!forReader.sql().equals(forSystem.sql()) || !forReader.parameters().equals(forSystem.parameters())) {
             throw new ReportAccessDeniedException("Snapshot '" + dataset.getName() + "' holds every row, but your"
                     + " access is limited by row-level security. Use a LIVE dataset or /api/reports/run instead.");
@@ -320,7 +320,7 @@ public class DatasetService {
         }, beatMillis, beatMillis, TimeUnit.MILLISECONDS);
         long start = System.nanoTime();
         try {
-            ReportQuery query = executor.prepare(definition(dataset), ReportViewer.system("dataset " + name));
+            ReportQuery query = executor.prepare(definition(dataset), Actor.system("dataset " + name));
             long rows = store.build(table, query, properties.datasetMaxRows(), properties.datasetRefreshTimeout());
             long millis = (System.nanoTime() - start) / 1_000_000;
             String columnsJson = JSON.writeValueAsString(query.columns());

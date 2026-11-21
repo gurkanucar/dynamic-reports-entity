@@ -1,15 +1,12 @@
 package com.gucardev.dynamicreportsentity.platform.flow.web;
 
-import com.gucardev.dynamicreportsentity.platform.flow.approval.ApprovalGroup;
-import com.gucardev.dynamicreportsentity.platform.flow.core.ApprovalService;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowDefinition;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowEdge;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowService.FlowInput;
 import com.gucardev.dynamicreportsentity.platform.flow.core.FlowTrigger;
 import com.gucardev.dynamicreportsentity.platform.flow.core.TriggerService;
-import com.gucardev.dynamicreportsentity.platform.flow.core.FlowStep;
 import com.gucardev.dynamicreportsentity.platform.flow.core.ScheduleService.ScheduleInput;
-import com.gucardev.dynamicreportsentity.platform.flow.mail.MailTemplateService.TemplateInput;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -51,22 +48,6 @@ final class FlowRequests {
         }
     }
 
-    record GroupRequest(@NotBlank @Size(max = 100) String name,
-                        @Size(max = 1000) String description,
-                        @Size(max = 200) List<@NotNull @Valid MemberRequest> members) {
-
-        ApprovalService.GroupInput input() {
-            return new ApprovalService.GroupInput(name, description, members == null ? List.of()
-                    : members.stream().map(m -> new ApprovalGroup.Member(m.username(), m.email())).toList());
-        }
-    }
-
-    record MemberRequest(@NotBlank @Size(max = 100) String username, @Email @Size(max = 254) String email) {
-    }
-
-    record DecisionRequest(@Size(max = 1000) String comment) {
-    }
-
     /**
      * @param cron     5 fields ({@code 0 8 * * MON-FRI}), 6 with seconds, or a macro such as {@code @daily}
      * @param timeZone IANA zone, e.g. {@code Europe/Istanbul}
@@ -80,19 +61,4 @@ final class FlowRequests {
         }
     }
 
-    record TemplateRequest(@NotBlank @Size(max = 100) String name,
-                           @Size(max = 1000) String description,
-                           @NotBlank @Size(max = 500) String subject,
-                           @NotBlank @Size(max = 200_000) String bodyHtml) {
-
-        TemplateInput input() {
-            return new TemplateInput(name, description, subject, bodyHtml);
-        }
-    }
-
-    /** @param model data to render with; null = a sample run with one report step named {@code report} */
-    record PreviewRequest(@NotBlank @Size(max = 500) String subject,
-                          @NotBlank @Size(max = 200_000) String bodyHtml,
-                          Map<String, Object> model) {
-    }
 }

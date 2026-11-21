@@ -1,6 +1,11 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
-import com.gucardev.dynamicreportsentity.platform.flow.mail.TemplateRenderer;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepResult;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepException;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.RunData;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepHandler;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.StepContext;
+import com.gucardev.dynamicreportsentity.platform.notification.TemplateRenderer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;

@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,7 +18,7 @@ import java.util.Map;
  * 2xx succeeds; 408, 429 and 5xx are retried; other answers fail the step. Output: {@code status}, {@code body}.
  */
 public record WebhookStep(
-        @NotBlank @Pattern(regexp = ReportStep.KEY_PATTERN, message = ReportStep.KEY_MESSAGE) String key,
+        @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
         @NotBlank @Size(max = 2000) String url,
         @Pattern(regexp = "POST|PUT|PATCH|GET|DELETE") String method,
         @Size(max = 20) Map<@NotBlank @Size(max = 100) String, @Size(max = 2000) String> headers,

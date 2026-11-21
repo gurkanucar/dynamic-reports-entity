@@ -1,5 +1,7 @@
 package com.gucardev.dynamicreportsentity.platform.flow.core;
 
+import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowStep;
+import com.gucardev.dynamicreportsentity.platform.flow.spi.Lane;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -14,7 +16,7 @@ import jakarta.validation.constraints.Size;
  * {@code trigger} and {@code steps}). Output: {@code items} and {@code count}, for later conditions, mails, webhooks.
  */
 public record FilterStep(
-        @NotBlank @Pattern(regexp = ReportStep.KEY_PATTERN, message = ReportStep.KEY_MESSAGE) String key,
+        @NotBlank @Pattern(regexp = FlowStep.KEY_PATTERN, message = FlowStep.KEY_MESSAGE) String key,
         @NotBlank @Size(max = 200) String source,
         @NotNull Object expression,
         @Min(1) @Max(60) Integer timeoutSeconds,
