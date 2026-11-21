@@ -215,6 +215,15 @@ class DatasetQueryBuilderTest {
                     ORDER BY SUM(t1.quantity) DESC, t0.name""");
         }
 
+        /** COUNT(*) next to a one-to-many join counts the children, not the customers it is labelled with. */
+        @Test
+        void countOfRowsNextToAOneToManyJoinIsRejected() {
+            assertThatThrownBy(() -> build(new DatasetDefinition("Customer",
+                    List.of(DatasetColumn.of("region"), DatasetColumn.count(), DatasetColumn.of(SUM, "orders.total")),
+                    null, null, List.of())))
+                    .isInstanceOf(InvalidDatasetException.class).hasMessageContaining("COUNT_DISTINCT");
+        }
+
         @Test
         void samePathIsJoinedOnce() {
             DatasetQuery query = build(new DatasetDefinition("PurchaseOrder", columns("customer.name", "customer.region"),
@@ -230,13 +239,14 @@ class DatasetQueryBuilderTest {
         @Test
         void groupByWhereHavingAndAggregateSort() {
             DatasetQuery query = build(new DatasetDefinition("Customer",
-                    List.of(DatasetColumn.of("region"), DatasetColumn.count(), DatasetColumn.of(SUM, "orders.total")),
+                    List.of(DatasetColumn.of("region"), DatasetColumn.of(Aggregate.COUNT_DISTINCT, "id"),
+                            DatasetColumn.of(SUM, "orders.total")),
                     where("orders.orderDate", GTE, "2026-01-01"),
                     where(SUM, "orders.total", GT, 1000),
                     List.of(new DatasetSort("orders.total", SUM, Direction.DESC))));
 
             assertThat(query.sql()).isEqualTo("""
-                    SELECT t0.region, COUNT(*), SUM(t1.total)
+                    SELECT t0.region, COUNT(DISTINCT t0.id), SUM(t1.total)
                     FROM customer t0
                     LEFT JOIN purchase_order t1 ON t1.customer_id = t0.id
                     WHERE t1.order_date >= ?
@@ -245,7 +255,7 @@ class DatasetQueryBuilderTest {
                     ORDER BY SUM(t1.total) DESC, t0.region""");
             assertThat(query.parameters()).containsExactly(LocalDate.of(2026, 1, 1), 1000);
             assertThat(query.columns()).extracting(ResultColumn::label)
-                    .containsExactly("Customer / Region", "Count of Customer", "Sum of Customer / Orders / Total");
+                    .containsExactly("Customer / Region", "Distinct count of Customer / ID", "Sum of Customer / Orders / Total");
         }
 
         @Test

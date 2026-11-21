@@ -35,3 +35,6 @@ build/
 ### Local tooling output ###
 .playwright-mcp/
 files/
+
+### Local H2 database of the small profile ###
+/data/

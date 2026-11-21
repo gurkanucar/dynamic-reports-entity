@@ -831,6 +831,15 @@ public class DatasetQueryBuilder {
             }
             JoinNode grain = toMany.stream().max(Comparator.comparingInt(JoinNode::depth)).orElse(root);
             for (Measure measure : measures) {
+                // COUNT(*) counts the rows of the deepest one-to-many join, not the root: "people per department"
+                // next to MIN(trainingRecords.date) would count training records
+                if (measure.ref() == null && measure.aggregated() && measure.aggregate() == Aggregate.COUNT
+                        && grain != root) {
+                    throw new InvalidDatasetException("COUNT would count '" + grain.path + "' rows instead of "
+                            + root.entity.label() + " rows, because another column or filter goes through that "
+                            + "one-to-many relation. Count {\"field\": \"id\", \"aggregate\": \"COUNT_DISTINCT\"} "
+                            + "instead, or filter related rows with EXISTS.");
+                }
                 if (measure.ref() != null && measure.aggregated() && measure.aggregate().isSensitiveToDuplicates()
                         && !grain.isAncestorOrSelfOf(measure.ref().node())) {
                     throw new InvalidDatasetException(measure.aggregate() + " of '" + measure.ref().path()

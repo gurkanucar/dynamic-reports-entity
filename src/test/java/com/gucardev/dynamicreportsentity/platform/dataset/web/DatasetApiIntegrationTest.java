@@ -521,6 +521,26 @@ class DatasetApiIntegrationTest {
     }
 
     @Nested
+    @WithMockUser(username = "admin", authorities = {"PLATFORM_USER", "ALL_DEPARTMENTS"})
+    class CountNextToAOneToManyColumn {
+
+        /** "People per department" next to MIN(trainingRecords...) would count training records, not people. */
+        @Test
+        void countOfRowsIsRejectedWhenAnotherColumnFansOut() {
+            assertThat(post("/api/datasets/run", """
+                    {"root": "Personnel", "columns": [{"field": "department.name"}, {"aggregate": "COUNT"},
+                     {"field": "trainingRecords.nextRenewalDate", "aggregate": "MIN"}]}
+                    """)).hasStatus(HttpStatus.BAD_REQUEST).bodyText().contains("COUNT_DISTINCT");
+            assertThat(post("/api/datasets/run", """
+                    {"root": "Personnel", "columns": [{"field": "department.name", "label": "D"},
+                     {"field": "id", "aggregate": "COUNT_DISTINCT", "label": "People"},
+                     {"field": "trainingRecords.nextRenewalDate", "aggregate": "MIN"}],
+                     "where": {"field": "department.name", "operator": "EQ", "value": "Human Resources"}}
+                    """)).hasStatusOk().bodyJson().extractingPath("$.rows[0][1]").isEqualTo(3);
+        }
+    }
+
+    @Nested
     class ExcelExport {
 
         @Test

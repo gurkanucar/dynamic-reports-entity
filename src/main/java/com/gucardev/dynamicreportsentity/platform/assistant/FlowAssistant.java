@@ -78,12 +78,7 @@ class FlowAssistant implements Drafter {
     @Override
     public SuggestionResult draft(List<ChatMessage> conversation, Object current, Actor viewer) {
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(ToolLoop.message("system", prompt
-                .replace("{{TODAY}}", LocalDate.now(clock).toString())
-                .replace("{{DATASETS}}", describeDatasets())
-                .replace("{{TEMPLATES}}", describeTemplates())
-                .replace("{{GROUPS}}", describeGroups())
-                .replace("{{CATALOG}}", catalog.describe(viewer))));
+        messages.add(ToolLoop.message("system", systemPrompt(viewer)));
         if (current != null) {
             messages.add(ToolLoop.message("system", "Current flow (the user wants to change it):\n"
                     + ToolLoop.JSON.writeValueAsString(current)));
@@ -115,8 +110,18 @@ class FlowAssistant implements Drafter {
                 "The assistant could not draft a valid flow in " + properties.maxIterations() + " attempts.");
     }
 
+    /** What the model knows about flows and this user's datasets, templates, groups and catalog. */
+    String systemPrompt(Actor viewer) {
+        return prompt
+                .replace("{{TODAY}}", LocalDate.now(clock).toString())
+                .replace("{{DATASETS}}", describeDatasets())
+                .replace("{{TEMPLATES}}", describeTemplates())
+                .replace("{{GROUPS}}", describeGroups())
+                .replace("{{CATALOG}}", catalog.describe(viewer));
+    }
+
     /** Problems of the flow, its new templates and schedules, as lines for the model. */
-    private List<String> check(JsonNode arguments, Actor viewer) {
+    List<String> check(JsonNode arguments, Actor viewer) {
         List<String> problems = new ArrayList<>();
         if (arguments == null || !arguments.path("flow").isObject()) {
             return List.of("Missing 'flow' object.");

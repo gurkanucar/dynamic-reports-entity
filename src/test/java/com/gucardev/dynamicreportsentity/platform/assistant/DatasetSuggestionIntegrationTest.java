@@ -120,7 +120,10 @@ class DatasetSuggestionIntegrationTest {
                 .content(JSON.writeValueAsString(Map.of("messages", List.of(Map.of("role", "user", "content", question)))))
                 .exchange();
         assertThat(created).hasStatus(HttpStatus.ACCEPTED);
-        String location = created.getResponse().getHeader(HttpHeaders.LOCATION);
+        return poll(created.getResponse().getHeader(HttpHeaders.LOCATION), user);
+    }
+
+    private JsonNode poll(String location, RequestPostProcessor user) {
         Instant deadline = Instant.now().plus(Duration.ofSeconds(15));
         while (true) {
             JsonNode suggestion = JSON.readTree(mvc.get().uri(location).with(user).exchange().getResponse()
@@ -297,6 +300,34 @@ class DatasetSuggestionIntegrationTest {
         assertThat(suggestion.get("reply").get("draft").get("description").asString()).isEqualTo("Her gece 03:00");
         assertThat(REQUESTS.get(1).getValue().toString()).contains("every 5 minutes");
         assertThat(REQUESTS.get(2).getValue().toString()).contains("nextFireTimes", "03:00");
+    }
+
+    @Test
+    void oneStepIsChangedAndCheckedInsideItsFlow() {
+        String flow = """
+                {"name": "Kadro", "steps": [
+                   {"type": "dataset", "key": "dataset", "definition": %s},
+                   {"type": "condition", "key": "var_mi", "expression": {">": [{"var": "steps.dataset.rowCount"}, 0]}}],
+                 "edges": [{"from": "dataset", "to": "var_mi"}]}""".formatted(HEADCOUNT);
+        ANSWERS.add(Map.entry(200, toolCall("c1", "submit_step", """
+                {"step": {"type": "condition", "key": "var_mi", "expression": {"nope": [1]}}, "explanation": "x"}""")));
+        ANSWERS.add(Map.entry(200, toolCall("c2", "submit_step", """
+                {"step": {"type": "condition", "key": "var_mi", "expression": {">": [{"var": "steps.dataset.rowCount"}, 5]}},
+                 "explanation": "Eşik 5 oldu."}""")));
+
+        MvcTestResult created = mvc.post().uri("/api/step-suggestions").with(ALICE).contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"messages": [{"role": "user", "content": "eşik 5 olsun"}], "current": {"flow": %s, "stepKey": "var_mi"}}
+                        """.formatted(flow)).exchange();
+        assertThat(created).hasStatus(HttpStatus.ACCEPTED);
+        JsonNode suggestion = poll(created.getResponse().getHeader(HttpHeaders.LOCATION), ALICE);
+
+        assertThat(suggestion.get("status").asString()).isEqualTo("completed");
+        assertThat(suggestion.get("reply").get("draft").get("step").get("expression").toString()).contains("5");
+        JsonNode messages = REQUESTS.get(1).getValue().get("messages");
+        assertThat(messages.get(messages.size() - 1).get("content").asString()).contains("steps[1]", "\"valid\":false");
+        assertThat(REQUESTS.getFirst().getValue().get("messages").get(0).get("content").asString())
+                .contains("change ONE step", "`var_mi`");
     }
 
     /** A wrong example teaches the model wrong datasets: every example in the prompt must build. */

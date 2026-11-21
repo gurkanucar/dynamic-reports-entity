@@ -232,6 +232,31 @@ paths:
         '422': { $ref: '#/components/responses/Problem' }
         '503': { $ref: '#/components/responses/Problem' }
 
+  /api/step-suggestions:
+    post:
+      tags: [assistant]
+      operationId: requestStepSuggestion
+      summary: Change one step of a flow
+      description: |
+        Same request/poll pattern as `/api/dataset-suggestions`. `current` = `{flow: {name, steps, edges}, stepKey}`
+        (422 STEP_CONTEXT_REQUIRED without them). The changed step is checked inside the flow like saving it; problems
+        of other steps are ignored. The reply's `draft` is `{step, newTemplates}`; a mail step may use `templateRef`.
+        Nothing is saved. Poll `GET /api/step-suggestions/{id}`.
+      parameters: [{ $ref: '#/components/parameters/Csrf' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DraftSuggestionRequest' }
+      responses:
+        '202':
+          description: Accepted; follow `Location`.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuggestionEnvelope' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '503': { $ref: '#/components/responses/Problem' }
+
 components:
   securitySchemes:
     session: { type: apiKey, in: cookie, name: PLATFORM_SESSION }

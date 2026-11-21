@@ -60,6 +60,15 @@ Rules the builder enforces (validation tells you when you break one):
   `TrainingRecord`), use `perRoot`, or COUNT_DISTINCT.
 - Two independent to-many relations in one detail dataset multiply rows: use LIST for one of them.
 - A field the user may not use is rejected, also in filters.
+- COUNT without a field counts the rows of the deepest to-many join: next to a to-many column or filter, count the
+  root with `{"field": "id", "aggregate": "COUNT_DISTINCT"}`.
+
+Think about which rows a number is computed over:
+- EXISTS only selects root rows; it does NOT filter the children an aggregated column reads. "Per department, how many
+  people have a mandatory training due in 30 days, and the earliest such date" needs both numbers over the SAME
+  children: start from the child entity (`TrainingRecord`), filter it (`training.mandatory`, `nextRenewalDate`),
+  group by `personnel.department.name`, count people with COUNT_DISTINCT of `personnel.id` and take MIN of
+  `nextRenewalDate`.
 
 # Examples (syntax only: never copy their filters or conditions; use YOUR catalog below)
 Departments with at least 3 active people, largest first, with the earliest hire date:
