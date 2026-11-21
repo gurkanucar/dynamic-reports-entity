@@ -218,6 +218,34 @@ class FlowApiIntegrationTest {
     }
 
     @Test
+    void excelFilesAreAttachedAndTheMailShowsAsManyRowsAsTheStepAllows() throws Exception {
+        long template = datasetTemplate("Excel mail");
+        long flow = createFlow(ADMIN, """
+                {"name": "Excel headcount",
+                 "steps": [
+                   {"type": "dataset", "key": "dataset", "definition": %s, "format": "xlsx", "mailRows": 3},
+                   {"type": "mail", "key": "mail", "templateId": %d, "to": ["excel@example.com"], "attachments": ["dataset"]}
+                 ]}""".formatted(HEADCOUNT, template));
+
+        JsonNode run = awaitRun(ADMIN, start(ADMIN, flow), "completed");
+
+        JsonNode output = run.get("steps").get(0).get("output");
+        assertThat(output.get("fileName").asString()).isEqualTo("dataset.xlsx");
+        assertThat(output.get("rows")).hasSize(3);
+        assertThat(output.get("previewTruncated").asBoolean()).isTrue();
+        MimeMessage mail = mailTo("excel@example.com");
+        byte[] excel = RecordingMailSender.attachmentBytes(mail).get("dataset.xlsx");
+        try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(new java.io.ByteArrayInputStream(excel))) {
+            assertThat(workbook.getSheetAt(0).getLastRowNum()).isEqualTo(7);   // header + all 7 departments
+        }
+        assertThat(mail.getContent().toString()).isNotNull();
+        assertThat(post("/api/flows", ADMIN, """
+                {"name": "Wrong extension", "steps": [{"type": "dataset", "key": "dataset", "definition": %s,
+                 "format": "xlsx", "fileName": "x.csv"}]}""".formatted(HEADCOUNT)))
+                .hasStatus(HttpStatus.UNPROCESSABLE_CONTENT).bodyText().contains("FILE_EXTENSION_MISMATCH");
+    }
+
+    @Test
     void styleBlocksOfTemplatesAreInlinedForMailClientsThatDropThem() throws Exception {
         long template = createTemplate("Styled", "Styled", """
                 <style>h1 { color: #dc2626; font-size: 20px } .data td { padding: 8px } a:hover { color: red }</style>

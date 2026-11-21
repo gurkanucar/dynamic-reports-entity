@@ -15,7 +15,7 @@
  */
 @ApplicationModule(id = "assistant", displayName = "Assistant",
         allowedDependencies = {"api", "identity", "dataset", "dataset :: query", "dataset :: catalog",
-                "dataset :: snapshot", "notification", "approval", "flow :: draft"})
+                "dataset :: saved", "notification", "approval", "flow :: draft"})
 package com.gucardev.dynamicreportsentity.platform.assistant;
 
 import org.springframework.modulith.ApplicationModule;

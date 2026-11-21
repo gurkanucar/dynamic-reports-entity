@@ -10,6 +10,8 @@ import com.gucardev.dynamicreportsentity.platform.dataset.query.FilterOperator;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetDefinition;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetExecutor;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetQuery;
+import com.gucardev.dynamicreportsentity.platform.dataset.query.ExportFormat;
+import com.gucardev.dynamicreportsentity.platform.dataset.query.InvalidDatasetException;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -88,18 +90,28 @@ class DatasetController {
     }
 
     /**
-     * "Download" on screen: CSV streamed row by row instead of one big JSON array.
-     * The query is built (and permissions checked) before streaming starts, so errors still map to 4xx.
+     * "Download" on screen: the file (Excel or CSV, {@code ?format=xlsx|csv}) streamed row by row instead of one
+     * big JSON array. The query is built (and permissions checked) before streaming starts, so errors still map
+     * to 4xx.
      */
     @PostMapping("/export")
     public ResponseEntity<StreamingResponseBody> export(@Valid @RequestBody DatasetDefinition definition,
+                                                        @RequestParam(defaultValue = "csv") String format,
                                                         Authentication authentication) {
+        ExportFormat fileFormat;
+        try {
+            fileFormat = ExportFormat.of(format);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidDatasetException("format must be xlsx or csv");
+        }
         DatasetQuery query = executor.prepare(definition, viewer(authentication));
+        MediaType type = fileFormat == ExportFormat.CSV ? new MediaType("text", "csv", UTF_8)
+                : MediaType.parseMediaType(fileFormat.contentType());
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment().filename("dataset.csv").build().toString())
-                .contentType(new MediaType("text", "csv", UTF_8))
-                .body(outputStream -> executor.writeCsv(query, outputStream));
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("dataset" + fileFormat.extension()).build().toString())
+                .contentType(type)
+                .body(outputStream -> executor.write(query, fileFormat, outputStream));
     }
 
     /**

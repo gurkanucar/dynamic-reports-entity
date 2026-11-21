@@ -1,12 +1,12 @@
 package com.gucardev.dynamicreportsentity.platform.flowdataset;
 
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotUsage;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetUsage;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.FlowReferences;
 import org.springframework.stereotype.Component;
 
 /** Tells the dataset module whether a flow step uses a saved dataset (it then cannot be deleted). */
 @Component
-class FlowSavedDatasetUsage implements SnapshotUsage {
+class FlowSavedDatasetUsage implements SavedDatasetUsage {
 
     private final FlowReferences references;
 
@@ -15,7 +15,7 @@ class FlowSavedDatasetUsage implements SnapshotUsage {
     }
 
     @Override
-    public boolean usesSnapshot(String name) {
+    public boolean usesSavedDataset(String name) {
         return references.isReferenced(DatasetStepType.SAVED_DATASET, name);
     }
 }

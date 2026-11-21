@@ -13,8 +13,8 @@ import com.gucardev.dynamicreportsentity.platform.dataset.query.QueryCancelledEx
 import com.gucardev.dynamicreportsentity.platform.dataset.query.QueryHandle;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetDefinition;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetExecutor;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotException;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotService;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetInfo;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetService;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetQuery;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.ResultColumn;
 import org.springframework.stereotype.Component;
@@ -44,15 +44,15 @@ class DatasetStepHandler implements StepHandler {
     private static final int MAX_CELL_LENGTH = 500;
 
     private final DatasetExecutor executor;
-    private final SnapshotService snapshots;
+    private final SavedDatasetService saved;
     private final UserDirectory users;
     private final FlowDatasetProperties properties;
     private final Clock clock;
 
-    DatasetStepHandler(DatasetExecutor executor, SnapshotService snapshots, UserDirectory users,
+    DatasetStepHandler(DatasetExecutor executor, SavedDatasetService saved, UserDirectory users,
                        FlowDatasetProperties properties, Clock clock) {
         this.executor = executor;
-        this.snapshots = snapshots;
+        this.saved = saved;
         this.users = users;
         this.properties = properties;
         this.clock = clock;
@@ -76,6 +76,7 @@ class DatasetStepHandler implements StepHandler {
                 "The flow owner '" + claimed.runAs() + "' no longer exists or is disabled", false));
         int maxRows = step.maxRows() == null ? properties.datasetMaxRows()
                 : Math.min(step.maxRows(), properties.datasetMaxRows());
+        int mailRows = step.mailRows() == null ? properties.previewRows() : step.mailRows();
         Duration timeout = Duration.between(clock.instant(), context.deadline());
         if (timeout.toSeconds() < 1) {
             timeout = Duration.ofSeconds(1);
@@ -83,26 +84,27 @@ class DatasetStepHandler implements StepHandler {
         QueryHandle handle = new QueryHandle();
         context.onStop(handle::cancel);
 
-        Path file = Files.createTempFile("flow-run-" + claimed.runId() + "-", ".csv");
+        Path file = Files.createTempFile("flow-run-" + claimed.runId() + "-", step.formatOrDefault().extension());
         try {
             DatasetQuery query = executor.prepare(definition(step), viewer);
             List<Map<String, Object>> preview = new ArrayList<>();
             long rows;
             try (OutputStream out = new SizeLimitedOutputStream(
                     new BufferedOutputStream(Files.newOutputStream(file)), properties.maxArtifactSize().toBytes())) {
-                rows = executor.exportCsv(query, out, maxRows, timeout, handle, row -> {
-                    if (preview.size() < properties.previewRows()) {
+                rows = executor.export(query, step.formatOrDefault(), out, maxRows, timeout, handle, row -> {
+                    if (preview.size() < mailRows) {
                         preview.add(Map.of("cells", row.stream().map(DatasetStepHandler::display).toList()));
                     }
                 });
             }
             String fileName = step.fileNameOrDefault();
-            StepContext.StoredFile stored = context.storeFile(fileName, "text/csv", file);
+            StepContext.StoredFile stored = context.storeFile(fileName, step.formatOrDefault().contentType(), file);
 
             Map<String, Object> output = new LinkedHashMap<>();
             output.put("rowCount", rows);
             output.put("hasRows", rows > 0);
             output.put("fileName", fileName);
+            output.put("contentType", step.formatOrDefault().contentType());
             output.put("artifactId", stored.id());
             output.put("sizeBytes", stored.sizeBytes());
             output.put("expiresAt", stored.expiresAt().toString());
@@ -127,12 +129,9 @@ class DatasetStepHandler implements StepHandler {
         if (step.datasetName() == null) {
             return step.definition();
         }
-        try {
-            return snapshots.get(step.datasetName()).definition();
-        } catch (SnapshotException e) {
-            throw new StepException("SAVED_DATASET_NOT_FOUND", "Saved dataset '" + step.datasetName()
-                    + "' no longer exists", false);
-        }
+        return saved.find(step.datasetName()).map(SavedDatasetInfo::definition)
+                .orElseThrow(() -> new StepException("SAVED_DATASET_NOT_FOUND", "Saved dataset '"
+                        + step.datasetName() + "' no longer exists", false));
     }
 
     /** Cell text for e-mails: LIST cells joined, long values shortened. */

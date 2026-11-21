@@ -83,6 +83,12 @@
             <groupId>com.samskivert</groupId>
             <artifactId>jmustache</artifactId>
         </dependency>
+        <!-- Excel (.xlsx) exports, written streaming (SXSSF) so large datasets do not fill the heap -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.4.1</version>
+        </dependency>
         <!-- HTML parsing for mail bodies: <style> rules are copied into style="" (Outlook, Gmail ignore <style>) -->
         <dependency>
             <groupId>org.jsoup</groupId>

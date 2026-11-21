@@ -123,6 +123,13 @@ public class RecordingMailSender implements JavaMailSender {
     /** File name to text content. */
     public static Map<String, String> attachments(MimeMessage message) {
         Map<String, String> files = new LinkedHashMap<>();
+        attachmentBytes(message).forEach((name, bytes) -> files.put(name, new String(bytes, UTF_8)));
+        return files;
+    }
+
+    /** Attachments as they are (Excel files are binary). */
+    public static Map<String, byte[]> attachmentBytes(MimeMessage message) {
+        Map<String, byte[]> files = new LinkedHashMap<>();
         try {
             collect(message.getContent(), files);
         } catch (IOException | MessagingException e) {
@@ -131,13 +138,13 @@ public class RecordingMailSender implements JavaMailSender {
         return files;
     }
 
-    private static void collect(Object content, Map<String, String> files) throws MessagingException, IOException {
+    private static void collect(Object content, Map<String, byte[]> files) throws MessagingException, IOException {
         if (content instanceof Multipart multipart) {
             for (int i = 0; i < multipart.getCount(); i++) {
                 BodyPart part = multipart.getBodyPart(i);
                 if (Part.ATTACHMENT.equalsIgnoreCase(part.getDisposition())) {
                     try (InputStream in = part.getInputStream()) {
-                        files.put(part.getFileName(), new String(in.readAllBytes(), UTF_8));
+                        files.put(part.getFileName(), in.readAllBytes());
                     }
                 } else {
                     collect(part.getContent(), files);

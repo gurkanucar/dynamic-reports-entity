@@ -1,6 +1,5 @@
 package com.gucardev.dynamicreportsentity.platform.dataset.query;
 
-import com.gucardev.dynamicreportsentity.platform.dataset.catalog.FieldType;
 
 /**
  * The few places where the generated SQL differs per database. Detected from the JDBC metadata
@@ -36,17 +35,4 @@ public enum SqlDialect {
         return this != H2;
     }
 
-    /** Column type of a dataset snapshot table; LIST cells are stored as JSON text. */
-    public String columnType(FieldType type, boolean list) {
-        if (list || type == FieldType.TEXT) {
-            return this == POSTGRESQL ? "TEXT" : "VARCHAR";
-        }
-        return switch (type) {
-            case NUMBER -> this == H2 ? "DECFLOAT" : "NUMERIC";
-            case DATE -> "DATE";
-            case DATE_TIME -> "TIMESTAMP";
-            case BOOLEAN -> "BOOLEAN";
-            case TEXT -> throw new IllegalStateException();
-        };
-    }
 }

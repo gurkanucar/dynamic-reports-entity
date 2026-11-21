@@ -521,6 +521,42 @@ class DatasetApiIntegrationTest {
     }
 
     @Nested
+    class ExcelExport {
+
+        @Test
+        @WithMockUser(username = "carol", authorities = "PLATFORM_USER")
+        void excelHasTypedCellsAndTheSameRowSecurity() throws Exception {
+            MvcTestResult result = mvc.post().uri("/api/datasets/export?format=xlsx")
+                    .contentType(MediaType.APPLICATION_JSON).content("""
+                            {"root": "Personnel",
+                             "columns": [{"field": "fullName"}, {"field": "hireDate"}, {"field": "=cmd", "label": "x"}],
+                             "sort": [{"field": "fullName"}]}
+                            """).exchange();
+            assertThat(result).hasStatus4xxClientError();   // unknown field: still a 4xx before streaming
+
+            result = mvc.post().uri("/api/datasets/export?format=xlsx").contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                            {"root": "Personnel", "columns": [{"field": "fullName"}, {"field": "hireDate"},
+                             {"field": "id", "aggregate": "COUNT", "label": "N"}], "sort": [{"field": "fullName"}]}
+                            """).exchange();
+            assertThat(result).hasStatusOk().hasContentType(
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            try (var workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook(
+                    new java.io.ByteArrayInputStream(result.getResponse().getContentAsByteArray()))) {
+                var sheet = workbook.getSheetAt(0);
+                assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Personnel / Full Name");
+                assertThat(sheet.getRow(1).getCell(0).getStringCellValue()).isEqualTo("Carol White");
+                assertThat(sheet.getRow(1).getCell(1).getLocalDateTimeCellValue()).isNotNull();   // a real date
+                assertThat(sheet.getRow(1).getCell(2).getNumericCellValue()).isEqualTo(1.0);
+                assertThat(sheet.getLastRowNum()).isEqualTo(5);   // carol's 5 people
+            }
+            assertThat(mvc.post().uri("/api/datasets/export?format=pdf").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"root\": \"Personnel\", \"columns\": [{\"field\": \"fullName\"}]}").exchange())
+                    .hasStatus4xxClientError();
+        }
+    }
+
+    @Nested
     @WithMockUser(username = "admin", authorities = {"PLATFORM_USER", "ALL_DEPARTMENTS"})
     class SqlInjection {
 

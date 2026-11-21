@@ -933,8 +933,8 @@ components:
     DatasetStep:
       type: object
       description: |
-        Runs a dataset as the flow owner and stores it as CSV. The dataset is either a saved one used by name
-        (`datasetName`, from `/api/snapshots`: always computed live here, and a saved dataset in use cannot be deleted)
+        Runs a dataset as the flow owner and stores it as an Excel or CSV file. The dataset is either a saved one used by
+        name (`datasetName`, from `/api/saved-datasets`; a saved dataset in use cannot be deleted)
         or designed for this step (`definition`); exactly one of the two (422 DATASET_SOURCE_REQUIRED).
       required: [type, key]
       properties:
@@ -942,7 +942,9 @@ components:
         key: { $ref: '#/components/schemas/StepKey' }
         datasetName: { type: [string, 'null'], pattern: '^[a-z][a-z0-9_]{1,39}$', description: 'A saved dataset (422 SAVED_DATASET_NOT_FOUND).' }
         definition: { type: [object, 'null'], description: 'DatasetDefinition: root, columns, where, having, sort, perRoot.' }
-        fileName: { type: [string, 'null'], maxLength: 100, pattern: '^[\w .-]+\.csv$', description: 'Default <key>.csv' }
+        format: { type: [string, 'null'], enum: [xlsx, csv, null], description: 'Default csv (flows saved before Excel); the UI starts new steps with xlsx.' }
+        fileName: { type: [string, 'null'], maxLength: 100, pattern: '^[\w .-]+\.(csv|xlsx)$', description: 'Default <key>.<format>; must end with the extension of format (422 FILE_EXTENSION_MISMATCH).' }
+        mailRows: { type: [integer, 'null'], minimum: 0, maximum: 500, description: 'First rows later steps get as rows (the table in a mail body); default flows.preview-rows (20).' }
         maxRows: { type: [integer, 'null'], minimum: 1, description: Fail above this; at most flows.dataset-max-rows. }
         timeoutSeconds: { type: [integer, 'null'], minimum: 1, maximum: 3600, description: Default flows.heavy-timeout. }
         maxAttempts: { type: [integer, 'null'], minimum: 1, maximum: 10, description: Default flows.max-attempts. }

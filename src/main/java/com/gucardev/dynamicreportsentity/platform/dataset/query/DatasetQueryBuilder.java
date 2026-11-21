@@ -865,7 +865,7 @@ public class DatasetQueryBuilder {
         /** The viewer's restrictions, asked from the policies once per build and shared with child scopes. */
         private List<RowRestriction> restrictions() {
             if (restrictions == null) {
-                // the system viewer (snapshot refresh) sees every row; snapshots are guarded when read
+                // the system viewer (background jobs) sees every row
                 restrictions = viewer.system() ? List.of()
                         : rowPolicies.stream().flatMap(policy -> policy.restrictionsFor(viewer).stream()).toList();
             }

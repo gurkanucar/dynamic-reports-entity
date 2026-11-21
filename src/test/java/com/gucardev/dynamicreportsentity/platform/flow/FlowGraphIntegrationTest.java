@@ -240,7 +240,7 @@ class FlowGraphIntegrationTest {
 
     @Test
     void aStepUsesASavedDatasetByNameWhichThenCannotBeDeleted() {
-        assertThat(post("/api/snapshots", ADMIN, Map.of("name", "g_headcount", "mode", "LIVE", "definition", Map.of(
+        assertThat(post("/api/saved-datasets", ADMIN, Map.of("name", "g_headcount", "definition", Map.of(
                 "root", "Personnel", "columns", List.of(Map.of("field", "department.name"),
                         Map.of("aggregate", "COUNT", "label", "Headcount"))))))
                 .hasStatus(HttpStatus.CREATED);
@@ -258,7 +258,8 @@ class FlowGraphIntegrationTest {
         long flow = flow(List.of(Map.of("type", "dataset", "key", "data", "datasetName", "g_headcount")), List.of());
         JsonNode run = await(start(flow), "completed");
         assertThat(run.get("steps").get(0).get("output").get("rowCount").asInt()).isPositive();
-        assertThat(mvc.delete().uri("/api/snapshots/g_headcount").with(ADMIN).exchange()).hasStatus(HttpStatus.CONFLICT);
+        assertThat(mvc.delete().uri("/api/saved-datasets/g_headcount").with(ADMIN).exchange()).hasStatus(HttpStatus.CONFLICT)
+                .bodyJson().extractingPath("$.code").isEqualTo("SAVED_DATASET_IN_USE");
     }
 
     // ---- conditions -----------------------------------------------------------------------------------

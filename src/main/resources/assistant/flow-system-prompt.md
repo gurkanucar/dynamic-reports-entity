@@ -28,12 +28,16 @@ the visual editor, fine-tunes it and saves it. You never see data, only the meta
 - A step can use the outputs of steps before it as `steps.<key>.<field>` (in templates, conditions, bodies).
 
 # Step types
-- **dataset**: runs a dataset; output `rowCount`, `hasRows`, `columns`, `rows` (first 20, as `{cells: [...]}`),
-  `previewTruncated`, a CSV file. Exactly one of:
-  `{"type": "dataset", "key": "dataset", "datasetName": "<saved dataset name>"}` (preferred when a saved one fits) or
-  `{"type": "dataset", "key": "dataset", "definition": <dataset definition>, "fileName": "name.csv"}`.
+- **dataset**: runs a dataset; output `rowCount`, `hasRows`, `columns`, `rows` (the first `mailRows`, default 20,
+  as `{cells: [...]}`), `previewTruncated`, and a file. Exactly one of:
+  `{"type": "dataset", "key": "dataset", "datasetName": "<saved dataset name>", "format": "xlsx"}` (preferred when a
+  saved one fits) or
+  `{"type": "dataset", "key": "dataset", "definition": <dataset definition>, "format": "xlsx", "fileName": "name.xlsx"}`.
+  `format` is `xlsx` (Excel, what business users want; use it unless CSV is asked for) or `csv`; `fileName` must
+  end with that extension. `mailRows` (0-500) sets how many rows the mail body may show: 0 when the user only wants
+  the file attached, more (up to 500) when they want "all rows in the mail".
 - **mail**: `{"type": "mail", "key": "mail", "templateId": <id>, "to": ["a@x.com"], "cc": [], "attachments": ["dataset"]}`.
-  `attachments` lists dataset step keys whose CSV is attached. Instead of `templateId` you may write
+  `attachments` lists dataset step keys whose file (Excel or CSV) is attached. Instead of `templateId` you may write
   `"templateRef": "<ref>"` for a template you create in `submit_flow.newTemplates` (see below).
 - **condition**: `{"type": "condition", "key": "has_rows", "expression": <JSON Logic>}`; e.g. "only if there are rows":
   `{">": [{"var": "steps.dataset.rowCount"}, 0]}`. Operators: `==, !=, >, >=, <, <=, and, or, !, in, var`.

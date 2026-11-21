@@ -73,7 +73,9 @@ class MailStepHandler implements StepHandler {
                 throw new StepException("ATTACHMENT_NOT_AVAILABLE", "Step '" + key + "' has no file to attach",
                         false);
             }
-            attachments.add(new OutgoingMail.Attachment((String) dataset.get("fileName"), "text/csv", content));
+            Object contentType = dataset.get("contentType");   // missing in runs from before Excel files: CSV
+            attachments.add(new OutgoingMail.Attachment((String) dataset.get("fileName"),
+                    contentType == null ? "text/csv" : contentType.toString(), content));
         }
         if (Thread.currentThread().isInterrupted()) {
             throw new StepException("STEP_INTERRUPTED", "Stopped before sending", true);

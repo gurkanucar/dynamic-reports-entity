@@ -105,124 +105,84 @@ public class DatasetExecutor {
     }
 
     /**
-     * Streams the query result as CSV. Runs inside a read-only transaction because some drivers
-     * (notably PostgreSQL) only honour the fetch size with auto-commit off; without it they would
-     * load the whole result into memory.
+     * Streams the query result as a file (Excel or CSV). Runs inside a read-only transaction because some drivers
+     * (notably PostgreSQL) only honour the fetch size with auto-commit off; without it they would load the whole
+     * result into memory. Above {@code datasets.export-max-rows} the file ends with a note instead of failing.
      */
-    public void writeCsv(DatasetQuery query, OutputStream outputStream) {
+    public void write(DatasetQuery query, ExportFormat format, OutputStream outputStream) {
         int limit = properties.exportMaxRows();
-        log.debug("Exporting dataset\n{}\nparameters: {}", query.sql(), query.parameters());
+        log.debug("Exporting dataset as {}\n{}\nparameters: {}", format, query.sql(), query.parameters());
 
         readOnlyTransaction.executeWithoutResult(status -> {
-            try {
-                Writer writer = new BufferedWriter(new OutputStreamWriter(outputStream, UTF_8));
-                CsvWriter csv = new CsvWriter(writer);
-                writer.write('﻿'); // BOM so Excel detects UTF-8
-                csv.writeRow(query.columns().stream().map(ResultColumn::label).toList());
-
-                int[] rowCount = {0};
-                jdbcTemplate.query(statement(query.sql(), query.parameters(), properties.exportFetchSize(), limit + 1),
-                        (RowCallbackHandler) resultSet -> {
-                            if (++rowCount[0] > limit) {
-                                return; // the extra row only tells us the export was cut off
-                            }
-                            try {
-                                csv.writeRow(readRow(resultSet, query.columns(), new TreeSet<>()));
-                            } catch (IOException e) {
-                                throw new UncheckedIOException(e);
-                            }
-                        });
-                if (rowCount[0] > limit) {
-                    csv.writeRow(List.of("Export truncated at " + limit
-                            + " rows. Narrow the filters or request an offline export."));
-                }
-                writer.flush();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+            TableWriter table = TableWriter.of(format, outputStream);
+            table.header(query.columns());
+            int[] rowCount = {0};
+            jdbcTemplate.query(statement(query.sql(), query.parameters(), properties.exportFetchSize(), limit + 1),
+                    (RowCallbackHandler) resultSet -> {
+                        if (++rowCount[0] > limit) {
+                            return; // the extra row only tells us the export was cut off
+                        }
+                        table.row(readRow(resultSet, query.columns(), new TreeSet<>()));
+                    });
+            if (rowCount[0] > limit) {
+                table.note("Export truncated at " + limit + " rows. Narrow the filters or request an offline export.");
             }
+            table.finish();
         });
     }
 
-    /** Receives the rows of {@link #forEachRow}, one at a time. */
+    /** CSV of {@link #write}. */
+    public void writeCsv(DatasetQuery query, OutputStream outputStream) {
+        write(query, ExportFormat.CSV, outputStream);
+    }
+
+    /** Receives the rows of {@link #export}, one at a time. */
     @FunctionalInterface
     public interface RowConsumer {
         void accept(List<Object> row);
     }
 
     /**
-     * Streams every row of the query (LIST cells as lists, like {@link #run}) to {@code consumer}; used to
-     * fill dataset snapshots. Fails with {@link InvalidDatasetException} when there are more than
-     * {@code maxRows} rows, so a snapshot is never silently cut.
-     *
-     * @return the number of rows
-     */
-    public long forEachRow(DatasetQuery query, int maxRows, Duration timeout, RowConsumer consumer) {
-        log.debug("Streaming dataset\n{}\nparameters: {}", query.sql(), query.parameters());
-        long start = System.nanoTime();
-        long[] rowCount = {0};
-        readOnlyTransaction.executeWithoutResult(status -> jdbcTemplate.query(
-                statement(query.sql(), query.parameters(), properties.exportFetchSize(), maxRows + 1, timeout),
-                (RowCallbackHandler) resultSet -> {
-                    if (++rowCount[0] > maxRows) {
-                        throw new InvalidDatasetException("The dataset has more than " + maxRows
-                                + " rows; narrow the filters or raise datasets.snapshot-max-rows");
-                    }
-                    consumer.accept(readRow(resultSet, query.columns(), new TreeSet<>()));
-                }));
-        recordTiming(query, start);
-        return rowCount[0];
-    }
-
-    /**
-     * Background CSV export (scheduled flows): streams the rows as CSV to {@code outputStream} and hands each
-     * row to {@code rowListener} as well (e.g. to keep the first rows for an e-mail). Unlike {@link #writeCsv},
+     * Background export (scheduled flows): streams the rows as a file to {@code outputStream} and hands each
+     * row to {@code rowListener} as well (e.g. to keep the first rows for an e-mail). Unlike {@link #write},
      * it fails with {@link InvalidDatasetException} above {@code maxRows} instead of cutting the file, and it can
      * be stopped from another thread through {@code handle} ({@link QueryCancelledException}).
      *
      * @return the number of data rows written
      */
-    public long exportCsv(DatasetQuery query, OutputStream outputStream, int maxRows, Duration timeout,
-                          QueryHandle handle, RowConsumer rowListener) {
-        log.debug("Exporting dataset in the background\n{}\nparameters: {}", query.sql(), query.parameters());
+    public long export(DatasetQuery query, ExportFormat format, OutputStream outputStream, int maxRows,
+                       Duration timeout, QueryHandle handle, RowConsumer rowListener) {
+        log.debug("Exporting dataset as {} in the background\n{}\nparameters: {}", format, query.sql(),
+                query.parameters());
         long start = System.nanoTime();
         long[] rowCount = {0};
         PreparedStatementCreator statement = statement(query.sql(), query.parameters(), properties.exportFetchSize(),
                 maxRows + 1, timeout);
         try {
             readOnlyTransaction.executeWithoutResult(status -> {
-                try {
-                    Writer writer = new BufferedWriter(new OutputStreamWriter(outputStream, UTF_8));
-                    CsvWriter csv = new CsvWriter(writer);
-                    writer.write('﻿'); // BOM so Excel detects UTF-8
-                    csv.writeRow(query.columns().stream().map(ResultColumn::label).toList());
-                    jdbcTemplate.query(connection -> {
-                        PreparedStatement prepared = statement.createPreparedStatement(connection);
-                        handle.attach(prepared);
-                        return prepared;
-                    }, (RowCallbackHandler) resultSet -> {
-                        if (handle.isCancelled()) {
-                            throw new QueryCancelledException();
-                        }
-                        if (++rowCount[0] > maxRows) {
-                            throw new InvalidDatasetException("The dataset has more than " + maxRows
-                                    + " rows; narrow the filters");
-                        }
-                        List<Object> row = readRow(resultSet, query.columns(), new TreeSet<>());
-                        rowListener.accept(row);
-                        try {
-                            csv.writeRow(row);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
-                    writer.flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                TableWriter table = TableWriter.of(format, outputStream);
+                table.header(query.columns());
+                jdbcTemplate.query(connection -> {
+                    PreparedStatement prepared = statement.createPreparedStatement(connection);
+                    handle.attach(prepared);
+                    return prepared;
+                }, (RowCallbackHandler) resultSet -> {
+                    if (handle.isCancelled()) {
+                        throw new QueryCancelledException();
+                    }
+                    if (++rowCount[0] > maxRows) {
+                        throw new InvalidDatasetException("The dataset has more than " + maxRows
+                                + " rows; narrow the filters");
+                    }
+                    List<Object> row = readRow(resultSet, query.columns(), new TreeSet<>());
+                    rowListener.accept(row);
+                    table.row(row);
+                });
+                table.finish();
             });
         } catch (RuntimeException e) {
             if (handle.isCancelled()) {
-                throw new QueryCancelledException();   // the driver datasets a cancelled statement as an SQL error
+                throw new QueryCancelledException();   // the driver reports a cancelled statement as an SQL error
             }
             throw e;
         } finally {
@@ -230,6 +190,12 @@ public class DatasetExecutor {
         }
         recordTiming(query, start);
         return rowCount[0];
+    }
+
+    /** CSV of {@link #export}. */
+    public long exportCsv(DatasetQuery query, OutputStream outputStream, int maxRows, Duration timeout,
+                          QueryHandle handle, RowConsumer rowListener) {
+        return export(query, ExportFormat.CSV, outputStream, maxRows, timeout, handle, rowListener);
     }
 
     /**

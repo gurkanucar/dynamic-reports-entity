@@ -50,7 +50,8 @@ class MailTemplateAssistant implements Drafter {
     @Override
     public SuggestionResult draft(List<ChatMessage> conversation, Object current, Actor viewer) {
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(ToolLoop.message("system", prompt.replace("{{TODAY}}", LocalDate.now(clock).toString())));
+        messages.add(ToolLoop.message("system", prompt.replace("{{TODAY}}", LocalDate.now(clock).toString())
+                .replace("{{DATASET}}", datasetSection(current))));
         if (current != null) {
             messages.add(ToolLoop.message("system", "Current template (the user wants to change it):\n"
                     + ToolLoop.JSON.writeValueAsString(current)));
@@ -85,6 +86,20 @@ class MailTemplateAssistant implements Drafter {
             }
         }, "I could not write a template from that. Could you describe the e-mail differently?",
                 "The assistant could not write a valid template in " + properties.maxIterations() + " attempts.");
+    }
+
+    /**
+     * The dataset the user picked for the template ({@code current.sampleDataset: {name, label, columns}}): the model
+     * then writes for its columns, e.g. a sentence about the first column's values.
+     */
+    private static String datasetSection(Object current) {
+        if (!(current instanceof Map<?, ?> map) || !(map.get("sampleDataset") instanceof Map<?, ?> dataset)) {
+            return "";
+        }
+        return "# The data of this mail\nThe template is for the dataset `" + dataset.get("name") + "`"
+                + (dataset.get("label") == null ? "" : " (" + dataset.get("label") + ")")
+                + ", read by a step with the key `dataset`. Its columns: " + dataset.get("columns")
+                + ". `steps.dataset.columns` lists these titles; write texts that fit this data.\n\n";
     }
 
     /** Renders the draft with sample data; errors name the line. */

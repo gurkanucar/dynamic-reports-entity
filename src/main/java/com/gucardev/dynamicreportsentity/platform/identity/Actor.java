@@ -11,7 +11,7 @@ import java.util.stream.Collectors;
  * Who does something: a logged-in user, a user a flow acts as, or the engine itself. Every module asks this for
  * permissions instead of depending on Spring Security or on each other.
  *
- * @param system the engine itself (e.g. snapshot refreshes): every authority, no row restrictions. Never created
+ * @param system the engine itself (background jobs): every authority, no row restrictions. Never created
  *               from a request; see {@link #system(String)}.
  */
 public record Actor(String username, Set<String> authorities, boolean system) {

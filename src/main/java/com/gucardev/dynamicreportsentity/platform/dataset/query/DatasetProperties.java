@@ -14,20 +14,13 @@ import java.time.Duration;
  * @param exportMaxRows   cap for synchronous CSV exports; bigger exports belong in a background job
  * @param exportFetchSize JDBC fetch size while streaming exports (keeps memory flat)
  * @param slowQueryThreshold queries taking longer are logged with index hints and counted as slow
- * @param snapshotMaxRows       a snapshot refresh fails (keeping the previous snapshot) above this many rows
- * @param snapshotRefreshTimeout statement timeout of a snapshot refresh (runs in the background, may be long)
- * @param snapshotRefreshLease   how long a refresh claim holds without renewal; when an instance dies
- *                              mid-refresh, another one takes over after this (renewed every quarter of it)
  */
-@ConfigurationProperties("dataset")
+@ConfigurationProperties("datasets")
 public record DatasetProperties(
         @DefaultValue("200") int defaultPageSize,
         @DefaultValue("5000") int maxPageSize,
         @DefaultValue("30s") Duration queryTimeout,
         @DefaultValue("1000000") int exportMaxRows,
         @DefaultValue("1000") int exportFetchSize,
-        @DefaultValue("500ms") Duration slowQueryThreshold,
-        @DefaultValue("5000000") int snapshotMaxRows,
-        @DefaultValue("10m") Duration snapshotRefreshTimeout,
-        @DefaultValue("2m") Duration snapshotRefreshLease) {
+        @DefaultValue("500ms") Duration slowQueryThreshold) {
 }

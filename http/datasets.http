@@ -815,11 +815,10 @@ Content-Type: application/json
   "sort": [{"field": "training.name"}, {"field": "score"}]
 }
 
-### 48. Snapshot (Expect 201): save Department 360 (#33, ~7 s live on 1M people) as a SNAPSHOT refreshed every 6 hours
-# A snapshot is a saved dataset that flows read by name. SNAPSHOT: computed in the background into a snapshot
-# table (first build starts right away), re-built every refreshEveryHours hours; reads are a plain paged SELECT.
-# LIVE: the saved dataset runs on every read, as the reader. Defining needs PLATFORM_ADMIN.
-POST http://localhost:8080/api/snapshots
+### 48. Saved dataset (Expect 201): save Department 360 (#33) under a name; flows use it like a variable
+# A saved dataset is only a named definition. Whoever runs it (a user on screen, a flow as its owner) gets the rows
+# their permissions allow; nothing is computed in advance. Any user may save one; the owner or an admin may change it.
+POST http://localhost:8080/api/saved-datasets
 Authorization: Basic admin password
 Content-Type: application/json
 
@@ -827,8 +826,6 @@ Content-Type: application/json
   "name": "department_360",
   "label": "Department 360",
   "description": "Teams with sub-teams, skills, training categories, cities and projects",
-  "mode": "SNAPSHOT",
-  "refreshEveryHours": 6,
   "definition": {
     "root": "Department",
     "columns": [
@@ -847,51 +844,28 @@ Content-Type: application/json
   }
 }
 
-### 49. Snapshot: refresh now and wait (also waits for a refresh already running); answers with rowCount, refreshMillis
-POST http://localhost:8080/api/snapshots/department_360/refresh
+### 49. Saved dataset: one by name (definition, owner, version)
+GET http://localhost:8080/api/saved-datasets/department_360
 Authorization: Basic admin password
 
-### 50. Snapshot: read a page of the snapshot (same shape as /run, plus refreshedAt; total is free)
-GET http://localhost:8080/api/snapshots/department_360/rows?size=50
-Authorization: Basic admin password
+### 50. Saved dataset: all of them (any user)
+GET http://localhost:8080/api/saved-datasets
+Authorization: Basic alice password
 
-### 51. Snapshot: definition and refresh state (status, rowCount, refreshedAt, nextRefreshAt, lastError)
-GET http://localhost:8080/api/snapshots/department_360
-Authorization: Basic admin password
-
-### 52. Snapshot (Expect 403): carol's rows are limited by row-level security, a snapshot of every row is not for her
-GET http://localhost:8080/api/snapshots/department_360/rows
+### 51. Saved dataset (Expect 403 NOT_DATASET_OWNER): carol may not change admin's dataset
+PUT http://localhost:8080/api/saved-datasets/department_360
 Authorization: Basic carol password
+Content-Type: application/json
 
-### 53. Snapshot (Expect 201): the same idea as LIVE: runs on every read, with the reader's permissions
-POST http://localhost:8080/api/snapshots
+{"definition": {"root": "Department", "columns": [{"field": "name"}]}}
+
+### 52. Saved dataset: download it as Excel (format=xlsx; csv also works), as yourself
+POST http://localhost:8080/api/datasets/export?format=xlsx
 Authorization: Basic admin password
 Content-Type: application/json
 
-{
-  "name": "headcount_live",
-  "label": "Headcount per department (live)",
-  "mode": "LIVE",
-  "definition": {
-    "root": "Personnel",
-    "columns": [{"field": "department.name"}, {"aggregate": "COUNT", "label": "Headcount"}],
-    "where": {"field": "active", "operator": "EQ", "value": true},
-    "sort": [{"field": "department.name"}]
-  }
-}
+{"root": "Department", "columns": [{"field": "name"}, {"field": "manager.fullName", "label": "Manager"}]}
 
-### 54. Snapshot: carol reads the LIVE dataset and gets only her department
-GET http://localhost:8080/api/snapshots/headcount_live/rows
-Authorization: Basic carol password
-
-### 55. Snapshot: all snapshots (any user)
-GET http://localhost:8080/api/snapshots
-Authorization: Basic alice password
-
-### 56. Snapshot (Expect 204): delete (drops the snapshot table too)
-DELETE http://localhost:8080/api/snapshots/department_360
-Authorization: Basic admin password
-
-### 57. Snapshot (Expect 204): delete
-DELETE http://localhost:8080/api/snapshots/headcount_live
+### 53. Saved dataset (Expect 204; 409 SAVED_DATASET_IN_USE while a flow uses it)
+DELETE http://localhost:8080/api/saved-datasets/department_360
 Authorization: Basic admin password

@@ -56,19 +56,9 @@ Load, 16 parallel users, the 23 interactive datasets: 14.6 req/s, p50 0.8 s, p95
 * **HTTP Basic with the demo users**: Spring Security upgrades `{noop}` passwords to bcrypt after the first
   login, so every request spends ~55 ms hashing. Production uses tokens or sessions.
 
-## Datasets (saved datasets for flows)
+## Saved datasets for flows
 
-Heavy datasets that flows read again and again can be saved as a SNAPSHOT dataset (`/api/datasets`,
-examples 48–57 in `http/datasets.http`). Department 360 (#33) on 1M personnel:
-
-| | Time |
-|---|---|
-| Live, first page of 200 departments (`/api/datasets/run`) | 7.5 s |
-| Snapshot refresh, all 506 departments (background, every `refreshEveryHours`) | 12 s |
-| Snapshot read, a page (`/api/datasets/department_360/rows`) | 70 ms (database < 5 ms) |
-
-Several app instances on one database: the schedulers of all instances look for due datasets every
-minute; an atomic claim (lease in `dataset_dataset`, renewed every 30 s) lets exactly one of them refresh.
-Tried with two instances on PostgreSQL: simultaneous refresh calls on both ran one build and both answered
-with its result; killing the refreshing instance mid-build, the other one took over once the lease ran
-out and completed the snapshot.
+Saved datasets (`/api/saved-datasets`, examples 48–53 in `http/datasets.http`) are only named definitions and
+always run live, with the permissions of whoever uses them. Department 360 (#33) on 1M personnel takes ~7.5 s for
+the first page of 200 departments; a flow step reading it runs in the HEAVY lane, so slow datasets never block
+light steps. The background snapshots measured here earlier were removed to keep one simple model.

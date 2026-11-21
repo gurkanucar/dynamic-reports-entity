@@ -2,8 +2,8 @@ package com.gucardev.dynamicreportsentity.platform.flowdataset;
 
 import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetDefinition;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotException;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotService;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetInfo;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetService;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepCheck;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepReference;
 import com.gucardev.dynamicreportsentity.platform.flow.spi.StepType;
@@ -26,12 +26,12 @@ class DatasetStepType implements StepType<DatasetStep> {
     static final String SAVED_DATASET = "saved-dataset";
 
     private final DatasetExecutor datasets;
-    private final SnapshotService snapshots;
+    private final SavedDatasetService saved;
     private final FlowDatasetProperties properties;
 
-    DatasetStepType(DatasetExecutor datasets, SnapshotService snapshots, FlowDatasetProperties properties) {
+    DatasetStepType(DatasetExecutor datasets, SavedDatasetService saved, FlowDatasetProperties properties) {
         this.datasets = datasets;
-        this.snapshots = snapshots;
+        this.saved = saved;
         this.properties = properties;
     }
 
@@ -56,6 +56,10 @@ class DatasetStepType implements StepType<DatasetStep> {
             check.problem("maxRows", "MAX_ROWS_TOO_HIGH",
                     "At most " + properties.datasetMaxRows() + " rows are allowed.");
         }
+        if (step.fileName() != null && !step.fileName().endsWith(step.formatOrDefault().extension())) {
+            check.problem("fileName", "FILE_EXTENSION_MISMATCH",
+                    "The file name must end with " + step.formatOrDefault().extension() + " for this format.");
+        }
         if ((step.datasetName() == null) == (step.definition() == null)) {
             check.problem("", "DATASET_SOURCE_REQUIRED",
                     "Choose a saved dataset (datasetName) or design one for this step (definition), not both.");
@@ -65,9 +69,8 @@ class DatasetStepType implements StepType<DatasetStep> {
         String field = "definition";
         if (step.datasetName() != null) {
             field = "datasetName";
-            try {
-                definition = snapshots.get(step.datasetName()).definition();
-            } catch (SnapshotException e) {
+            definition = saved.find(step.datasetName()).map(SavedDatasetInfo::definition).orElse(null);
+            if (definition == null) {
                 check.problem(field, "SAVED_DATASET_NOT_FOUND", "There is no saved dataset '" + step.datasetName() + "'.");
                 return;
             }

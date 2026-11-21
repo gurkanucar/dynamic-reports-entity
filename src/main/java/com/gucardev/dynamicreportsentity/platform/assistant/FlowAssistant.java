@@ -4,8 +4,8 @@ import com.gucardev.dynamicreportsentity.platform.api.ApiException;
 import com.gucardev.dynamicreportsentity.platform.api.ApiException.FieldProblem;
 import com.gucardev.dynamicreportsentity.platform.approval.ApprovalService;
 import com.gucardev.dynamicreportsentity.platform.dataset.query.DatasetColumn;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotInfo;
-import com.gucardev.dynamicreportsentity.platform.dataset.snapshot.SnapshotService;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetInfo;
+import com.gucardev.dynamicreportsentity.platform.dataset.saved.SavedDatasetService;
 import com.gucardev.dynamicreportsentity.platform.flow.draft.FlowDraftChecker;
 import com.gucardev.dynamicreportsentity.platform.identity.Actor;
 import com.gucardev.dynamicreportsentity.platform.notification.MailTemplate;
@@ -45,7 +45,7 @@ class FlowAssistant implements Drafter {
 
     private final ChatClient chat;
     private final FlowDraftChecker checker;
-    private final SnapshotService datasets;
+    private final SavedDatasetService datasets;
     private final MailTemplateService templates;
     private final ApprovalService approvals;
     private final CatalogDescriber catalog;
@@ -53,7 +53,7 @@ class FlowAssistant implements Drafter {
     private final Clock clock;
     private final String prompt;
 
-    FlowAssistant(ChatClient chat, FlowDraftChecker checker, SnapshotService datasets, MailTemplateService templates,
+    FlowAssistant(ChatClient chat, FlowDraftChecker checker, SavedDatasetService datasets, MailTemplateService templates,
                   ApprovalService approvals, CatalogDescriber catalog, AssistantProperties properties, Clock clock) {
         this.chat = chat;
         this.checker = checker;
@@ -179,7 +179,7 @@ class FlowAssistant implements Drafter {
     }
 
     private String describeDatasets() {
-        List<SnapshotInfo> saved = datasets.list();
+        List<SavedDatasetInfo> saved = datasets.list();
         if (saved.isEmpty()) {
             return "(none)";
         }

@@ -24,6 +24,12 @@ http:
   RUN_ALREADY_FINISHED:    { status: 409, message: "The run has already finished." }
   FILE_EXPIRED:            { status: 410, message: "The file was deleted after flows.file-retention." }
   FILE_NOT_VIEWABLE:       { status: 422, message: "Only text files up to 1 MB can be shown; download it instead." }
+  # ---- saved datasets (/api/saved-datasets) --------------------------------------------------------
+  SAVED_DATASET_NAME_TAKEN:   { status: 409, message: "Another saved dataset has this name." }
+  SAVED_DATASET_IN_USE:       { status: 409, message: "A flow uses the dataset; change those flows first." }
+  NOT_DATASET_OWNER:          { status: 403, message: "Only the owner or an admin may change or delete it." }
+  INVALID_DATASET_DEFINITION: { status: 422, message: "The definition does not build (unknown field, bad aggregate ...)." }
+  DATASET_ACCESS_DENIED:      { status: 403, message: "The definition uses a field you may not see." }
   # ---- schedules -----------------------------------------------------------------------------------
   SCHEDULE_NOT_FOUND:      { status: 404, message: "The schedule does not exist or is not visible to you." }
   SCHEDULE_LIMIT_REACHED:  { status: 409, message: "The flow already has the maximum number of schedules." }
@@ -73,6 +79,7 @@ field:
   INVALID_EXPRESSION: "Not a JSON Logic rule with supported operators."
   DATASET_SOURCE_REQUIRED: "A dataset step needs either a saved dataset (datasetName) or its own definition, not both."
   SAVED_DATASET_NOT_FOUND: "There is no saved dataset with this name."
+  FILE_EXTENSION_MISMATCH: "The file name must end with the extension of the chosen format (.xlsx / .csv)."
   APPROVAL_GROUP_NOT_FOUND: "The approval group does not exist."
   INVALID_URL: "Not an absolute http(s) URL."
   WEBHOOK_HOST_NOT_ALLOWED: "The host is outside flows.webhook.allowed-hosts."
