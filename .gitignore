@@ -41,3 +41,6 @@ files/
 
 ### Local settings of docker compose ###
 .env
+
+# Tanıtım videosu (hyperframes projesi, ekran görüntüleri, MP4) — repoya girmesin
+docs/tanitim-videosu/
