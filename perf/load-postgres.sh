@@ -13,7 +13,7 @@ echo "Emptying the tables"
                  training_record, project, project_assignment RESTART IDENTITY"
 
 echo "Demo data (the H2 demo seed with DATEADD translated)"
-sed -E "s/DATEADD\('DAY', *([^,]+), *CURRENT_DATE\)/(CURRENT_DATE + (\1))/g" src/main/resources/db/seed/h2/demo/V900_1__demo_data.sql \
+sed -E "s/DATEADD\('DAY', *([^,]+), *CURRENT_DATE\)/(CURRENT_DATE + (\1))/g" app/src/main/resources/db/seed/h2/demo/V900_1__demo_data.sql \
   | "${PSQL[@]}"
 
 echo "Bulk data, scale=$SCALE"

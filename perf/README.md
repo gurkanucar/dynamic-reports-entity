@@ -9,7 +9,7 @@ docker compose -f perf/compose.yaml up -d
 
 # 2. Start the app once on PostgreSQL: Hibernate creates the tables and indexes
 ./mvnw -DskipTests package
-java -jar target/dynamic-reports-entity-0.0.1-SNAPSHOT.jar --spring.profiles.active=postgres --server.port=8082
+java -jar app/target/dynamic-reports-app-0.0.1-SNAPSHOT.jar --spring.profiles.active=postgres --server.port=8082
 
 # 3. Load demo + bulk data (~45 s for 1M personnel; any scale works, e.g. 5000000)
 perf/load-postgres.sh 1000000

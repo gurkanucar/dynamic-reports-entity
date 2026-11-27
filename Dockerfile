@@ -3,9 +3,11 @@ FROM eclipse-temurin:25-jdk AS build
 WORKDIR /build
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
-RUN sh mvnw -q -B dependency:go-offline
-COPY src src
-RUN sh mvnw -q -B -DskipTests package && cp target/*.jar app.jar
+COPY entity-reports entity-reports
+COPY app app
+# Two modules (entity-reports library + app); the Maven cache survives rebuilds
+RUN --mount=type=cache,target=/root/.m2 sh mvnw -q -B -DskipTests -pl app -am package \
+    && cp app/target/dynamic-reports-app-*.jar app.jar
 
 FROM eclipse-temurin:25-jre
 WORKDIR /app
