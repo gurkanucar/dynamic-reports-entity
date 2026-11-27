@@ -33,8 +33,8 @@ değil. Üç seçenek:
 
 | Yol | Ne zaman | Nasıl |
 |---|---|---|
-| Kurum içi Maven reposu (Nexus/Artifactory) | X projesi CI'da build ediliyorsa (önerilen) | Kök `pom.xml`'e `<distributionManagement>` ekle, `./mvnw -pl entity-reports -am deploy` |
-| Yerel kurulum | Sadece denemek için | `./mvnw -pl entity-reports -am install -DskipTests` → `~/.m2`'ye gider. CI'da çalışmaz |
+| Kurum içi Maven reposu (Nexus/Artifactory) | X projesi CI'da build ediliyorsa (önerilen) | Kök `pom.xml`'e `<distributionManagement>` ekle, `sh mvnw -pl entity-reports -am deploy` |
+| Yerel kurulum | Sadece denemek için | `sh mvnw -pl entity-reports -am install -DskipTests` → `~/.m2`'ye gider. CI'da çalışmaz |
 | Kaynakları kopyala | Jar yayınlanamıyorsa | [B yolu](#b-yolu-kopyala-yapıştır-bağımlılık-olmadan). 1. ve 2. adımı atla |
 
 Notlar:
