@@ -10,6 +10,9 @@ Desteklenen veritabanları: PostgreSQL ve H2. Java 25, Spring Boot 4.2.
 İki şekilde kullanılır: **jar olarak** (aşağıdaki 1. adım) veya **kaynakları kopyalayarak** (en alttaki
 "Kopyala-yapıştır ile kullanım" bölümü). İkisinde de kod aynıdır.
 
+Mevcut bir projeye adım adım ekleme (yayınlama, migration, yetki, frontend, kontrol listesi):
+[ENTEGRASYON.md](ENTEGRASYON.md).
+
 ## 1. Bağımlılık
 
 ```xml
