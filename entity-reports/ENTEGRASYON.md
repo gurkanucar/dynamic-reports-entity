@@ -6,6 +6,12 @@ anlatır. Annotation'ların ve REST uçlarının ayrıntısı [README](README.md
 Özet: **jar'ı erişilebilir yap → bağımlılığı ekle → entity'leri işaretle → kullanıcı/yetkiyi bağla → (opsiyonel)
 kayıtlı rapor tablosu, satır yetkisi, frontend.**
 
+İki yol var:
+
+- **A. Bağımlılık olarak (jar):** 1. ve 2. adımlar, sonra 3–9.
+- **B. Kaynakları kopyalayarak (bağımlılık yok):** 1. ve 2. adımlar yerine
+  [B yolu: kopyala-yapıştır](#b-yolu-kopyala-yapıştır-bağımlılık-olmadan) bölümü, sonra yine 3–9.
+
 ## 0. Önkoşullar
 
 | Konu | Gereken |
@@ -29,7 +35,7 @@ değil. Üç seçenek:
 |---|---|---|
 | Kurum içi Maven reposu (Nexus/Artifactory) | X projesi CI'da build ediliyorsa (önerilen) | Kök `pom.xml`'e `<distributionManagement>` ekle, `./mvnw -pl entity-reports -am deploy` |
 | Yerel kurulum | Sadece denemek için | `./mvnw -pl entity-reports -am install -DskipTests` → `~/.m2`'ye gider. CI'da çalışmaz |
-| Kaynakları kopyala | Jar yayınlanamıyorsa | README, "Kopyala-yapıştır ile kullanım". Sonra 2. adımı atla |
+| Kaynakları kopyala | Jar yayınlanamıyorsa | [B yolu](#b-yolu-kopyala-yapıştır-bağımlılık-olmadan). 1. ve 2. adımı atla |
 
 Notlar:
 
@@ -197,6 +203,113 @@ curl -u user:pass -H 'Content-Type: application/json' \
   'http://localhost:8080/api/datasets/run?size=5'
 ```
 
+## B yolu: kopyala-yapıştır (bağımlılık olmadan)
+
+Jar yayınlamak mümkün değilse, kütüphanenin 14 Java dosyası X projesinin içine bir paket olarak kopyalanır. Kod
+aynıdır; fark, kodun artık X projesinin parçası olması: güncellemeyi siz taşırsınız, ayarların bir kısmı farklı
+davranır (aşağıda).
+
+### B1. Dosyaları kopyala ve paketi değiştir
+
+Hedef paket, `@SpringBootApplication` sınıfının paketinin **altında** olmalı; kütüphane component scan ile bulunur.
+
+```bash
+SRC=dynamic-reports-entity/entity-reports/src/main
+DST=x-proje/src/main
+PKG=com.firma.xproje.reporting            # kendi paketin
+DIR="$DST/java/${PKG//.//}"
+
+mkdir -p "$DIR"
+cp "$SRC"/java/com/gucardev/entityreports/*.java "$DIR"/
+rm "$DIR/SavedDatasets.java"              # kayıtlı rapor İSTEMİYORSAN (bkz. B4)
+sed -i '' "s/com\.gucardev\.entityreports/$PKG/g" "$DIR"/*.java   # Linux'ta: sed -i "s/.../g"
+```
+
+Kopyalanmayacaklar:
+
+- `META-INF/spring/...AutoConfiguration.imports`: sadece jar içindir; kopyalanırsa sınıf ismi tutmaz ve açılış hata
+  verir.
+- `META-INF/entity-reports/schema.sql`: sadece `entity-reports.saved.initialize-schema=true` kullanacaksan, aynı yola
+  (`src/main/resources/META-INF/entity-reports/schema.sql`) kopyala. Flyway kullanıyorsan gerekmez (B4).
+
+Kopyanın hangi sürümden alındığını kaydet, ör. paketin içine bir `package-info.java` yorumu:
+`// entity-reports kopyası, kaynak commit: 4805be3`. Güncellerken o commit ile yeni sürüm arasındaki farkı
+(`git diff 4805be3..HEAD -- entity-reports/src/main`) uygularsın.
+
+### B2. Bağımlılıkları ekle
+
+Boot projesinde çoğu zaten vardır. Eksik olanları ekle:
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-webmvc</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>   <!-- JPA yoksa: spring-boot-starter-jdbc -->
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.apache.poi</groupId>
+    <artifactId>poi-ooxml</artifactId>
+    <version>5.4.1</version>                                 <!-- Excel export -->
+</dependency>
+```
+
+Opsiyonel: `spring-boot-configuration-processor` (annotation processor olarak) eklenirse IDE `entity-reports.*`
+ayarlarını otomatik tamamlar.
+
+Jackson 3 (`tools.jackson`) Boot 4 ile gelir. **Spring Boot 3** projesinde Jackson 2 vardır; o zaman:
+
+- `DatasetExecutor` ve `SavedDatasets`'te `tools.jackson.databind.json.JsonMapper` →
+  `com.fasterxml.jackson.databind.json.JsonMapper`
+- Jackson 2'de `readValue` / `writeValueAsString` checked exception fırlatır: `try/catch` ile
+  `UncheckedIOException`'a sar.
+- `@AutoConfigureAfter` içindeki sınıf isimleri Boot 3'te farklıdır ama kopya modunda kullanılmaz; dokunma.
+
+### B3. Derle ve aç
+
+`./mvnw compile`, sonra uygulamayı başlat. Logda `entity-reports catalog ready: ...` satırı görünmeli. Bundan sonrası
+A yoluyla aynı: **3. adımdan (entity'leri işaretle) devam et.**
+
+Log kategorisi artık senin paketin: `logging.level.com.firma.xproje.reporting=DEBUG`.
+
+### B4. Kopya modunda farklı davranan ayarlar
+
+Kopya modunda controller'lar (`@RestController` olan iç sınıflar) component scan ile **doğrudan** kaydolur; ayarlara
+bakılmaz. Bu yüzden:
+
+| Ayar | Jar'da | Kopyada |
+|---|---|---|
+| `entity-reports.web.enabled=false` | REST uçlarını kapatır | **Etkisiz**: uçlar yine açılır. Kapatmak için security config'te yolları engelle |
+| `entity-reports.saved.enabled=false` | Kayıtlı raporları kapatır | **Kullanma**: controller yine kaydolur, servisi bulamaz, açılış hata verir. Kayıtlı rapor istemiyorsan `SavedDatasets.java`'yı kopyalama |
+| `entity-reports.enabled=false` | Her şeyi kapatır | Aynı sebeple açılış hata verir; kapatmak için paketi sil |
+| Diğer tüm ayarlar | — | Aynı çalışır |
+
+Kayıtlı rapor istiyorsan `SavedDatasets.java`'yı al ve tabloyu 5. adımdaki gibi migration ile aç.
+
+### B5. Testler (önerilen)
+
+`entity-reports/src/test/java/.../DatasetQueryBuilderTest.java` ve `PlugInTest.java` da paket değiştirilerek
+kopyalanabilir. İkisi de H2 ister (`com.h2database:h2`, test scope). Kodu ileride kendi tarafında değiştirirsen
+bu testler davranışın bozulmadığını gösterir.
+
+### Hangi yol?
+
+| | A. Jar | B. Kopya |
+|---|---|---|
+| Kurulum | Kurum içi Maven reposu gerekir | Repo gerekmez |
+| Güncelleme | Sürüm numarasını artır | Farkı elle taşı |
+| Kodu projeye özel değiştirmek | Mümkün değil (fork gerekir) | Serbest, ama güncellemesi zorlaşır |
+| Ayarlarla kapatma | Çalışır | Kısmen (B4) |
+| Birden fazla proje kullanacaksa | Uygun | Her projede ayrı kopya, zamanla ayrışır |
+
+Tek proje ve repo yoksa B; iki veya daha fazla proje kullanacaksa A.
+
 ## Sık karşılaşılan sorunlar
 
 | Belirti | Sebep | Çözüm |
@@ -208,3 +321,6 @@ curl -u user:pass -H 'Content-Type: application/json' \
 | `saved_dataset` bulunamadı | Tablo açılmamış | 5. adım: migration ekleyin veya `saved.enabled=false` |
 | `/api/datasets` başka controller ile çakışıyor | Yol dolu | `entity-reports.web.path` değiştirin |
 | Kendi controller'ımız/bean'imiz devre dışı kaldı | — | Olmaz: tüm bean'ler `@ConditionalOnMissingBean`; sizinki varsa o kullanılır |
+| (Kopya) Uçlar hiç açılmıyor, katalog logu yok | Paket `@SpringBootApplication` paketinin dışında | Paketi uygulama paketinin altına taşı |
+| (Kopya) `ClassNotFoundException: com.gucardev.entityreports...` | `AutoConfiguration.imports` kopyalanmış ya da bir `import` değişmemiş | O dosyayı sil; `grep -r com.gucardev` ile kalanları bul |
+| (Kopya) Açılışta `SavedDatasets` bean'i bulunamadı | `saved.enabled=false` verilmiş ama dosya kopyalanmış | Ayarı kaldır ya da `SavedDatasets.java`'yı sil (B4) |
